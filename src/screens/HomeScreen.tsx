@@ -1,0 +1,675 @@
+import { useState, useRef } from 'react';
+import { supabase, Profile } from '../lib/supabase';
+import { PhaseData } from '../utils/phaseEngine';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle } from 'lucide-react';
+
+interface HomeScreenProps {
+  profile: Profile;
+  phaseData: PhaseData;
+  onNavigate: (screen: 'forecast' | 'checkin' | 'coach' | 'dashboard') => void;
+  onProfileUpdate: () => void;
+}
+
+const phaseImages: Record<string, string> = {
+  ovulatory: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_01_ovulatory_peak.jpg',
+  luteal: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_02_luteal_pms.jpg',
+  follicular: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_03_follicular_rise.jpg',
+  menstrual: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_04_menstrual_rest.jpg',
+  morning_peak: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_06_morning_testosterone.jpg',
+  weekly_peak: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_07_tuesday_peak.jpg',
+  afternoon_dip: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_08_afternoon_dip.jpg',
+  evening_balanced: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_08_afternoon_dip.jpg',
+  night_rest: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_09_evening_rest.jpg',
+  cortisol: 'https://raw.githubusercontent.com/marcmonroy/Biocycle/main/card_10_cortisol_tornado.jpg',
+};
+
+type PhaseContentItem = {
+  headline: string;
+  headlineEn: string;
+  body: string;
+  bodyEn: string;
+  banner: string;
+  bannerEn: string;
+};
+
+const phaseContent: Record<string, PhaseContentItem> = {
+  menstrual: {
+    headline: 'No está disponible. En proceso de transformación. Por favor no interrumpir.',
+    headlineEn: 'Unavailable. Undergoing transformation. Please do not disturb.',
+    body: 'Tu cuerpo está haciendo trabajo extraordinario y solo pide una cosa: que lo dejes. El mundo seguirá existiendo en cuatro días. Descansa sin disculparte.',
+    bodyEn: 'Your body is doing extraordinary work and asks only one thing: let it. The world will still exist in four days. Rest without apology.',
+    banner: '[name] está convirtiéndose hoy',
+    bannerEn: '[name] is becoming today',
+  },
+  follicular: {
+    headline: 'Tu cuerpo acaba de recordar lo que le gusta.',
+    headlineEn: 'Your body just remembered what it likes.',
+    body: 'El estrógeno en subida vuelve el deseo específico. El comienzo del querer que empieza como un pensamiento y se convierte en una decisión. Sigue el hilo. A ver dónde lleva.',
+    bodyEn: 'Rising estrogen makes desire specific. The beginning of wanting that starts as a thought and becomes a decision. Follow the thread. See where it leads.',
+    banner: '[name] es imparable hoy',
+    bannerEn: '[name] is unstoppable today',
+  },
+  ovulatory: {
+    headline: 'Advertencia: peligro biológico en circulación.',
+    headlineEn: '[name], biological hazard alert.',
+    body: 'Estrógeno al 100%. Testosterona al 85%. La libido acaba de llegar sin avisar. Hoy vas a encontrar a las personas más atractivas de lo normal. Usa tus poderes con sabiduría. O no. BioCycle no juzga.',
+    bodyEn: 'Estrogen at 100%. Testosterone at 85%. Libido just arrived uninvited and unashamed. You will find people unusually attractive today. You have approximately 48 hours of this. Use your powers wisely. Or not. BioCycle does not judge.',
+    banner: '[name] es un peligro biológico hoy',
+    bannerEn: '[name] is a biological hazard today',
+  },
+  luteal: {
+    headline: 'La intimidad está disponible. Aplican requisitos previos.',
+    headlineEn: 'Intimacy is available. Prerequisites apply.',
+    body: 'El cortisol está por las nubes. La serotonina se fue de vacaciones. Pide exactamente lo que quieres. Estás demasiado hormonalmente honesta para tolerar nada menos.',
+    bodyEn: 'Cortisol is elevated. Serotonin took a vacation without notice. Ask for exactly what you want. You are too hormonally honest to tolerate anything less.',
+    banner: '[name] está en modo reina total hoy',
+    bannerEn: '[name] is in full queen mode today',
+  },
+  weekly_peak: {
+    headline: 'Es martes. Tu pareja lo notó antes que tú.',
+    headlineEn: 'It is Tuesday. Your partner noticed before you did.',
+    body: 'El pico semanal de testosterona te hace más magnético. Usa hoy para la negociación, el gimnasio, la conversación difícil. Y si la noche va bien ese también es el regalo del martes.',
+    bodyEn: 'The weekly testosterone peak makes you physically more magnetic. Use today for negotiation, the gym, the difficult conversation. And if the evening goes well that is also Tuesday\'s gift.',
+    banner: '[name] está magnético hoy',
+    bannerEn: '[name] is magnetic today',
+  },
+  morning_peak: {
+    headline: 'Buenos días. Eso es testosterona. Tienes opciones.',
+    headlineEn: 'Good morning. That is testosterone. You have options.',
+    body: 'El pico matutino es responsable de tu mejor rendimiento cognitivo y algo más que definitivamente ya notaste. Eres adulto. Decide qué ventana usar primero. Buenos días.',
+    bodyEn: 'The morning peak drives your best cognitive performance and something else you have definitely already noticed. Both are the same hormone. Good morning.',
+    banner: '[name] domina la mañana hoy',
+    bannerEn: '[name] owns the morning today',
+  },
+  afternoon_dip: {
+    headline: 'Su cortisol se cayó. Sus sueños no.',
+    headlineEn: 'His cortisol dropped. His dreams did not.',
+    body: 'El bajón post-almuerzo baja el rendimiento. Lo que no baja: la calidad creativa cuando el cerebro ejecutivo relaja su control. BioCycle recomienda la siesta. Lo que pasa después es asunto tuyo.',
+    bodyEn: 'The post-lunch cortisol drop reduces performance. What does not drop: creative thought quality when the executive brain finally relaxes. BioCycle recommends the nap. What happens after is your business.',
+    banner: '[name] es biológicamente correcto hoy',
+    bannerEn: '[name] is biologically correct today',
+  },
+  evening_balanced: {
+    headline: 'Equilibrio nocturno',
+    headlineEn: 'Evening Balance',
+    body: 'Energía recuperada. Buen momento para ejercicio o tiempo social.',
+    bodyEn: 'Energy recovered. Good time for exercise or social time.',
+    banner: '[name] en equilibrio',
+    bannerEn: '[name] is balanced today',
+  },
+  night_rest: {
+    headline: 'Lo notó. Solo está en su horario biológico.',
+    headlineEn: 'He noticed. He is just on his biological schedule.',
+    body: 'La testosterona nocturna es 30 a 40 por ciento menor que el pico matutino. El mismo estímulo produce algo más cálido y romántico de noche. No es menos deseo. Es deseo diferente.',
+    bodyEn: 'Nighttime testosterone is 30 to 40 percent lower than morning. The same stimulus produces something warmer and more romantic at night. This is not less desire. It is different desire.',
+    banner: '[name] el león descansa hoy',
+    bannerEn: '[name] the lion rests today',
+  },
+  cortisol: {
+    headline: 'El estrés y el deseo usan el mismo químico. Esto explica tanto.',
+    headlineEn: 'Stress and desire use the same chemical. This explains so much.',
+    body: 'El cortisol activa los mismos caminos neuronales que la atracción. Hoy puedes sentirte más atraído a personas de lo usual. Vale saber antes de tomar decisiones. 4 tiempos adentro. 8 afuera.',
+    bodyEn: 'Cortisol activates the same neural pathways as attraction. Today you may feel more drawn to people than usual. Worth knowing before making decisions. 4 counts in. 8 out.',
+    banner: '[name] cabalga la tormenta hoy',
+    bannerEn: '[name] rides the storm today',
+  },
+};
+
+const phaseLabels: Record<string, { es: string; en: string }> = {
+  menstrual: { es: 'Menstrual', en: 'Menstrual' },
+  follicular: { es: 'Folicular', en: 'Follicular' },
+  ovulatory: { es: 'Ovulatoria', en: 'Ovulatory' },
+  luteal: { es: 'Lutea', en: 'Luteal' },
+  weekly_peak: { es: 'Pico Semanal', en: 'Weekly Peak' },
+  morning_peak: { es: 'Pico Matutino', en: 'Morning Peak' },
+  afternoon_dip: { es: 'Bajada', en: 'Afternoon Dip' },
+  evening_balanced: { es: 'Equilibrio', en: 'Evening Balance' },
+  night_rest: { es: 'Descanso', en: 'Night Rest' },
+  cortisol: { es: 'Cortisol', en: 'Cortisol' },
+};
+
+const bannerEmojis: Record<string, string> = {
+  menstrual: '\uD83C\uDF19',
+  follicular: '\uD83C\uDFCD\uFE0F',
+  ovulatory: '\uD83C\uDF39',
+  luteal: '\uD83D\uDC51',
+  weekly_peak: '\u2728',
+  morning_peak: '\uD83D\uDC13',
+  afternoon_dip: '\uD83D\uDE34',
+  evening_balanced: '\u2728',
+  night_rest: '\uD83E\uDD81',
+  cortisol: '\uD83C\uDF2A\uFE0F',
+};
+
+function calculateAge(birthDate: string | null): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function isAdult(profile: Profile): boolean {
+  const age = calculateAge(profile.fecha_nacimiento);
+  return age !== null && age >= 18;
+}
+
+const anxietyExplanations: Record<string, { es: string; en: string }> = {
+  menstrual: {
+    es: 'Durante la menstruacion, los niveles de estrogeno y progesterona estan en su punto mas bajo. Esto puede afectar la serotonina y aumentar la sensibilidad emocional.',
+    en: 'During menstruation, estrogen and progesterone levels are at their lowest. This can affect serotonin and increase emotional sensitivity.',
+  },
+  follicular: {
+    es: 'El estrogeno esta subiendo, lo que naturalmente eleva el animo y reduce la ansiedad. Tu cerebro esta biologicamente optimizado para la confianza.',
+    en: 'Estrogen is rising, which naturally elevates mood and reduces anxiety. Your brain is biologically optimized for confidence.',
+  },
+  ovulatory: {
+    es: 'Los niveles hormonales estan en su maximo equilibrio. La ansiedad suele estar en su punto mas bajo durante la ovulacion.',
+    en: 'Hormone levels are at their most balanced. Anxiety is typically at its lowest during ovulation.',
+  },
+  luteal: {
+    es: 'La progesterona alta combinada con la caida de estrogeno crea una ventana de vulnerabilidad. El GABA puede estar menos disponible, aumentando la reactividad al estres.',
+    en: 'High progesterone combined with dropping estrogen creates a vulnerability window. GABA may be less available, increasing stress reactivity.',
+  },
+  weekly_peak: {
+    es: 'La testosterona esta en su pico semanal, lo que proporciona confianza natural y reduce la ansiedad.',
+    en: 'Testosterone is at its weekly peak, providing natural confidence and reduced anxiety.',
+  },
+  morning_peak: {
+    es: 'La testosterona matutina proporciona claridad mental pero el cortisol tambien esta elevado como parte del ritmo de despertar.',
+    en: 'Morning testosterone provides mental clarity but cortisol is also elevated as part of the waking rhythm.',
+  },
+  afternoon_dip: {
+    es: 'La caida de cortisol post-almuerzo reduce el rendimiento ejecutivo. La mente puede rumiar mas cuando el prefrontal esta menos activo.',
+    en: 'Post-lunch cortisol drop reduces executive performance. The mind may ruminate more when the prefrontal cortex is less active.',
+  },
+  evening_balanced: {
+    es: 'Las hormonas se equilibran hacia el final del dia. Un buen momento para la reflexion tranquila.',
+    en: 'Hormones balance out toward the end of the day. A good time for calm reflection.',
+  },
+  night_rest: {
+    es: 'La testosterona es mas baja por la noche, lo que puede aumentar levemente la sensibilidad emocional.',
+    en: 'Testosterone is lower at night, which may slightly increase emotional sensitivity.',
+  },
+};
+
+export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenProps) {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAnxietyModal, setShowAnxietyModal] = useState(false);
+  const [language, setLanguage] = useState<'ES' | 'EN'>(profile.idioma === 'EN' ? 'EN' : 'ES');
+  const [picardiaMode, setPicardiaMode] = useState(profile.picardia_mode || false);
+  const [saving, setSaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const isEnglish = language === 'EN';
+  const showSexual = isAdult(profile);
+  const canUsePicardia = showSexual;
+
+  const anxietyScore = phaseData.anxiety;
+  const anxietyLevel = anxietyScore >= 70 ? 'high' : anxietyScore >= 40 ? 'elevated' : 'low';
+
+  const content = phaseContent[phaseData.phase] || phaseContent.follicular;
+  const imageUrl = phaseImages[phaseData.phase] || phaseImages.follicular;
+  const phaseLabel = phaseLabels[phaseData.phase] || phaseLabels.follicular;
+  const emoji = bannerEmojis[phaseData.phase] || '';
+
+  const userName = profile.nombre || 'User';
+  const replaceNamePlaceholder = (text: string) => text.replace(/\[name\]/gi, userName);
+
+  const headline = replaceNamePlaceholder(isEnglish ? content.headlineEn : content.headline);
+  const body = isEnglish ? content.bodyEn : content.body;
+  const banner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
+
+  const baseMetrics = [
+    { label: isEnglish ? 'Energy' : 'Energia', value: phaseData.energy, color: 'bg-[#FFD93D]' },
+    { label: isEnglish ? 'Cognitive' : 'Cognitivo', value: phaseData.cognitive, color: 'bg-[#2D1B69]' },
+    { label: isEnglish ? 'Emotional' : 'Emocional', value: phaseData.emotional, color: 'bg-[#FF6B6B]' },
+    { label: isEnglish ? 'Physical' : 'Fisico', value: phaseData.physical, color: 'bg-emerald-500' },
+  ];
+
+  const metrics = showSexual
+    ? [...baseMetrics, { label: 'Sexual', value: phaseData.sexual, color: 'bg-[#FF6B6B]' }]
+    : baseMetrics;
+
+  const handleLanguageChange = async (newLang: 'ES' | 'EN') => {
+    setLanguage(newLang);
+    setSaving(true);
+    await supabase
+      .from('profiles')
+      .update({ idioma: newLang })
+      .eq('id', profile.id);
+    setSaving(false);
+    onProfileUpdate();
+  };
+
+  const handlePicardiaChange = async (enabled: boolean) => {
+    if (!canUsePicardia) return;
+    setPicardiaMode(enabled);
+    setSaving(true);
+    await supabase
+      .from('profiles')
+      .update({ picardia_mode: enabled })
+      .eq('id', profile.id);
+    setSaving(false);
+    onProfileUpdate();
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  const handleShare = async () => {
+    if (!cardRef.current) return;
+    setSharing(true);
+
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not supported');
+
+      const cardWidth = 380;
+      const cardHeight = 480;
+      canvas.width = cardWidth;
+      canvas.height = cardHeight;
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Failed to load image'));
+        img.src = imageUrl;
+      });
+
+      ctx.drawImage(img, 0, 0, cardWidth, cardHeight);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, cardWidth, cardHeight);
+
+      ctx.fillStyle = '#2D1B69';
+      ctx.beginPath();
+      ctx.roundRect(16, 16, 100, 28, 14);
+      ctx.fill();
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 12px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(isEnglish ? phaseLabel.en : phaseLabel.es, 66, 34);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 24px system-ui';
+      ctx.textAlign = 'left';
+      const headlineWords = headline.split(' ');
+      let headlineLine = '';
+      let headlineY = cardHeight - 180;
+      for (const word of headlineWords) {
+        const testLine = headlineLine + word + ' ';
+        if (ctx.measureText(testLine).width > cardWidth - 40) {
+          ctx.fillText(headlineLine, 20, headlineY);
+          headlineLine = word + ' ';
+          headlineY += 28;
+        } else {
+          headlineLine = testLine;
+        }
+      }
+      ctx.fillText(headlineLine, 20, headlineY);
+
+      ctx.font = '14px system-ui';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      const bodyWords = body.split(' ');
+      let bodyLine = '';
+      let bodyY = headlineY + 30;
+      for (const word of bodyWords) {
+        const testLine = bodyLine + word + ' ';
+        if (ctx.measureText(testLine).width > cardWidth - 40) {
+          ctx.fillText(bodyLine, 20, bodyY);
+          bodyLine = word + ' ';
+          bodyY += 20;
+        } else {
+          bodyLine = testLine;
+        }
+      }
+      ctx.fillText(bodyLine, 20, bodyY);
+
+      ctx.fillStyle = 'rgba(45, 27, 105, 0.9)';
+      ctx.fillRect(0, cardHeight - 50, cardWidth, 50);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 14px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(banner, cardWidth / 2, cardHeight - 20);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setSharing(false);
+          return;
+        }
+
+        const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
+
+        if (navigator.share && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: 'BioCycle',
+              text: isEnglish ? 'Check out my BioCycle phase!' : 'Mira mi fase en BioCycle!',
+            });
+          } catch (err) {
+            if ((err as Error).name !== 'AbortError') {
+              await copyToClipboard(blob);
+            }
+          }
+        } else {
+          await copyToClipboard(blob);
+        }
+
+        setSharing(false);
+      }, 'image/png');
+    } catch (err) {
+      console.error('Share error:', err);
+      setSharing(false);
+      alert(isEnglish ? 'Could not share. Please try again.' : 'No se pudo compartir. Intenta de nuevo.');
+    }
+  };
+
+  const copyToClipboard = async (blob: Blob) => {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob }),
+      ]);
+      alert(isEnglish ? 'Image copied to clipboard!' : 'Imagen copiada al portapapeles!');
+    } catch {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'biocycle-card.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 pb-24">
+      <div className="px-5 pt-12 pb-4 flex items-center justify-between">
+        <div>
+          <p className="text-gray-500 text-sm">
+            {isEnglish ? 'Hello' : 'Hola'}, {profile.nombre || 'Usuario'}
+          </p>
+          <h1 className="text-xl font-bold text-gray-900">
+            {isEnglish ? 'Your day' : 'Tu dia'}
+          </h1>
+        </div>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center"
+        >
+          <Settings className="w-5 h-5 text-gray-600" />
+        </button>
+      </div>
+
+      <div className="px-5">
+        <div
+          ref={cardRef}
+          className="relative rounded-3xl overflow-hidden shadow-xl"
+          style={{ aspectRatio: '4/5' }}
+        >
+          <img
+            src={imageUrl}
+            alt={phaseLabel.es}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black/40" />
+
+          <div className="absolute top-4 left-4">
+            <span className="px-4 py-1.5 bg-[#2D1B69] text-white text-sm font-semibold rounded-full">
+              {isEnglish ? phaseLabel.en : phaseLabel.es}
+            </span>
+          </div>
+
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+          >
+            {sharing ? (
+              <Loader2 className="w-5 h-5 text-white animate-spin" />
+            ) : (
+              <Share2 className="w-5 h-5 text-white" />
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowAnxietyModal(true)}
+            className={`absolute top-16 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
+              anxietyLevel === 'high'
+                ? 'bg-[#FF4444]/90 text-white'
+                : anxietyLevel === 'elevated'
+                ? 'bg-[#FFB347]/90 text-white'
+                : 'bg-emerald-500/90 text-white'
+            }`}
+          >
+            <span className="text-xs font-medium">
+              {anxietyLevel === 'high'
+                ? isEnglish
+                  ? 'Vulnerability Window'
+                  : 'Ventana de Vulnerabilidad'
+                : anxietyLevel === 'elevated'
+                ? isEnglish
+                  ? 'Sensitivity: Elevated'
+                  : 'Sensibilidad: Elevada'
+                : isEnglish
+                ? 'Anxiety: Low'
+                : 'Ansiedad: Baja'}
+            </span>
+          </button>
+
+          <div className="absolute bottom-0 left-0 right-0 p-5">
+            <h2 className="text-2xl font-bold text-white mb-2">
+              {headline}
+            </h2>
+            <p className="text-white/90 text-sm leading-relaxed mb-4">
+              {body}
+            </p>
+            <div className="bg-[#2D1B69]/80 backdrop-blur-sm rounded-xl py-3 px-4 text-center">
+              <span className="text-white font-semibold">
+                {banner}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 mt-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4">
+          {isEnglish ? 'Your levels today' : 'Tus niveles hoy'}
+        </h3>
+        <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+          {metrics.map(({ label, value, color }) => (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">{label}</span>
+                <span className="text-sm font-bold text-gray-900">{value}%</span>
+              </div>
+              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${color}`}
+                  style={{ width: `${value}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white rounded-t-3xl w-full max-w-[430px] p-6 pb-10 animate-slide-up">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">
+                {isEnglish ? 'Settings' : 'Configuracion'}
+              </h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {isEnglish ? 'Language' : 'Idioma'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {isEnglish ? 'Change app language' : 'Cambiar idioma de la app'}
+                  </p>
+                </div>
+                <div className="flex bg-gray-200 rounded-lg p-1">
+                  <button
+                    onClick={() => handleLanguageChange('ES')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      language === 'ES'
+                        ? 'bg-[#2D1B69] text-white'
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => handleLanguageChange('EN')}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      language === 'EN'
+                        ? 'bg-[#2D1B69] text-white'
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </div>
+
+              <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-xl ${!canUsePicardia ? 'opacity-50' : ''}`}>
+                <div>
+                  <p className="font-semibold text-gray-900">
+                    {isEnglish ? 'Picardia Mode' : 'Modo Picardia'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {!canUsePicardia
+                      ? isEnglish
+                        ? 'Available for 18+ only'
+                        : 'Solo para mayores de 18'
+                      : isEnglish
+                      ? 'Spicier content and advice'
+                      : 'Contenido y consejos mas picantes'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handlePicardiaChange(!picardiaMode)}
+                  disabled={!canUsePicardia}
+                  className={`w-14 h-8 rounded-full transition-colors relative ${
+                    picardiaMode && canUsePicardia ? 'bg-[#FF6B6B]' : 'bg-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      picardiaMode && canUsePicardia ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 text-red-600 rounded-xl font-semibold hover:bg-red-100 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                {isEnglish ? 'Log out' : 'Cerrar sesion'}
+              </button>
+            </div>
+
+            {saving && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-t-3xl">
+                <Loader2 className="w-6 h-6 animate-spin text-[#2D1B69]" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showAnxietyModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 animate-slide-up">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  anxietyLevel === 'high' ? 'bg-red-100' : anxietyLevel === 'elevated' ? 'bg-amber-100' : 'bg-emerald-100'
+                }`}>
+                  <AlertTriangle className={`w-5 h-5 ${
+                    anxietyLevel === 'high' ? 'text-red-600' : anxietyLevel === 'elevated' ? 'text-amber-600' : 'text-emerald-600'
+                  }`} />
+                </div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  {isEnglish ? 'Anxiety Level' : 'Nivel de Ansiedad'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowAnxietyModal(false)}
+                className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center"
+              >
+                <X className="w-4 h-4 text-gray-600" />
+              </button>
+            </div>
+
+            <div className={`rounded-xl p-4 mb-4 ${
+              anxietyLevel === 'high' ? 'bg-red-50' : anxietyLevel === 'elevated' ? 'bg-amber-50' : 'bg-emerald-50'
+            }`}>
+              <p className={`text-sm font-medium ${
+                anxietyLevel === 'high' ? 'text-red-800' : anxietyLevel === 'elevated' ? 'text-amber-800' : 'text-emerald-800'
+              }`}>
+                {isEnglish ? 'Current Level' : 'Nivel Actual'}: {anxietyScore}%
+              </p>
+            </div>
+
+            <p className="text-gray-600 text-sm leading-relaxed mb-4">
+              {anxietyExplanations[phaseData.phase]
+                ? isEnglish
+                  ? anxietyExplanations[phaseData.phase].en
+                  : anxietyExplanations[phaseData.phase].es
+                : isEnglish
+                ? 'Your biology affects anxiety vulnerability. This is normal and temporary.'
+                : 'Tu biologia afecta la vulnerabilidad a la ansiedad. Esto es normal y temporal.'}
+            </p>
+
+            <button
+              onClick={() => setShowAnxietyModal(false)}
+              className="w-full mt-4 py-3 bg-[#2D1B69] text-white font-semibold rounded-xl"
+            >
+              {isEnglish ? 'Got it' : 'Entendido'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slide-up {
+          from {
+            transform: translateY(100%);
+          }
+          to {
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.3s ease-out;
+        }
+      `}</style>
+    </div>
+  );
+}
