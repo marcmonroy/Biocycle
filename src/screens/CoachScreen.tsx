@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Send, Loader2, AlertCircle, Mic, MicOff } from 'lucide-react';
+import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
 
 interface CoachScreenProps {
   profile: Profile;
@@ -130,6 +130,71 @@ export async function callCoachAPI(
   }
 }
 
+// CSS keyframe animations injected once
+const AVATAR_STYLES = `
+  @keyframes bio-breathe {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45,27,105,0.3); }
+    50% { transform: scale(1.04); box-shadow: 0 0 18px 6px rgba(45,27,105,0.25); }
+  }
+  @keyframes bio-speaking {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(100,60,220,0.7); }
+    40% { transform: scale(1.12); box-shadow: 0 0 32px 14px rgba(100,60,220,0.5); }
+  }
+  @keyframes bio-listening {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,107,107,0.7); }
+    50% { transform: scale(1.08); box-shadow: 0 0 24px 10px rgba(255,107,107,0.5); }
+  }
+  .bio-avatar-idle { animation: bio-breathe 3.5s ease-in-out infinite; }
+  .bio-avatar-speaking { animation: bio-speaking 0.75s ease-in-out infinite; }
+  .bio-avatar-listening { animation: bio-listening 1s ease-in-out infinite; }
+`;
+
+const DNAHelixIcon = ({ size = 28 }: { size?: number }) => (
+  <svg
+    width={size}
+    height={Math.round(size * 1.3)}
+    viewBox="0 0 28 36"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <line x1="9" y1="2" x2="9" y2="34" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" />
+    <line x1="19" y1="2" x2="19" y2="34" stroke="rgba(255,255,255,0.45)" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M9 3 Q14 7 19 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M9 9 Q14 13 19 9" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M9 15 Q14 19 19 15" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M9 21 Q14 25 19 21" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M9 27 Q14 31 19 27" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M9 33 Q14 37 19 33" stroke="white" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+  </svg>
+);
+
+function BioAvatar({
+  state,
+  size,
+}: {
+  state: 'idle' | 'speaking' | 'listening';
+  size: number;
+}) {
+  const iconSize = Math.round(size * 0.35);
+  return (
+    <div
+      className={`bio-avatar-${state}`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #1a0a3e 0%, #2D1B69 55%, #4a2090 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <DNAHelixIcon size={iconSize} />
+    </div>
+  );
+}
+
 export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
@@ -175,20 +240,45 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     ? `Hola ${userName}. Soy Bio, tu coach de inteligencia biologica. Hoy es ${dayName}. Estas en tu fase ${phaseName}. Tu ${highest.label} esta fuerte hoy y tu ${lowest.label} necesita atencion. Que te gustaria saber sobre ti?`
     : `Hi ${userName}. I am Bio, your biological intelligence coach. Today is ${dayName}. You are in your ${phaseName} phase. Your ${highest.label} is strong today and your ${lowest.label} needs attention. What would you like to know about yourself?`;
 
+  // ── Core chat state ──────────────────────────────────────────────
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: greetingMessage }
+    { role: 'assistant', content: greetingMessage },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(getMessageCount());
   const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
+
+  // ── Speech input state ───────────────────────────────────────────
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // ── Voice output state ───────────────────────────────────────────
+  const [isMuted, setIsMuted] = useState(
+    () => localStorage.getItem('biocycle_coach_muted') === 'true'
+  );
+
+  // ── Bio avatar state ─────────────────────────────────────────────
+  const [bioState, setBioState] = useState<'idle' | 'speaking' | 'listening'>('idle');
+
+  // ── Full screen state ────────────────────────────────────────────
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const touchStartY = useRef<number>(0);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
 
+  // ── Inject avatar CSS once ───────────────────────────────────────
+  useEffect(() => {
+    if (document.getElementById('bio-avatar-styles')) return;
+    const tag = document.createElement('style');
+    tag.id = 'bio-avatar-styles';
+    tag.textContent = AVATAR_STYLES;
+    document.head.appendChild(tag);
+  }, []);
+
+  // ── Speech RECOGNITION setup ─────────────────────────────────────
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -207,45 +297,75 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
       setIsListening(false);
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
 
     recognitionRef.current = recognition;
 
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+      recognitionRef.current?.abort();
     };
   }, [isSpanish]);
 
-  const toggleListening = () => {
-    if (!speechSupported) {
-      return;
-    }
+  // ── Preload TTS voices ───────────────────────────────────────────
+  useEffect(() => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+  }, []);
 
+  // ── Sync bioState with mic ───────────────────────────────────────
+  useEffect(() => {
     if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
-    } else {
-      try {
-        recognitionRef.current?.start();
-        setIsListening(true);
-      } catch {
-        setIsListening(false);
-      }
+      setBioState('listening');
+    } else if (!window.speechSynthesis?.speaking) {
+      setBioState('idle');
+    }
+  }, [isListening]);
+
+  // ── Voice output helpers ─────────────────────────────────────────
+  const speakResponse = useCallback(
+    (text: string) => {
+      if (isMuted || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const targetLang = isSpanish ? 'es' : 'en';
+      const voice =
+        voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ?? null;
+      if (voice) utterance.voice = voice;
+
+      utterance.onstart = () => setBioState('speaking');
+      utterance.onend = () => setBioState('idle');
+      utterance.onerror = () => setBioState('idle');
+
+      window.speechSynthesis.speak(utterance);
+    },
+    [isMuted, isSpanish]
+  );
+
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    localStorage.setItem('biocycle_coach_muted', String(next));
+    if (next) {
+      window.speechSynthesis?.cancel();
+      setBioState('idle');
     }
   };
 
+  // ── Scroll to bottom ─────────────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ── Load recent anxiety ──────────────────────────────────────────
   useEffect(() => {
     loadRecentAnxietyData();
   }, [profile.id]);
@@ -260,11 +380,14 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
       .limit(5);
 
     if (data && data.length > 0) {
-      const avg = data.reduce((sum: number, c: Checkin) => sum + (c.factor_ansiedad || 0), 0) / data.length;
+      const avg =
+        data.reduce((sum: number, c: Checkin) => sum + (c.factor_ansiedad || 0), 0) /
+        data.length;
       setRecentAnxiety(Math.round(avg * 10) / 10);
     }
   };
 
+  // ── Send message ─────────────────────────────────────────────────
   const sendMessage = async () => {
     if (!input.trim() || loading || isLimitReached) return;
 
@@ -274,17 +397,24 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     setMessages(updatedMessages);
     setLoading(true);
 
-    const result = await callCoachAPI(userMessage, profile, phaseData, recentAnxiety, messages);
+    const result = await callCoachAPI(
+      userMessage,
+      profile,
+      phaseData,
+      recentAnxiety,
+      messages
+    );
 
     if (result.error) {
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         { role: 'assistant', content: result.error!, isError: true },
       ]);
     } else {
-      setMessages((prev) => [...prev, { role: 'assistant', content: result.content }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: result.content }]);
       const newCount = incrementMessageCount();
       setMessageCount(newCount);
+      speakResponse(result.content);
     }
 
     setLoading(false);
@@ -297,25 +427,53 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-24">
-      <div className="bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] px-5 pt-12 pb-6">
-        <h1 className="text-2xl font-bold text-white">
-          {isSpanish ? 'Tu Coach' : 'Your Coach'}
-        </h1>
-        <p className="text-white/70 text-sm mt-1">
-          {phaseNames[phaseData.phase] || phaseData.phase}
-        </p>
-      </div>
+  const toggleListening = () => {
+    if (!speechSupported) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch {
+        setIsListening(false);
+      }
+    }
+  };
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {messages.map((message, index) => (
-          <div
-            key={index}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+  // ── Full screen swipe-down handler ───────────────────────────────
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches[0].clientY - touchStartY.current > 80) {
+      setIsFullScreen(false);
+    }
+  };
+
+  // ── Shared sub-components ────────────────────────────────────────
+  const SpeakerButton = ({ text }: { text: string }) => (
+    <button
+      onClick={() => speakResponse(text)}
+      title={isSpanish ? 'Reproducir audio' : 'Replay audio'}
+      className="mt-1 ml-1 text-gray-400 hover:text-[#2D1B69] transition-colors flex-shrink-0"
+    >
+      <Volume2 className="w-3.5 h-3.5" />
+    </button>
+  );
+
+  const MessageList = () => (
+    <>
+      {messages.map((message, index) => (
+        <div
+          key={index}
+          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        >
+          <div className={`flex items-end gap-1 max-w-[82%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+              className={`rounded-2xl px-4 py-3 ${
                 message.role === 'user'
                   ? 'bg-[#2D1B69] text-white rounded-br-sm'
                   : message.isError
@@ -331,95 +489,195 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
               )}
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
             </div>
+            {message.role === 'assistant' && !message.isError && (
+              <SpeakerButton text={message.content} />
+            )}
           </div>
-        ))}
+        </div>
+      ))}
 
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-white shadow-md rounded-2xl rounded-bl-sm px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin text-[#2D1B69]" />
-                <span className="text-sm text-gray-500">
-                  {isSpanish ? 'Pensando...' : 'Thinking...'}
-                </span>
-              </div>
+      {loading && (
+        <div className="flex justify-start">
+          <div className="bg-white shadow-md rounded-2xl rounded-bl-sm px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-[#2D1B69]" />
+              <span className="text-sm text-gray-500">
+                {isSpanish ? 'Pensando...' : 'Thinking...'}
+              </span>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        <div ref={messagesEndRef} />
+      <div ref={messagesEndRef} />
+    </>
+  );
+
+  const InputBar = () => (
+    <div className="px-4 pb-4">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-500">
+          {isSpanish
+            ? `${messageCount} de ${MONTHLY_LIMIT} mensajes usados`
+            : `${messageCount} of ${MONTHLY_LIMIT} messages used`}
+        </span>
+        {isLimitReached && (
+          <span className="text-xs text-orange-500 font-medium">
+            {isSpanish ? 'Limite alcanzado' : 'Limit reached'}
+          </span>
+        )}
       </div>
 
-      <div className="px-4 pb-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-gray-500">
+      {isLimitReached ? (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
+          <p className="text-orange-700 text-sm font-medium mb-1">
             {isSpanish
-              ? `${messageCount} de ${MONTHLY_LIMIT} mensajes usados`
-              : `${messageCount} of ${MONTHLY_LIMIT} messages used`}
-          </span>
-          {isLimitReached && (
-            <span className="text-xs text-orange-500 font-medium">
-              {isSpanish ? 'Limite alcanzado' : 'Limit reached'}
-            </span>
+              ? 'Has alcanzado tu limite mensual'
+              : 'You have reached your monthly limit'}
+          </p>
+          <p className="text-orange-600 text-xs">
+            {isSpanish
+              ? 'Actualiza tu plan para mensajes ilimitados'
+              : 'Upgrade your plan for unlimited messages'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {!speechSupported && (
+            <p className="text-xs text-amber-600 mb-2">
+              {isSpanish
+                ? 'Entrada de voz no soportada. Por favor usa Chrome.'
+                : 'Voice input not supported. Please use Chrome.'}
+            </p>
           )}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+              placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
+              className="flex-1 px-4 py-3 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#2D1B69] focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-400"
+            />
+            <button
+              onClick={toggleListening}
+              disabled={loading || !speechSupported}
+              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
+                isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-gray-200 hover:bg-gray-300'
+              } disabled:opacity-50`}
+            >
+              {isListening ? (
+                <MicOff className="w-5 h-5 text-white" />
+              ) : (
+                <Mic className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              className="w-12 h-12 bg-[#2D1B69] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
+            >
+              <Send className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // ── Full screen view ─────────────────────────────────────────────
+  if (isFullScreen) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex flex-col"
+        style={{ background: '#0d0618' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+      >
+        {/* Header row */}
+        <div className="flex items-center justify-end px-5 pt-12 pb-2">
+          <button
+            onClick={() => setIsFullScreen(false)}
+            className="text-white/60 hover:text-white transition-colors"
+            title={isSpanish ? 'Salir' : 'Exit'}
+          >
+            <X className="w-6 h-6" />
+          </button>
         </div>
 
-        {isLimitReached ? (
-          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-            <p className="text-orange-700 text-sm font-medium mb-1">
-              {isSpanish ? 'Has alcanzado tu limite mensual' : 'You have reached your monthly limit'}
-            </p>
-            <p className="text-orange-600 text-xs">
-              {isSpanish
-                ? 'Actualiza tu plan para mensajes ilimitados'
-                : 'Upgrade your plan for unlimited messages'}
+        {/* Avatar */}
+        <div className="flex justify-center py-6">
+          <BioAvatar state={bioState} size={160} />
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+          <MessageList />
+        </div>
+
+        {/* Input */}
+        <div
+          className="pb-safe"
+          style={{ background: 'rgba(13,6,24,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          <InputBar />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal view ──────────────────────────────────────────────────
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col pb-24">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] px-5 pt-12 pb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              {isSpanish ? 'Tu Coach' : 'Your Coach'}
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              {phaseNames[phaseData.phase] || phaseData.phase}
             </p>
           </div>
-        ) : (
-          <>
-            {!speechSupported && (
-              <p className="text-xs text-amber-600 mb-2">
-                {isSpanish
-                  ? 'Entrada de voz no soportada. Por favor usa Chrome.'
-                  : 'Voice input not supported. Please use Chrome.'}
-              </p>
-            )}
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={loading}
-                placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
-                className="flex-1 px-4 py-3 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#2D1B69] focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-400"
-              />
-              <button
-                onClick={toggleListening}
-                disabled={loading || !speechSupported}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                  isListening
-                    ? 'bg-[#FF6B6B] animate-pulse'
-                    : 'bg-gray-200 hover:bg-gray-300'
-                } disabled:opacity-50`}
-              >
-                {isListening ? (
-                  <MicOff className="w-5 h-5 text-white" />
-                ) : (
-                  <Mic className="w-5 h-5 text-gray-600" />
-                )}
-              </button>
-              <button
-                onClick={sendMessage}
-                disabled={loading || !input.trim()}
-                className="w-12 h-12 bg-[#2D1B69] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
-              >
-                <Send className="w-5 h-5 text-white" />
-              </button>
-            </div>
-          </>
-        )}
+          <div className="flex items-center gap-2">
+            {/* Mute toggle */}
+            <button
+              onClick={toggleMute}
+              title={isMuted ? (isSpanish ? 'Activar voz' : 'Unmute') : (isSpanish ? 'Silenciar' : 'Mute')}
+              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+            >
+              {isMuted ? (
+                <VolumeX className="w-4 h-4 text-white" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-white" />
+              )}
+            </button>
+            {/* Full screen toggle */}
+            <button
+              onClick={() => setIsFullScreen(true)}
+              title={isSpanish ? 'Pantalla completa' : 'Full screen'}
+              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+            >
+              <Maximize2 className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Bio Avatar */}
+      <div className="flex justify-center py-5 bg-gradient-to-b from-[#2D1B69]/10 to-transparent">
+        <BioAvatar state={bioState} size={80} />
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+        <MessageList />
+      </div>
+
+      {/* Input */}
+      <InputBar />
     </div>
   );
 }
