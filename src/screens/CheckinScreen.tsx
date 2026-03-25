@@ -79,10 +79,24 @@ function getNextWeekDate(): Date {
   return nextMonday;
 }
 
+function getDepositLabel(isSpanish: boolean): { label: string; emoji: string } {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) {
+    return { label: isSpanish ? 'Depósito Matutino' : 'Morning Deposit', emoji: '🌅' };
+  } else if (hour >= 11 && hour < 15) {
+    return { label: isSpanish ? 'Depósito del Mediodía' : 'Midday Deposit', emoji: '☀️' };
+  } else if (hour >= 15 && hour < 20) {
+    return { label: isSpanish ? 'Depósito Vespertino' : 'Evening Deposit', emoji: '🌇' };
+  } else {
+    return { label: isSpanish ? 'Depósito Nocturno' : 'Night Deposit', emoji: '🌙' };
+  }
+}
+
 export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenProps) {
   const [activeTab, setActiveTab] = useState<Tab>('daily');
   const isSpanish = profile.idioma === 'ES';
   const showSexual = isAdult(profile);
+  const depositLabel = getDepositLabel(isSpanish);
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'daily', label: isSpanish ? 'Diario' : 'Daily' },
@@ -94,9 +108,16 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-gradient-to-r from-[#FF6B6B] to-[#FFD93D] px-5 pt-12 pb-4">
-        <h1 className="text-2xl font-bold text-white mb-4">
+        <h1 className="text-2xl font-bold text-white mb-1">
           {isSpanish ? 'Centro de Datos' : 'Data Hub'}
         </h1>
+        {/* Time-of-day deposit label */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-lg">{depositLabel.emoji}</span>
+          <span className="text-white font-semibold text-base tracking-wide">
+            {depositLabel.label}
+          </span>
+        </div>
         <div className="flex gap-1 bg-white/20 rounded-xl p-1">
           {tabs.map((tab) => (
             <button

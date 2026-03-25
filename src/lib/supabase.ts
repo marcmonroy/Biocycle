@@ -15,6 +15,7 @@ export type Profile = {
   last_period_date: string | null;
   picardia_mode: boolean;
   trust_stage: string;
+  checkin_times?: import('../utils/notifications').CheckinTime[] | null;
 };
 
 export type Checkin = {

@@ -1,8 +1,14 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle, Bell } from 'lucide-react';
+import {
+  CheckinTime,
+  DEFAULT_CHECKIN_TIMES,
+  requestNotificationPermission,
+  scheduleNotifications,
+} from '../utils/notifications';
 
-type SetupStep = 'name' | 'gender' | 'birthdate' | 'cycle';
+type SetupStep = 'name' | 'gender' | 'birthdate' | 'cycle' | 'schedule';
 
 interface SetupScreenProps {
   userId: string;
@@ -21,25 +27,21 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [cycleLength, setCycleLength] = useState(28);
   const [lastPeriodDate, setLastPeriodDate] = useState('');
+  const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(DEFAULT_CHECKIN_TIMES);
 
   const isEnglish = lang === 'en';
-
-  const steps: SetupStep[] = ['name', 'gender', 'birthdate', 'cycle'];
-  const currentIndex = steps.indexOf(step);
   const showCycleStep = genero === 'femenino';
 
+  // Step navigation
   const nextStep = () => {
     if (step === 'name') setStep('gender');
     else if (step === 'gender') setStep('birthdate');
     else if (step === 'birthdate') {
-      if (!fechaNacimiento) {
-        setBirthdateError(true);
-        return;
-      }
+      if (!fechaNacimiento) { setBirthdateError(true); return; }
       setBirthdateError(false);
-      if (showCycleStep) setStep('cycle');
-      else handleSubmit();
-    } else if (step === 'cycle') handleSubmit();
+      setStep(showCycleStep ? 'cycle' : 'schedule');
+    } else if (step === 'cycle') setStep('schedule');
+    else if (step === 'schedule') handleSubmit();
   };
 
   const prevStep = () => {
@@ -47,6 +49,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
     if (step === 'gender') setStep('name');
     else if (step === 'birthdate') setStep('gender');
     else if (step === 'cycle') setStep('birthdate');
+    else if (step === 'schedule') setStep(showCycleStep ? 'cycle' : 'birthdate');
   };
 
   const handleSubmit = async () => {
@@ -64,9 +67,17 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           cycle_length: cycleLength,
           last_period_date: lastPeriodDate || null,
           idioma: isEnglish ? 'EN' : 'ES',
+          checkin_times: checkinTimes,
         });
 
       if (profileError) throw profileError;
+
+      // Request notification permission and schedule reminders
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        scheduleNotifications(checkinTimes);
+      }
+
       onComplete();
     } catch (err) {
       setError(err instanceof Error ? err.message : (isEnglish ? 'Error saving' : 'Error al guardar'));
@@ -79,15 +90,38 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
     if (step === 'gender') return genero !== '';
     if (step === 'birthdate') return fechaNacimiento !== '';
     if (step === 'cycle') return true;
+    if (step === 'schedule') return true;
     return false;
   };
 
-  const totalSteps = showCycleStep ? 4 : 3;
-  const displayIndex = step === 'cycle' ? 4 : currentIndex + 1;
+  const totalSteps = showCycleStep ? 5 : 4;
+
+  const stepOrder: SetupStep[] = showCycleStep
+    ? ['name', 'gender', 'birthdate', 'cycle', 'schedule']
+    : ['name', 'gender', 'birthdate', 'schedule'];
+
+  const displayIndex = stepOrder.indexOf(step) + 1;
+
+  // Time picker helpers
+  const updateTime = (index: number, time: string) => {
+    setCheckinTimes(prev => prev.map((t, i) => i === index ? { ...t, time } : t));
+  };
+
+  const toggleSlot = (index: number) => {
+    setCheckinTimes(prev => prev.map((t, i) => i === index ? { ...t, enabled: !t.enabled } : t));
+  };
+
+  const slotLabels = {
+    morning:  { en: 'Morning',  es: 'Mañana'   },
+    midday:   { en: 'Midday',   es: 'Mediodía'  },
+    evening:  { en: 'Evening',  es: 'Tarde'     },
+    night:    { en: 'Night',    es: 'Noche'     },
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-amber-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        {/* Language toggle */}
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
@@ -97,9 +131,12 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           </button>
         </div>
 
+        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-gray-900">
-            {isEnglish ? 'Complete your trading account setup' : 'Completa la configuracion de tu cuenta de trading'}
+            {isEnglish
+              ? 'Complete your trading account setup'
+              : 'Completa la configuracion de tu cuenta de trading'}
           </h1>
           <p className="text-gray-600 mt-2">
             {isEnglish
@@ -128,6 +165,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             </div>
           )}
 
+          {/* Step: Name */}
           {step === 'name' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-rose-100 rounded-full mx-auto flex items-center justify-center">
@@ -147,6 +185,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             </div>
           )}
 
+          {/* Step: Gender */}
           {step === 'gender' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-amber-100 rounded-full mx-auto flex items-center justify-center">
@@ -157,8 +196,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
               </h2>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { value: 'femenino', labelEs: 'Femenino', labelEn: 'Female', icon: '\u2640' },
-                  { value: 'masculino', labelEs: 'Masculino', labelEn: 'Male', icon: '\u2642' },
+                  { value: 'femenino',  labelEs: 'Femenino',  labelEn: 'Female', icon: '♀' },
+                  { value: 'masculino', labelEs: 'Masculino', labelEn: 'Male',   icon: '♂' },
                 ].map((option) => (
                   <button
                     key={option.value}
@@ -191,6 +230,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             </div>
           )}
 
+          {/* Step: Birthdate */}
           {step === 'birthdate' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-blue-100 rounded-full mx-auto flex items-center justify-center">
@@ -216,7 +256,6 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 }`}
                 max={new Date().toISOString().split('T')[0]}
               />
-
               {birthdateError && (
                 <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
                   <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -230,10 +269,11 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             </div>
           )}
 
+          {/* Step: Cycle (female only) */}
           {step === 'cycle' && (
             <div className="space-y-4">
               <div className="w-16 h-16 bg-rose-100 rounded-full mx-auto flex items-center justify-center">
-                <span className="text-2xl">{'\uD83C\uDF19'}</span>
+                <span className="text-2xl">🌙</span>
               </div>
               <h2 className="text-xl font-semibold text-center text-gray-900">
                 {isEnglish ? 'Your menstrual cycle' : 'Tu ciclo menstrual'}
@@ -278,8 +318,75 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             </div>
           )}
 
+          {/* Step: Schedule (deposit times) */}
+          {step === 'schedule' && (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-purple-100 rounded-full mx-auto flex items-center justify-center">
+                <Bell className="w-8 h-8 text-purple-500" />
+              </div>
+              <h2 className="text-xl font-semibold text-center text-gray-900">
+                {isEnglish ? 'Your deposit schedule' : 'Tu horario de depósitos'}
+              </h2>
+              <p className="text-sm text-gray-500 text-center">
+                {isEnglish
+                  ? 'Choose when Bio reminds you to check in each day'
+                  : 'Elige cuándo Bio te recuerda registrarte cada día'}
+              </p>
+
+              <div className="space-y-3">
+                {checkinTimes.map((slot, index) => {
+                  const labels = slotLabels[slot.label];
+                  const label = isEnglish ? labels.en : labels.es;
+                  return (
+                    <div
+                      key={slot.label}
+                      className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
+                        slot.enabled
+                          ? 'border-rose-300 bg-rose-50'
+                          : 'border-gray-200 bg-gray-50 opacity-60'
+                      }`}
+                    >
+                      {/* Toggle */}
+                      <button
+                        onClick={() => toggleSlot(index)}
+                        className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${
+                          slot.enabled ? 'bg-rose-400' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                            slot.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+
+                      {/* Label */}
+                      <span className="flex-1 font-medium text-gray-700 text-sm">{label}</span>
+
+                      {/* Time picker */}
+                      <input
+                        type="time"
+                        value={slot.time}
+                        onChange={(e) => updateTime(index, e.target.value)}
+                        disabled={!slot.enabled}
+                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none disabled:opacity-40 bg-white"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-gray-400 text-center">
+                {isEnglish
+                  ? 'You can change these anytime in Settings'
+                  : 'Puedes cambiarlos en cualquier momento en Ajustes'}
+              </p>
+            </div>
+          )}
+
+          {/* Navigation buttons */}
           <div className="flex gap-3 mt-6">
-            {currentIndex > 0 && (
+            {displayIndex > 1 && (
               <button
                 onClick={prevStep}
                 className="flex-1 py-3 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
@@ -297,14 +404,10 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  {(step === 'birthdate' && !showCycleStep) || step === 'cycle'
-                    ? isEnglish
-                      ? 'Activate my account'
-                      : 'Activar mi cuenta'
-                    : isEnglish
-                    ? 'Next'
-                    : 'Siguiente'}
-                  <ArrowRight className="w-5 h-5" />
+                  {step === 'schedule'
+                    ? isEnglish ? 'Activate my account' : 'Activar mi cuenta'
+                    : isEnglish ? 'Next' : 'Siguiente'}
+                  {step !== 'schedule' && <ArrowRight className="w-5 h-5" />}
                 </>
               )}
             </button>
