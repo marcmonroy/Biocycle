@@ -17,6 +17,18 @@ export type Profile = {
   trust_stage: string;
   checkin_times?: import('../utils/notifications').CheckinTime[] | null;
   blood_type?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  bmi?: number | null;
+  exercise_frequency?: string | null;
+  exercise_type?: string | null;
+  diet_type?: string | null;
+  sleep_hours?: number | null;
+  caffeine_per_day?: number | null;
+  alcohol_per_week?: number | null;
+  known_conditions?: string[] | null;
+  current_medications?: string[] | null;
+  family_history?: string[] | null;
 };
 
 export type Checkin = {

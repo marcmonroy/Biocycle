@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
-import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download } from 'lucide-react';
+import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download, ShieldCheck, ChevronRight } from 'lucide-react';
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -74,6 +74,7 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
   const [completenessPoints, setCompletenessPoints] = useState(0);
   const [depthPoints, setDepthPoints] = useState(0);
   const [showPremiumUnlocked, setShowPremiumUnlocked] = useState(false);
+  const [profileBonusPoints, setProfileBonusPoints] = useState(0);
 
   useEffect(() => {
     loadDashboardData();
@@ -237,6 +238,57 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
     ? ((totalDeposits - currentTier.min) / (nextTier.min - currentTier.min)) * 100
     : 100;
 
+  // Profile completeness bonus points
+  const profileBonusItems = [
+    {
+      key: 'height_weight',
+      label: isSpanish ? 'Altura y peso' : 'Height & weight',
+      points: 5,
+      done: !!(profile.height_cm && profile.weight_kg),
+    },
+    {
+      key: 'exercise',
+      label: isSpanish ? 'Datos de ejercicio' : 'Exercise data',
+      points: 5,
+      done: !!(profile.exercise_frequency || profile.exercise_type),
+    },
+    {
+      key: 'sleep',
+      label: isSpanish ? 'Linea base de sueño' : 'Sleep baseline',
+      points: 8,
+      done: !!(profile.sleep_hours),
+    },
+    {
+      key: 'conditions',
+      label: isSpanish ? 'Condiciones conocidas' : 'Known conditions',
+      points: 15,
+      done: Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0,
+    },
+    {
+      key: 'medications',
+      label: isSpanish ? 'Medicamentos' : 'Medications',
+      points: 12,
+      done: Array.isArray(profile.current_medications) && profile.current_medications.length > 0,
+    },
+    {
+      key: 'blood_type',
+      label: isSpanish ? 'Tipo de sangre' : 'Blood type',
+      points: 10,
+      done: !!(profile.blood_type),
+    },
+    {
+      key: 'family_history',
+      label: isSpanish ? 'Historia familiar' : 'Family history',
+      points: 5,
+      done: Array.isArray(profile.family_history) && profile.family_history.length > 0,
+    },
+  ];
+
+  const earnedProfileBonus = profileBonusItems.filter(i => i.done).reduce((sum, i) => sum + i.points, 0);
+  const maxProfileBonus = profileBonusItems.reduce((sum, i) => sum + i.points, 0);
+  const totalProfilePossible = profileBonusItems.filter(i => !i.done).reduce((sum, i) => sum + i.points, 0);
+  const profileComplete = earnedProfileBonus === maxProfileBonus;
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-[#2D1B69] px-5 pt-12 pb-6">
@@ -324,13 +376,13 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
                 {isSpanish ? 'Puntuacion de Calidad' : 'Quality Score'}
               </span>
             </div>
-            <span className="text-3xl font-bold text-[#2D1B69]">{qualityScore}</span>
+            <span className="text-3xl font-bold text-[#2D1B69]">{qualityScore + earnedProfileBonus}</span>
           </div>
 
           <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
             <div
               className="h-full bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] rounded-full transition-all"
-              style={{ width: `${qualityScore}%` }}
+              style={{ width: `${Math.min(qualityScore + earnedProfileBonus, 100)}%` }}
             />
           </div>
 
@@ -351,18 +403,93 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
               <span className="text-gray-600">{isSpanish ? 'Profundidad' : 'Depth'}</span>
               <span className="font-medium text-gray-900">{depthPoints}/10</span>
             </div>
+            {earnedProfileBonus > 0 && (
+              <div className="flex justify-between text-sm pt-1 border-t border-gray-100">
+                <span className="text-emerald-600 font-medium">{isSpanish ? 'Bonus perfil de salud' : 'Health profile bonus'}</span>
+                <span className="font-bold text-emerald-600">+{earnedProfileBonus}</span>
+              </div>
+            )}
           </div>
 
-          {totalDeposits >= 31 && totalDeposits <= 60 && qualityScore < 70 && (
+          {totalDeposits >= 31 && totalDeposits <= 60 && (qualityScore + earnedProfileBonus) < 70 && (
             <div className="mt-4 p-3 bg-amber-50 rounded-xl">
               <p className="text-xs text-amber-700">
                 {isSpanish
-                  ? `Necesitas ${70 - qualityScore} puntos mas para desbloquear Premium gratis en el nivel Crecimiento.`
-                  : `Need ${70 - qualityScore} more points to unlock free Premium at Growth tier.`}
+                  ? `Necesitas ${70 - (qualityScore + earnedProfileBonus)} puntos mas para desbloquear Premium gratis en el nivel Crecimiento.`
+                  : `Need ${70 - (qualityScore + earnedProfileBonus)} more points to unlock free Premium at Growth tier.`}
               </p>
             </div>
           )}
         </div>
+
+        {/* Profile Completeness card */}
+        <div className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-emerald-500">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-6 h-6 text-emerald-500" />
+              <span className="font-bold text-gray-900">
+                {isSpanish ? 'Perfil de Salud' : 'Health Profile'}
+              </span>
+            </div>
+            <span className="text-lg font-bold text-emerald-600">+{earnedProfileBonus}/{maxProfileBonus}</span>
+          </div>
+          <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all"
+              style={{ width: `${(earnedProfileBonus / maxProfileBonus) * 100}%` }}
+            />
+          </div>
+          <div className="space-y-2">
+            {profileBonusItems.map(item => (
+              <div key={item.key} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${item.done ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                    {item.done ? '✓' : ''}
+                  </span>
+                  <span className={item.done ? 'text-gray-700' : 'text-gray-400'}>{item.label}</span>
+                </div>
+                <span className={`font-medium ${item.done ? 'text-emerald-600' : 'text-gray-400'}`}>
+                  {item.done ? `+${item.points}` : `+${item.points} pts`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Complete your health profile CTA */}
+        {!profileComplete && (
+          <div className="bg-gradient-to-br from-[#1a0f3d] to-[#2D1B69] rounded-2xl p-5 text-white">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-5 h-5 text-[#FFD93D]" />
+              </div>
+              <div>
+                <p className="font-bold text-base">
+                  {isSpanish ? 'Aumenta tu valor como dato' : 'Increase your data value'}
+                </p>
+                <p className="text-white/70 text-sm mt-1">
+                  {isSpanish
+                    ? 'Completa tu perfil de salud para aumentar tu valor como mercancia. Cada campo que completes hace tus datos mas valiosos para los compradores de investigacion.'
+                    : 'Complete your health profile to increase your commodity value. Each field you complete makes your data more valuable to research buyers.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+              <span className="text-sm text-white/70">
+                {isSpanish
+                  ? `${totalProfilePossible} pts disponibles`
+                  : `${totalProfilePossible} pts available`}
+              </span>
+              <button
+                onClick={() => {/* TODO: navigate to profile edit */}}
+                className="flex items-center gap-1 bg-[#FFD93D] text-[#1a0f3d] text-sm font-bold px-4 py-2 rounded-xl"
+              >
+                {isSpanish ? 'Completar perfil' : 'Complete profile'}
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl shadow-lg p-5">
