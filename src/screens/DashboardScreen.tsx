@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
-import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle } from 'lucide-react';
+import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download } from 'lucide-react';
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -61,6 +61,7 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
   const showSexual = isAdult(profile);
 
   const [loading, setLoading] = useState(true);
+  const [allCheckins, setAllCheckins] = useState<Checkin[]>([]);
   const [totalDeposits, setTotalDeposits] = useState(0);
   const [avgQuality, setAvgQuality] = useState(0);
   const [daysSinceJoined, setDaysSinceJoined] = useState(0);
@@ -90,6 +91,7 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
       if (error) throw error;
 
       if (checkins && checkins.length > 0) {
+        setAllCheckins(checkins);
         setTotalDeposits(checkins.length);
         const totalQuality = checkins.reduce((sum: number, c: Checkin) => sum + (c.calidad_score || 0), 0);
         setAvgQuality(Math.round(totalQuality / checkins.length * 10) / 10);
@@ -201,6 +203,36 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
   const nextTier = getNextTier(totalDeposits);
   const TierIcon = currentTier.icon;
 
+  const handleExportData = () => {
+    const headers = [
+      'date', 'emotional', 'physical', 'cognitive', 'stress',
+      'social', 'sexual', 'anxiety', 'quality_score', 'phase', 'notes'
+    ];
+    const rows = allCheckins.map(c => [
+      c.checkin_date,
+      c.factor_emocional ?? '',
+      c.factor_fisico ?? '',
+      c.factor_cognitivo ?? '',
+      c.factor_estres ?? '',
+      c.factor_social ?? '',
+      c.factor_sexual ?? '',
+      c.factor_ansiedad ?? '',
+      c.calidad_score ?? '',
+      c.phase_at_checkin ?? '',
+      `"${(c.notas ?? '').replace(/"/g, '""')}"`,
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `biocycle-data-${profile.nombre || 'user'}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const progressToNext = nextTier
     ? ((totalDeposits - currentTier.min) / (nextTier.min - currentTier.min)) * 100
     : 100;
@@ -208,12 +240,25 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-[#2D1B69] px-5 pt-12 pb-6">
-        <h1 className="text-2xl font-bold text-white">
-          {isSpanish ? 'Tu Cuenta de Trading' : 'Your Trading Account'}
-        </h1>
-        <p className="text-white/70 text-sm mt-1">
-          {isSpanish ? 'Tu inteligencia biologica es tu activo mas valioso.' : 'Your biological intelligence is your most valuable asset.'}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-white">
+              {isSpanish ? 'Tu Cuenta de Trading' : 'Your Trading Account'}
+            </h1>
+            <p className="text-white/70 text-sm mt-1">
+              {isSpanish ? 'Tu inteligencia biologica es tu activo mas valioso.' : 'Your biological intelligence is your most valuable asset.'}
+            </p>
+          </div>
+          <button
+            onClick={handleExportData}
+            disabled={allCheckins.length === 0}
+            title={isSpanish ? 'Exportar mis datos' : 'Export my data'}
+            className="flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0 mt-1"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {isSpanish ? 'Exportar datos' : 'Export my data'}
+          </button>
+        </div>
       </div>
 
       <div className="px-5 -mt-3 space-y-4">

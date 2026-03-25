@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Settings, Share2, X, LogOut, Loader2, AlertTriangle } from 'lucide-react';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2 } from 'lucide-react';
+import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
 interface HomeScreenProps {
   profile: Profile;
@@ -206,6 +207,20 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [sharing, setSharing] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Schedule editor state
+  const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(
+    profile.checkin_times && profile.checkin_times.length > 0
+      ? profile.checkin_times
+      : DEFAULT_CHECKIN_TIMES
+  );
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteComplete, setDeleteComplete] = useState(false);
+
   const isEnglish = language === 'EN';
   const showSexual = isAdult(profile);
   const canUsePicardia = showSexual;
@@ -261,6 +276,44 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleScheduleSave = async () => {
+    setSavingSchedule(true);
+    await supabase
+      .from('profiles')
+      .update({ checkin_times: checkinTimes })
+      .eq('id', profile.id);
+    scheduleNotifications(checkinTimes);
+    setSavingSchedule(false);
+    setScheduleSaved(true);
+    setTimeout(() => setScheduleSaved(false), 2000);
+  };
+
+  const updateCheckinTime = (index: number, time: string) => {
+    setCheckinTimes(prev => prev.map((t, i) => i === index ? { ...t, time } : t));
+  };
+
+  const toggleCheckinSlot = (index: number) => {
+    setCheckinTimes(prev => prev.map((t, i) => i === index ? { ...t, enabled: !t.enabled } : t));
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      // Delete all user data in order
+      await supabase.from('nutrition_logs').delete().eq('user_id', profile.id);
+      await supabase.from('weekly_checkins').delete().eq('user_id', profile.id);
+      await supabase.from('checkins').delete().eq('user_id', profile.id);
+      await supabase.from('profiles').delete().eq('id', profile.id);
+      setDeleteComplete(true);
+      setTimeout(async () => {
+        await supabase.auth.signOut();
+      }, 3000);
+    } catch (err) {
+      console.error('Delete error:', err);
+      setDeleting(false);
+    }
   };
 
   const handleShare = async () => {
@@ -585,6 +638,63 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 </button>
               </div>
 
+              {/* Check-in schedule editor */}
+              <div className="p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bell className="w-4 h-4 text-[#2D1B69]" />
+                  <p className="font-semibold text-gray-900">
+                    {isEnglish ? 'Deposit Schedule' : 'Horario de Depósitos'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {checkinTimes.map((slot, index) => {
+                    const labelMap: Record<string, { en: string; es: string }> = {
+                      morning: { en: 'Morning', es: 'Mañana' },
+                      midday:  { en: 'Midday',  es: 'Mediodía' },
+                      evening: { en: 'Evening', es: 'Tarde' },
+                      night:   { en: 'Night',   es: 'Noche' },
+                    };
+                    const label = isEnglish ? labelMap[slot.label].en : labelMap[slot.label].es;
+                    return (
+                      <div key={slot.label} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${slot.enabled ? 'border-[#2D1B69]/30 bg-white' : 'border-gray-200 bg-gray-100 opacity-60'}`}>
+                        <button
+                          onClick={() => toggleCheckinSlot(index)}
+                          className={`w-9 h-5 rounded-full flex-shrink-0 relative transition-colors ${slot.enabled ? 'bg-[#2D1B69]' : 'bg-gray-300'}`}
+                        >
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${slot.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                        <span className="flex-1 text-sm font-medium text-gray-700">{label}</span>
+                        <input
+                          type="time"
+                          value={slot.time}
+                          onChange={e => updateCheckinTime(index, e.target.value)}
+                          disabled={!slot.enabled}
+                          className="text-sm px-2 py-1 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#2D1B69] disabled:opacity-40"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={handleScheduleSave}
+                  disabled={savingSchedule}
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-[#2D1B69] text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+                >
+                  {savingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {scheduleSaved ? (isEnglish ? 'Saved!' : '¡Guardado!') : (isEnglish ? 'Save schedule' : 'Guardar horario')}
+                </button>
+              </div>
+
+              {/* Legal links */}
+              <div className="grid grid-cols-2 gap-2">
+                <a href="/privacy" className="flex items-center justify-center p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                  {isEnglish ? 'Privacy Policy' : 'Privacidad'}
+                </a>
+                <a href="/terms" className="flex items-center justify-center p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                  {isEnglish ? 'Terms' : 'Términos'}
+                </a>
+              </div>
+
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 text-red-600 rounded-xl font-semibold hover:bg-red-100 transition-colors"
@@ -592,11 +702,59 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 <LogOut className="w-5 h-5" />
                 {isEnglish ? 'Log out' : 'Cerrar sesion'}
               </button>
+
+              {/* Delete account */}
+              {!showDeleteConfirm ? (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="w-full flex items-center justify-center gap-2 p-3 text-red-400 text-sm hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isEnglish ? 'Delete my account' : 'Eliminar mi cuenta'}
+                </button>
+              ) : (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
+                  <p className="text-sm font-semibold text-red-800 text-center">
+                    {isEnglish ? '⚠️ This will permanently delete all your data.' : '⚠️ Esto eliminará permanentemente todos tus datos.'}
+                  </p>
+                  <p className="text-xs text-red-600 text-center">
+                    {isEnglish ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.'}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                    >
+                      {isEnglish ? 'Cancel' : 'Cancelar'}
+                    </button>
+                    <button
+                      onClick={handleDeleteAccount}
+                      disabled={deleting}
+                      className="flex-1 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                      {isEnglish ? 'Delete everything' : 'Eliminar todo'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {saving && (
               <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-t-3xl">
                 <Loader2 className="w-6 h-6 animate-spin text-[#2D1B69]" />
+              </div>
+            )}
+
+            {deleteComplete && (
+              <div className="absolute inset-0 bg-[#2D1B69] flex flex-col items-center justify-center rounded-t-3xl p-8 text-center">
+                <span className="text-4xl mb-4">🌱</span>
+                <p className="text-white font-bold text-lg mb-2">
+                  {isEnglish ? 'Your data has been permanently deleted.' : 'Tus datos han sido eliminados permanentemente.'}
+                </p>
+                <p className="text-white/70 text-sm">
+                  {isEnglish ? 'Thank you for being a Data Trader.' : 'Gracias por ser un Data Trader.'}
+                </p>
               </div>
             )}
           </div>

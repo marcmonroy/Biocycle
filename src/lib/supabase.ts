@@ -16,6 +16,7 @@ export type Profile = {
   picardia_mode: boolean;
   trust_stage: string;
   checkin_times?: import('../utils/notifications').CheckinTime[] | null;
+  blood_type?: string | null;
 };
 
 export type Checkin = {

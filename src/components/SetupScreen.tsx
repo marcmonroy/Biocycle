@@ -8,7 +8,9 @@ import {
   scheduleNotifications,
 } from '../utils/notifications';
 
-type SetupStep = 'name' | 'gender' | 'birthdate' | 'cycle' | 'schedule';
+type SetupStep = 'name' | 'gender' | 'bloodtype' | 'birthdate' | 'cycle' | 'schedule';
+
+const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 interface SetupScreenProps {
   userId: string;
@@ -28,6 +30,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   const [cycleLength, setCycleLength] = useState(28);
   const [lastPeriodDate, setLastPeriodDate] = useState('');
   const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(DEFAULT_CHECKIN_TIMES);
+  const [bloodType, setBloodType] = useState<string>('');
 
   const isEnglish = lang === 'en';
   const showCycleStep = genero === 'femenino';
@@ -35,7 +38,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   // Step navigation
   const nextStep = () => {
     if (step === 'name') setStep('gender');
-    else if (step === 'gender') setStep('birthdate');
+    else if (step === 'gender') setStep('bloodtype');
+    else if (step === 'bloodtype') setStep('birthdate'); // blood type is optional, always proceed
     else if (step === 'birthdate') {
       if (!fechaNacimiento) { setBirthdateError(true); return; }
       setBirthdateError(false);
@@ -47,7 +51,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   const prevStep = () => {
     setBirthdateError(false);
     if (step === 'gender') setStep('name');
-    else if (step === 'birthdate') setStep('gender');
+    else if (step === 'bloodtype') setStep('gender');
+    else if (step === 'birthdate') setStep('bloodtype');
     else if (step === 'cycle') setStep('birthdate');
     else if (step === 'schedule') setStep(showCycleStep ? 'cycle' : 'birthdate');
   };
@@ -68,6 +73,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           last_period_date: lastPeriodDate || null,
           idioma: isEnglish ? 'EN' : 'ES',
           checkin_times: checkinTimes,
+          blood_type: bloodType || null,
         });
 
       if (profileError) throw profileError;
@@ -88,17 +94,18 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   const canProceed = () => {
     if (step === 'name') return nombre.trim().length >= 2;
     if (step === 'gender') return genero !== '';
+    if (step === 'bloodtype') return true; // optional
     if (step === 'birthdate') return fechaNacimiento !== '';
     if (step === 'cycle') return true;
     if (step === 'schedule') return true;
     return false;
   };
 
-  const totalSteps = showCycleStep ? 5 : 4;
+  const totalSteps = showCycleStep ? 6 : 5;
 
   const stepOrder: SetupStep[] = showCycleStep
-    ? ['name', 'gender', 'birthdate', 'cycle', 'schedule']
-    : ['name', 'gender', 'birthdate', 'schedule'];
+    ? ['name', 'gender', 'bloodtype', 'birthdate', 'cycle', 'schedule']
+    : ['name', 'gender', 'bloodtype', 'birthdate', 'schedule'];
 
   const displayIndex = stepOrder.indexOf(step) + 1;
 
@@ -227,6 +234,41 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                   {isEnglish ? 'Prefer not to say' : 'Prefiero no decir'}
                 </span>
               </button>
+            </div>
+          )}
+
+          {/* Step: Blood Type */}
+          {step === 'bloodtype' && (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-red-100 rounded-full mx-auto flex items-center justify-center">
+                <span className="text-2xl">🩸</span>
+              </div>
+              <h2 className="text-xl font-semibold text-center text-gray-900">
+                {isEnglish ? 'Blood type' : 'Tipo de sangre'}
+              </h2>
+              <p className="text-sm text-center text-emerald-700 font-medium bg-emerald-50 rounded-xl px-4 py-2">
+                {isEnglish
+                  ? 'Optional — increases your data trading value by 40%'
+                  : 'Opcional — aumenta el valor de tus datos en un 40%'}
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {BLOOD_TYPES.map((bt) => (
+                  <button
+                    key={bt}
+                    onClick={() => setBloodType(bloodType === bt ? '' : bt)}
+                    className={`py-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                      bloodType === bt
+                        ? 'border-rose-400 bg-rose-50 text-rose-700'
+                        : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                    }`}
+                  >
+                    {bt}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 text-center">
+                {isEnglish ? 'Tap to select. Tap again to deselect.' : 'Toca para seleccionar. Toca de nuevo para deseleccionar.'}
+              </p>
             </div>
           )}
 
@@ -406,6 +448,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 <>
                   {step === 'schedule'
                     ? isEnglish ? 'Activate my account' : 'Activar mi cuenta'
+                    : step === 'bloodtype' && !bloodType
+                    ? isEnglish ? 'Skip' : 'Omitir'
                     : isEnglish ? 'Next' : 'Siguiente'}
                   {step !== 'schedule' && <ArrowRight className="w-5 h-5" />}
                 </>
