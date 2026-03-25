@@ -73,6 +73,33 @@ export function SettingsView({
           <div className="text-[13px] text-[#6b7280] leading-relaxed">{t.under18Notice}</div>
         </div>
       )}
+
+      {/* Legal links */}
+      <div className="bg-[#0a0a14] border border-[#1a1a2e] rounded-[14px] p-4">
+        <div className="text-[11px] font-bold text-[#4a5280] tracking-[1.5px] uppercase mb-3">
+          {lang === 'en' ? 'Legal' : 'Legal'}
+        </div>
+        <div className="flex flex-col gap-2">
+          <a
+            href="/privacy"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#1a1a2e] hover:bg-[#2a2a3e] transition-colors"
+          >
+            <span className="text-[13px] text-[#c0c0d0]">
+              {lang === 'en' ? 'Privacy Policy' : 'Política de Privacidad'}
+            </span>
+            <span className="text-[#4a5280] text-lg leading-none">›</span>
+          </a>
+          <a
+            href="/terms"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#1a1a2e] hover:bg-[#2a2a3e] transition-colors"
+          >
+            <span className="text-[13px] text-[#c0c0d0]">
+              {lang === 'en' ? 'Terms of Service' : 'Términos de Servicio'}
+            </span>
+            <span className="text-[#4a5280] text-lg leading-none">›</span>
+          </a>
+        </div>
+      </div>
     </div>
   );
 }

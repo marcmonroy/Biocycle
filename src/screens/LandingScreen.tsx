@@ -614,8 +614,17 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
       </section>
 
       <footer className="py-8 border-t border-[#2D1B69]/30 bg-[#150c2e]">
-        <div className="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500">
-          BioCycle. {lang === 'en' ? 'Your biology, your data, your profit.' : 'Tu biologia, tus datos, tu ganancia.'}
+        <div className="max-w-6xl mx-auto px-6 text-center text-sm text-slate-500 space-y-3">
+          <p>BioCycle. {lang === 'en' ? 'Your biology, your data, your profit.' : 'Tu biologia, tus datos, tu ganancia.'}</p>
+          <div className="flex items-center justify-center gap-4">
+            <a href="/privacy" className="text-slate-400 hover:text-[#FFD93D] transition-colors underline-offset-2 hover:underline">
+              {lang === 'en' ? 'Privacy Policy' : 'Política de Privacidad'}
+            </a>
+            <span className="text-slate-600">·</span>
+            <a href="/terms" className="text-slate-400 hover:text-[#FFD93D] transition-colors underline-offset-2 hover:underline">
+              {lang === 'en' ? 'Terms of Service' : 'Términos de Servicio'}
+            </a>
+          </div>
         </div>
       </footer>
     </div>

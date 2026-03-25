@@ -11,12 +11,14 @@ import { AdminScreen } from './screens/AdminScreen';
 import { ResearchScreen } from './screens/ResearchScreen';
 import { TradingFloorScreen } from './screens/TradingFloorScreen';
 import { LandingScreen } from './screens/LandingScreen';
+import { PrivacyScreen } from './screens/PrivacyScreen';
+import { TermsScreen } from './screens/TermsScreen';
 import { AmbientCoach } from './components/AmbientCoach';
 import { calculatePhase, getForecast } from './utils/phaseEngine';
 import { Session } from '@supabase/supabase-js';
 import { Loader2 } from 'lucide-react';
 
-type AppState = 'loading' | 'landing' | 'setup' | 'home' | 'admin' | 'research' | 'trading-floor';
+type AppState = 'loading' | 'landing' | 'setup' | 'home' | 'admin' | 'research' | 'trading-floor' | 'privacy' | 'terms';
 
 function App() {
   const [appState, setAppState] = useState<AppState>('loading');
@@ -39,6 +41,16 @@ function App() {
 
     if (window.location.pathname === '/trading-floor') {
       setAppState('trading-floor');
+      return;
+    }
+
+    if (window.location.pathname === '/privacy') {
+      setAppState('privacy' as AppState);
+      return;
+    }
+
+    if (window.location.pathname === '/terms') {
+      setAppState('terms' as AppState);
       return;
     }
 
@@ -169,6 +181,14 @@ function App() {
 
   if (appState === 'trading-floor') {
     return <TradingFloorScreen />;
+  }
+
+  if (appState === ('privacy' as AppState)) {
+    return <PrivacyScreen />;
+  }
+
+  if (appState === ('terms' as AppState)) {
+    return <TermsScreen />;
   }
 
   if (appState === 'landing') {
