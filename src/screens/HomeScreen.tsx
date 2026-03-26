@@ -715,10 +715,9 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               ) : (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
                   <p className="text-sm font-semibold text-red-800 text-center">
-                    {isEnglish ? '⚠️ This will permanently delete all your data.' : '⚠️ Esto eliminará permanentemente todos tus datos.'}
-                  </p>
-                  <p className="text-xs text-red-600 text-center">
-                    {isEnglish ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.'}
+                    {isEnglish
+                      ? '⚠️ This will permanently delete all your data including your biological portfolio. This cannot be undone. Are you sure?'
+                      : '⚠️ Esto eliminará permanentemente todos tus datos, incluyendo tu portafolio biológico. Esta acción no se puede deshacer. ¿Estás seguro?'}
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -750,7 +749,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               <div className="absolute inset-0 bg-[#2D1B69] flex flex-col items-center justify-center rounded-t-3xl p-8 text-center">
                 <span className="text-4xl mb-4">🌱</span>
                 <p className="text-white font-bold text-lg mb-2">
-                  {isEnglish ? 'Your data has been permanently deleted.' : 'Tus datos han sido eliminados permanentemente.'}
+                  {isEnglish ? 'Your account and all data have been permanently deleted.' : 'Tu cuenta y todos tus datos han sido eliminados permanentemente.'}
                 </p>
                 <p className="text-white/70 text-sm">
                   {isEnglish ? 'Thank you for being a Data Trader.' : 'Gracias por ser un Data Trader.'}

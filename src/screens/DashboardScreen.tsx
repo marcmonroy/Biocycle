@@ -76,6 +76,7 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const [depthPoints, setDepthPoints] = useState(0);
   const [showPremiumUnlocked, setShowPremiumUnlocked] = useState(false);
   const [profileBonusPoints, setProfileBonusPoints] = useState(0);
+  const [exportSuccess, setExportSuccess] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -207,11 +208,12 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
 
   const handleExportData = () => {
     const headers = [
-      'date', 'emotional', 'physical', 'cognitive', 'stress',
-      'social', 'sexual', 'anxiety', 'quality_score', 'phase', 'notes'
+      'date', 'phase', 'emotional', 'physical', 'cognitive', 'stress',
+      'social', 'sexual', 'anxiety', 'quality_score', 'notes'
     ];
     const rows = allCheckins.map(c => [
       c.checkin_date,
+      c.phase_at_checkin ?? '',
       c.factor_emocional ?? '',
       c.factor_fisico ?? '',
       c.factor_cognitivo ?? '',
@@ -220,7 +222,6 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
       c.factor_sexual ?? '',
       c.factor_ansiedad ?? '',
       c.calidad_score ?? '',
-      c.phase_at_checkin ?? '',
       `"${(c.notas ?? '').replace(/"/g, '""')}"`,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -228,11 +229,13 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `biocycle-data-${profile.nombre || 'user'}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `biocycle_data_export_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setExportSuccess(true);
+    setTimeout(() => setExportSuccess(false), 3000);
   };
 
   const progressToNext = nextTier
@@ -302,15 +305,21 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
               {isSpanish ? 'Tu inteligencia biologica es tu activo mas valioso.' : 'Your biological intelligence is your most valuable asset.'}
             </p>
           </div>
-          <button
-            onClick={handleExportData}
-            disabled={allCheckins.length === 0}
-            title={isSpanish ? 'Exportar mis datos' : 'Export my data'}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0 mt-1"
-          >
-            <Download className="w-3.5 h-3.5" />
-            {isSpanish ? 'Exportar datos' : 'Export my data'}
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              onClick={handleExportData}
+              disabled={allCheckins.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {isSpanish ? 'Exportar mis datos' : 'Export My Data'}
+            </button>
+            {exportSuccess && (
+              <span className="text-xs text-emerald-300 font-medium">
+                {isSpanish ? 'Tus datos han sido exportados.' : 'Your data has been exported.'}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
