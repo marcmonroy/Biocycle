@@ -303,7 +303,7 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
         <div className="relative z-10 flex flex-col items-center px-6 text-center">
           <div className="mb-8">
             <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/biocycle.jpg?v=2"
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/biocycle.png?v=2"
               alt="BioCycle DNA Tree"
               className={`w-full max-w-[600px] h-auto drop-shadow-2xl transition-opacity duration-700 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setHeroLoaded(true)}
