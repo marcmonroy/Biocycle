@@ -13,6 +13,7 @@ import { TradingFloorScreen } from './screens/TradingFloorScreen';
 import { LandingScreen } from './screens/LandingScreen';
 import { PrivacyScreen } from './screens/PrivacyScreen';
 import { TermsScreen } from './screens/TermsScreen';
+import { ProfileEditScreen } from './screens/ProfileEditScreen';
 import { AmbientCoach } from './components/AmbientCoach';
 import { calculatePhase, getForecast } from './utils/phaseEngine';
 import { Session } from '@supabase/supabase-js';
@@ -227,7 +228,17 @@ function App() {
           <CoachScreen profile={profile} phaseData={phaseData} />
         )}
         {currentScreen === 'dashboard' && (
-          <DashboardScreen profile={profile} />
+          <DashboardScreen profile={profile} onNavigate={setCurrentScreen} />
+        )}
+        {currentScreen === 'profile-edit' && (
+          <ProfileEditScreen
+            profile={profile}
+            onBack={() => setCurrentScreen('dashboard')}
+            onSaved={() => {
+              checkProfile(session!.user.id);
+              setCurrentScreen('dashboard');
+            }}
+          />
         )}
         <BottomNav currentScreen={currentScreen} onNavigate={setCurrentScreen} profile={profile} />
         <AmbientCoach

@@ -561,8 +561,8 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-3xl w-full max-w-[430px] p-6 pb-10 animate-slide-up">
-            <div className="flex items-center justify-between mb-6">
+          <div className="relative bg-white rounded-t-3xl w-full max-w-[430px] flex flex-col animate-slide-up" style={{ maxHeight: '80vh' }}>
+            <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
               <h2 className="text-xl font-bold text-gray-900">
                 {isEnglish ? 'Settings' : 'Configuracion'}
               </h2>
@@ -574,7 +574,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               </button>
             </div>
 
-            <div className="space-y-4">
+            <div className="overflow-y-auto flex-1 px-6 pb-10 space-y-4">
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div>
                   <p className="font-semibold text-gray-900">

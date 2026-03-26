@@ -19,6 +19,7 @@ function isAdult(profile: Profile): boolean {
 
 interface DashboardScreenProps {
   profile: Profile;
+  onNavigate?: (screen: string) => void;
 }
 
 type Tier = {
@@ -56,7 +57,7 @@ function getNextTier(deposits: number): Tier | null {
   return null;
 }
 
-export function DashboardScreen({ profile }: DashboardScreenProps) {
+export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const isSpanish = profile.idioma === 'ES';
   const showSexual = isAdult(profile);
 
@@ -481,7 +482,7 @@ export function DashboardScreen({ profile }: DashboardScreenProps) {
                   : `${totalProfilePossible} pts available`}
               </span>
               <button
-                onClick={() => {/* TODO: navigate to profile edit */}}
+                onClick={() => onNavigate?.('profile-edit')}
                 className="flex items-center gap-1 bg-[#FFD93D] text-[#1a0f3d] text-sm font-bold px-4 py-2 rounded-xl"
               >
                 {isSpanish ? 'Completar perfil' : 'Complete profile'}

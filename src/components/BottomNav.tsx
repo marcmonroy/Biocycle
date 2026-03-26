@@ -1,7 +1,7 @@
 import { Home, Calendar, SquarePen as PenSquare, Sparkles, BarChart3 } from 'lucide-react';
 import { Profile } from '../lib/supabase';
 
-export type Screen = 'home' | 'forecast' | 'checkin' | 'coach' | 'dashboard';
+export type Screen = 'home' | 'forecast' | 'checkin' | 'coach' | 'dashboard' | 'profile-edit';
 
 interface BottomNavProps {
   currentScreen: Screen;
