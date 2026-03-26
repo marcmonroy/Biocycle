@@ -850,24 +850,32 @@ function NutritionTab({ profile, isSpanish, showSexual }: NutritionTabProps) {
     setError(null);
 
     try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id ?? profile.id;
+
       const insertData: Record<string, unknown> = {
-        user_id: profile.id,
+        user_id: userId,
         log_date: today,
-        meals,
+        meals_today: meals,
         hydration,
         caffeine,
         alcohol,
         sugar_intake: sugarIntake,
-        cycle_aligned: cycleAligned,
+        cycle_eating: cycleAligned,
       };
 
       if (showSexual) {
         insertData.sexual_nutrition_impact = sexualNutritionImpact;
       }
 
+      console.log("Attempting nutrition save with data:", insertData);
+
       const { error: insertError } = await supabase.from('nutrition_logs').insert(insertData);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.log("Nutrition save error:", insertError);
+        throw insertError;
+      }
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : (isSpanish ? 'Error al guardar' : 'Error saving'));
