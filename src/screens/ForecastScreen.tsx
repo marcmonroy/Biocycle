@@ -88,23 +88,23 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
 
   const getMetrics = (day: ForecastDay) => {
     const baseMetrics = [
-      { label: isSpanish ? 'Energia' : 'Energy', value: day.energy, color: 'bg-[#FFD93D]', icon: Battery },
-      { label: isSpanish ? 'Cognitivo' : 'Cognitive', value: day.cognitive, color: 'bg-[#2D1B69]', icon: Brain },
-      { label: isSpanish ? 'Emocional' : 'Emotional', value: day.emotional, color: 'bg-[#FF6B6B]', icon: Heart },
-      { label: isSpanish ? 'Fisico' : 'Physical', value: day.physical, color: 'bg-emerald-500', icon: Dumbbell },
+      { label: isSpanish ? 'Energia' : 'Energy', value: day.energy, color: '#F5C842', icon: Battery },
+      { label: isSpanish ? 'Cognitivo' : 'Cognitive', value: day.cognitive, color: '#00D4A1', icon: Brain },
+      { label: isSpanish ? 'Emocional' : 'Emotional', value: day.emotional, color: '#FF6B6B', icon: Heart },
+      { label: isSpanish ? 'Fisico' : 'Physical', value: day.physical, color: '#7B61FF', icon: Dumbbell },
     ];
 
     if (showSexual) {
-      baseMetrics.push({ label: 'Sexual', value: day.sexual, color: 'bg-[#FF6B6B]', icon: Flame });
+      baseMetrics.push({ label: 'Sexual', value: day.sexual, color: '#FF6B6B', icon: Flame });
     }
 
     return baseMetrics;
   };
 
   const getAnxietyIndicator = (anxiety: number) => {
-    if (anxiety >= 70) return { level: 'high', bgColor: 'bg-[#FF4444]', textBgColor: 'bg-red-100', textColor: 'text-red-700' };
-    if (anxiety >= 40) return { level: 'elevated', bgColor: 'bg-[#FFB347]', textBgColor: 'bg-amber-100', textColor: 'text-amber-700' };
-    return { level: 'low', bgColor: 'bg-emerald-500', textBgColor: 'bg-emerald-100', textColor: 'text-emerald-700' };
+    if (anxiety >= 70) return { level: 'high', bgColor: 'bg-[#FF4444]', textBgColor: 'bg-red-950/50', textColor: 'text-red-400' };
+    if (anxiety >= 40) return { level: 'elevated', bgColor: 'bg-[#FFB347]', textBgColor: 'bg-amber-950/50', textColor: 'text-amber-400' };
+    return { level: 'low', bgColor: 'bg-[#00D4A1]', textBgColor: 'bg-emerald-950/50', textColor: 'text-emerald-400' };
   };
 
   const upcomingHighAnxiety = forecast.slice(1, 3).find(day => day.anxiety >= 70);
@@ -113,18 +113,21 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-[#2D1B69] px-5 pt-12 pb-6">
-        <h1 className="text-2xl font-bold text-white">
-          {isSpanish ? 'Tu Pronostico de Inteligencia Biologica — 7 Dias' : 'Your 7-Day Biological Intelligence Forecast'}
+    <div className="min-h-screen bg-[#0A0A1A] pb-24">
+      <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
+        <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
+          {isSpanish ? 'Tu Pronostico — 7 Dias' : 'Your 7-Day Forecast'}
         </h1>
+        <p className="text-[#8B95B0] text-sm mt-1">
+          {isSpanish ? 'Inteligencia biologica predictiva' : 'Predictive biological intelligence'}
+        </p>
       </div>
 
       {hoursUntilHighAnxiety && (
-        <div className="mx-4 -mt-3 mb-3 bg-red-500 rounded-xl p-4 shadow-lg">
+        <div className="mx-4 mt-3 mb-3 bg-red-950/60 border border-red-900/50 rounded-xl p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-white flex-shrink-0 mt-0.5" />
-            <p className="text-white text-sm font-medium leading-relaxed">
+            <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-red-300 text-sm font-medium leading-relaxed">
               {isSpanish
                 ? `Ventana de vulnerabilidad se aproxima en ${hoursUntilHighAnxiety} horas. Reduce cafeina, protege tu sueno, evita decisiones importantes.`
                 : `Anxiety vulnerability window approaching in ${hoursUntilHighAnxiety} hours. Reduce caffeine, protect sleep, avoid high-stakes decisions.`}
@@ -133,7 +136,7 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
         </div>
       )}
 
-      <div className={`px-4 ${hoursUntilHighAnxiety ? '' : '-mt-3'} space-y-3`}>
+      <div className="px-4 mt-3 space-y-3">
         {forecast.map((day, index) => {
           const isToday = index === 0;
           const phaseName = phaseNames[day.phase] || { es: day.phase, en: day.phase };
@@ -144,22 +147,23 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
           return (
             <div
               key={index}
-              className={`bg-white rounded-2xl shadow-lg p-4 border-l-4 ${phaseColors[day.phase] || 'border-gray-400'} ${
-                isToday ? 'ring-2 ring-[#2D1B69] ring-offset-2' : ''
+              className={`bg-[#111126] rounded-2xl p-4 border-l-4 ${phaseColors[day.phase] || 'border-[#1E1E3A]'} ${
+                isToday ? 'border border-[#F5C842]/40 border-l-4' : 'border border-[#1E1E3A]'
               }`}
+              style={isToday ? { borderLeftColor: undefined } : undefined}
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-xs text-[#8B95B0]">
                     {isToday ? (isSpanish ? 'Hoy' : 'Today') : formatDate(day.date)}
                   </p>
-                  <p className="text-lg font-bold text-gray-900 mt-0.5">
+                  <p className="text-base font-bold text-white mt-0.5" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
                     {isSpanish ? phaseName.es : phaseName.en}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
                   {isToday && (
-                    <span className="px-2 py-1 bg-[#2D1B69] text-white text-xs font-medium rounded-full">
+                    <span className="px-2 py-1 bg-[#F5C842]/10 text-[#F5C842] text-xs font-medium rounded-full border border-[#F5C842]/30">
                       {isSpanish ? 'Hoy' : 'Today'}
                     </span>
                   )}
@@ -183,21 +187,21 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
                 {metrics.map(({ label, value, color, icon: Icon }) => (
                   <div key={label}>
                     <div className="flex items-center gap-2 mb-1">
-                      <Icon className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-xs text-gray-600 flex-1">{label}</span>
-                      <span className="text-xs font-bold text-gray-900">{value}%</span>
+                      <Icon className="w-3.5 h-3.5 text-[#4A5568]" />
+                      <span className="text-xs text-[#8B95B0] flex-1">{label}</span>
+                      <span className="text-xs font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value}%</span>
                     </div>
-                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-1 bg-[#1E1E3A] rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${color}`}
-                        style={{ width: `${value}%` }}
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${value}%`, backgroundColor: color }}
                       />
                     </div>
                   </div>
                 ))}
               </div>
 
-              <p className="text-sm text-gray-600 leading-relaxed pt-2 border-t border-gray-100">
+              <p className="text-sm text-[#8B95B0] leading-relaxed pt-2 border-t border-[#1E1E3A]">
                 {insight}
               </p>
             </div>

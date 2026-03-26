@@ -28,7 +28,7 @@ export function BottomNav({ currentScreen, onNavigate, profile }: BottomNavProps
   const isSpanish = profile.idioma === 'ES';
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 safe-area-bottom z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#0A0A1A] border-t border-[#1E1E3A] safe-area-bottom z-50">
       <div className="max-w-[430px] mx-auto flex">
         {tabs.map(({ screen, labelEs, labelEn, icon: Icon }) => {
           const isActive = currentScreen === screen;
@@ -37,21 +37,24 @@ export function BottomNav({ currentScreen, onNavigate, profile }: BottomNavProps
             <button
               key={screen}
               onClick={() => onNavigate(screen)}
-              className={`flex-1 flex flex-col items-center py-2 pt-3 transition-colors ${
-                isActive ? 'text-[#2D1B69]' : 'text-gray-400'
+              className={`relative flex-1 flex flex-col items-center py-2 pt-3 transition-colors ${
+                isActive ? 'text-[#F5C842]' : 'text-[#4A5568]'
               }`}
             >
               <Icon
-                className={`w-6 h-6 mb-1 transition-transform ${
+                className={`w-5 h-5 mb-1 transition-transform ${
                   isActive ? 'scale-110' : ''
                 }`}
                 strokeWidth={isActive ? 2.5 : 2}
               />
-              <span className={`text-xs ${isActive ? 'font-semibold' : 'font-medium'}`}>
+              <span
+                className="font-medium"
+                style={{ fontSize: '0.65rem', fontFamily: 'Inter, system-ui, sans-serif' }}
+              >
                 {label}
               </span>
               {isActive && (
-                <div className="absolute bottom-0 w-12 h-0.5 bg-[#2D1B69] rounded-full" />
+                <div className="absolute bottom-0 w-10 h-0.5 bg-[#F5C842] rounded-full" />
               )}
             </button>
           );

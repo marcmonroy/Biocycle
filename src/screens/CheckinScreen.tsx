@@ -25,26 +25,26 @@ type FactorConfig = {
 };
 
 const factorsBaseEs: FactorConfig[] = [
-  { key: 'emotional', label: 'Emocional', icon: Heart, color: 'bg-[#FF6B6B]' },
-  { key: 'physical', label: 'Fisico', icon: Dumbbell, color: 'bg-emerald-500' },
-  { key: 'cognitive', label: 'Cognitivo', icon: Brain, color: 'bg-[#2D1B69]' },
-  { key: 'stress', label: 'Estres', icon: Zap, color: 'bg-orange-500' },
-  { key: 'social', label: 'Social', icon: Users, color: 'bg-blue-500' },
+  { key: 'emotional', label: 'Emocional', icon: Heart, color: '#FF6B6B' },
+  { key: 'physical', label: 'Fisico', icon: Dumbbell, color: '#7B61FF' },
+  { key: 'cognitive', label: 'Cognitivo', icon: Brain, color: '#00D4A1' },
+  { key: 'stress', label: 'Estres', icon: Zap, color: '#F5C842' },
+  { key: 'social', label: 'Social', icon: Users, color: '#8B95B0' },
 ];
 
 const factorsBaseEn: FactorConfig[] = [
-  { key: 'emotional', label: 'Emotional', icon: Heart, color: 'bg-[#FF6B6B]' },
-  { key: 'physical', label: 'Physical', icon: Dumbbell, color: 'bg-emerald-500' },
-  { key: 'cognitive', label: 'Cognitive', icon: Brain, color: 'bg-[#2D1B69]' },
-  { key: 'stress', label: 'Stress', icon: Zap, color: 'bg-orange-500' },
-  { key: 'social', label: 'Social', icon: Users, color: 'bg-blue-500' },
+  { key: 'emotional', label: 'Emotional', icon: Heart, color: '#FF6B6B' },
+  { key: 'physical', label: 'Physical', icon: Dumbbell, color: '#7B61FF' },
+  { key: 'cognitive', label: 'Cognitive', icon: Brain, color: '#00D4A1' },
+  { key: 'stress', label: 'Stress', icon: Zap, color: '#F5C842' },
+  { key: 'social', label: 'Social', icon: Users, color: '#8B95B0' },
 ];
 
-const sexualFactorEs: FactorConfig = { key: 'sexual', label: 'Energia Sexual', icon: Flame, color: 'bg-[#FF6B6B]' };
-const sexualFactorEn: FactorConfig = { key: 'sexual', label: 'Sexual Energy', icon: Flame, color: 'bg-[#FF6B6B]' };
+const sexualFactorEs: FactorConfig = { key: 'sexual', label: 'Energia Sexual', icon: Flame, color: '#FF6B6B' };
+const sexualFactorEn: FactorConfig = { key: 'sexual', label: 'Sexual Energy', icon: Flame, color: '#FF6B6B' };
 
-const anxietyFactorEs: FactorConfig = { key: 'anxiety', label: 'Nivel de Ansiedad', icon: AlertTriangle, color: 'bg-amber-500' };
-const anxietyFactorEn: FactorConfig = { key: 'anxiety', label: 'Anxiety Level', icon: AlertTriangle, color: 'bg-amber-500' };
+const anxietyFactorEs: FactorConfig = { key: 'anxiety', label: 'Nivel de Ansiedad', icon: AlertTriangle, color: '#F5C842' };
+const anxietyFactorEn: FactorConfig = { key: 'anxiety', label: 'Anxiety Level', icon: AlertTriangle, color: '#F5C842' };
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -106,27 +106,27 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-gradient-to-r from-[#FF6B6B] to-[#FFD93D] px-5 pt-12 pb-4">
-        <h1 className="text-2xl font-bold text-white mb-1">
+    <div className="min-h-screen bg-[#0A0A1A] pb-24">
+      <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-4">
+        <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
           {isSpanish ? 'Centro de Datos' : 'Data Hub'}
         </h1>
         {/* Time-of-day deposit label */}
         <div className="flex items-center gap-2 mb-4">
           <span className="text-lg">{depositLabel.emoji}</span>
-          <span className="text-white font-semibold text-base tracking-wide">
+          <span className="text-[#F5C842] font-semibold text-base tracking-wide">
             {depositLabel.label}
           </span>
         </div>
-        <div className="flex gap-1 bg-white/20 rounded-xl p-1">
+        <div className="flex gap-1 bg-[#111126] border border-[#1E1E3A] rounded-xl p-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.key
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-white/90 hover:bg-white/10'
+                  ? 'bg-[#7B61FF] text-white shadow-sm'
+                  : 'text-[#8B95B0] hover:text-white'
               }`}
             >
               {tab.label}
@@ -254,7 +254,7 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
   if (checkingToday) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-[#2D1B69]" />
+        <Loader2 className="w-8 h-8 animate-spin text-[#7B61FF]" />
       </div>
     );
   }
@@ -263,13 +263,13 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto flex items-center justify-center mb-4">
-            <Lock className="w-10 h-10 text-gray-400" />
+          <div className="w-20 h-20 bg-[#1E1E3A] rounded-full mx-auto flex items-center justify-center mb-4">
+            <Lock className="w-10 h-10 text-[#8B95B0]" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             {isSpanish ? 'Deposito ya realizado hoy.' : 'Deposit already made today.'}
           </h2>
-          <p className="text-gray-500 mt-2">
+          <p className="text-[#8B95B0] mt-2">
             {isSpanish ? 'Vuelve manana.' : 'Come back tomorrow.'}
           </p>
         </div>
@@ -281,13 +281,13 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="w-20 h-20 bg-emerald-500 rounded-full mx-auto flex items-center justify-center mb-4">
-            <Check className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 bg-[#00D4A1]/20 border border-[#00D4A1]/40 rounded-full mx-auto flex items-center justify-center mb-4">
+            <Check className="w-10 h-10 text-[#00D4A1]" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900">
+          <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             {isSpanish ? 'Deposito recibido.' : 'Deposit received.'}
           </h2>
-          <p className="text-gray-500 mt-2">
+          <p className="text-[#8B95B0] mt-2">
             {isSpanish ? 'Conocerte a ti mismo tiene valor.' : 'Knowing yourself pays.'}
           </p>
         </div>
@@ -295,33 +295,23 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
     );
   }
 
-  const getColorHex = (color: string): string => {
-    if (color === 'bg-[#FF6B6B]') return '#FF6B6B';
-    if (color === 'bg-emerald-500') return '#10b981';
-    if (color === 'bg-[#2D1B69]') return '#2D1B69';
-    if (color === 'bg-orange-500') return '#f97316';
-    if (color === 'bg-blue-500') return '#3b82f6';
-    if (color === 'bg-rose-500') return '#f43f5e';
-    return '#3b82f6';
-  };
-
   return (
     <div className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4 text-red-600 text-sm">
+        <div className="bg-red-950/50 border border-red-900/50 rounded-xl p-4 text-red-400 text-sm">
           {error}
         </div>
       )}
 
       {factors.map(({ key, label, icon: Icon, color }) => (
-        <div key={key} className="bg-white rounded-2xl shadow-lg p-5">
+        <div key={key} className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center`}>
-              <Icon className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '22', border: `1px solid ${color}44` }}>
+              <Icon className="w-5 h-5" style={{ color }} />
             </div>
             <div className="flex-1">
-              <p className="font-bold text-gray-900">{label}</p>
-              <p className="text-sm text-gray-500">{values[key]}/10</p>
+              <p className="font-bold text-white">{label}</p>
+              <p className="text-sm text-[#8B95B0]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{values[key]}/10</p>
             </div>
           </div>
 
@@ -331,34 +321,34 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
             max="10"
             value={values[key]}
             onChange={(e) => setValues({ ...values, [key]: parseInt(e.target.value) })}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
             style={{
-              background: `linear-gradient(to right, ${getColorHex(color)} 0%, ${getColorHex(color)} ${(values[key] - 1) / 9 * 100}%, #e5e7eb ${(values[key] - 1) / 9 * 100}%, #e5e7eb 100%)`
+              background: `linear-gradient(to right, ${color} 0%, ${color} ${(values[key] - 1) / 9 * 100}%, #1E1E3A ${(values[key] - 1) / 9 * 100}%, #1E1E3A 100%)`
             }}
           />
           <div className="flex justify-between mt-1">
-            <span className="text-xs text-gray-400">1</span>
-            <span className="text-xs text-gray-400">10</span>
+            <span className="text-xs text-[#4A5568]">1</span>
+            <span className="text-xs text-[#4A5568]">10</span>
           </div>
         </div>
       ))}
 
-      <div className="bg-white rounded-2xl shadow-lg p-5">
-        <label className="block font-bold text-gray-900 mb-3">
+      <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+        <label className="block font-bold text-white mb-3">
           {isSpanish ? 'Notas (opcional)' : 'Notes (optional)'}
         </label>
         <textarea
           value={notas}
           onChange={(e) => setNotas(e.target.value)}
           placeholder={isSpanish ? 'Como fue tu dia? Algo que quieras recordar...' : 'How was your day? Anything you want to remember...'}
-          className="w-full h-24 p-4 bg-gray-50 rounded-xl border-0 resize-none focus:ring-2 focus:ring-[#2D1B69] outline-none"
+          className="w-full h-24 p-4 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl resize-none focus:ring-2 focus:ring-[#7B61FF] outline-none text-white placeholder-[#4A5568]"
         />
       </div>
 
       <button
         onClick={handleSubmit}
         disabled={loading}
-        className="w-full py-4 bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] text-white font-bold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+        className="w-full py-4 bg-[#F5C842] text-[#0A0A1A] font-bold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
       >
         {loading ? (
           <Loader2 className="w-5 h-5 animate-spin" />

@@ -196,8 +196,8 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#2D1B69]" />
+      <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#7B61FF]" />
       </div>
     );
   }
@@ -294,14 +294,14 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const profileComplete = earnedProfileBonus === maxProfileBonus;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
-      <div className="bg-[#2D1B69] px-5 pt-12 pb-6">
+    <div className="min-h-screen bg-[#0A0A1A] pb-24">
+      <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
               {isSpanish ? 'Tu Cuenta de Trading' : 'Your Trading Account'}
             </h1>
-            <p className="text-white/70 text-sm mt-1">
+            <p className="text-[#8B95B0] text-sm mt-1">
               {isSpanish ? 'Tu inteligencia biologica es tu activo mas valioso.' : 'Your biological intelligence is your most valuable asset.'}
             </p>
           </div>
@@ -309,31 +309,31 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
             <button
               onClick={handleExportData}
               disabled={allCheckins.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 bg-[#111126] border border-[#1E1E3A] text-[#8B95B0] text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0"
             >
               <Download className="w-3.5 h-3.5" />
-              {isSpanish ? 'Exportar mis datos' : 'Export My Data'}
+              {isSpanish ? 'Exportar' : 'Export'}
             </button>
             {exportSuccess && (
-              <span className="text-xs text-emerald-300 font-medium">
-                {isSpanish ? 'Tus datos han sido exportados.' : 'Your data has been exported.'}
+              <span className="text-xs text-[#00D4A1] font-medium">
+                {isSpanish ? 'Exportado.' : 'Exported.'}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      <div className="px-5 -mt-3 space-y-4">
-        <div className={`${currentTier.bgColor} rounded-2xl p-6 text-white`}>
+      <div className="px-5 mt-4 space-y-4">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-6" style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}>
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-              <TierIcon className="w-8 h-8 text-white" />
+            <div className="w-16 h-16 bg-[#F5C842]/10 border border-[#F5C842]/30 rounded-full flex items-center justify-center">
+              <TierIcon className="w-8 h-8 text-[#F5C842]" />
             </div>
             <div>
-              <p className="text-white/70 text-sm">
+              <p className="text-[#8B95B0] text-sm">
                 {isSpanish ? 'Tu nivel actual' : 'Your current tier'}
               </p>
-              <p className="text-2xl font-bold">
+              <p className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
                 {isSpanish ? currentTier.name : currentTier.nameEn}
               </p>
             </div>
@@ -342,20 +342,20 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           {nextTier && (
             <div>
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-white/70">
+                <span className="text-[#8B95B0]">
                   {isSpanish ? 'Progreso al siguiente nivel' : 'Progress to next tier'}
                 </span>
-                <span className="font-medium">
+                <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                   {totalDeposits}/{nextTier.min}
                 </span>
               </div>
-              <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+              <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-white rounded-full transition-all"
-                  style={{ width: `${Math.min(progressToNext, 100)}%` }}
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${Math.min(progressToNext, 100)}%`, background: 'linear-gradient(to right, #7B61FF, #F5C842)' }}
                 />
               </div>
-              <p className="text-sm text-white/70 mt-2">
+              <p className="text-sm text-[#8B95B0] mt-2">
                 {nextTier.min - totalDeposits} {isSpanish ? 'depositos para' : 'deposits to'} {isSpanish ? nextTier.name : nextTier.nameEn}
               </p>
             </div>
@@ -363,14 +363,14 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
         </div>
 
         {showPremiumUnlocked && (
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-5 text-white">
+          <div className="bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-6 h-6" />
-              <span className="font-bold text-lg">
+              <CheckCircle className="w-6 h-6 text-[#00D4A1]" />
+              <span className="font-bold text-lg text-white">
                 {isSpanish ? 'Premium desbloqueado' : 'Premium unlocked'}
               </span>
             </div>
-            <p className="text-white/90 text-sm">
+            <p className="text-[#8B95B0] text-sm">
               {isSpanish
                 ? 'La calidad de tus datos lo gano.'
                 : 'Your data quality earned it.'}
@@ -378,52 +378,52 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-[#2D1B69]">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#7B61FF', borderLeftWidth: 4 }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Award className="w-6 h-6 text-[#2D1B69]" />
-              <span className="font-bold text-gray-900">
+              <Award className="w-6 h-6 text-[#7B61FF]" />
+              <span className="font-bold text-white">
                 {isSpanish ? 'Puntuacion de Calidad' : 'Quality Score'}
               </span>
             </div>
-            <span className="text-3xl font-bold text-[#2D1B69]">{qualityScore + earnedProfileBonus}</span>
+            <span className="text-3xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{qualityScore + earnedProfileBonus}</span>
           </div>
 
-          <div className="h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
+          <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden mb-4">
             <div
-              className="h-full bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] rounded-full transition-all"
-              style={{ width: `${Math.min(qualityScore + earnedProfileBonus, 100)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{ width: `${Math.min(qualityScore + earnedProfileBonus, 100)}%`, background: 'linear-gradient(to right, #7B61FF, #F5C842)' }}
             />
           </div>
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">{isSpanish ? 'Frecuencia (30 dias)' : 'Frequency (30 days)'}</span>
-              <span className="font-medium text-gray-900">{frequencyPoints}/40</span>
+              <span className="text-[#8B95B0]">{isSpanish ? 'Frecuencia (30 dias)' : 'Frequency (30 days)'}</span>
+              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{frequencyPoints}/40</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">{isSpanish ? 'Consistencia' : 'Consistency'}</span>
-              <span className="font-medium text-gray-900">{consistencyPoints}/30</span>
+              <span className="text-[#8B95B0]">{isSpanish ? 'Consistencia' : 'Consistency'}</span>
+              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{consistencyPoints}/30</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">{isSpanish ? 'Dimensiones' : 'Dimensions'}</span>
-              <span className="font-medium text-gray-900">{completenessPoints}/20</span>
+              <span className="text-[#8B95B0]">{isSpanish ? 'Dimensiones' : 'Dimensions'}</span>
+              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{completenessPoints}/20</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">{isSpanish ? 'Profundidad' : 'Depth'}</span>
-              <span className="font-medium text-gray-900">{depthPoints}/10</span>
+              <span className="text-[#8B95B0]">{isSpanish ? 'Profundidad' : 'Depth'}</span>
+              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{depthPoints}/10</span>
             </div>
             {earnedProfileBonus > 0 && (
-              <div className="flex justify-between text-sm pt-1 border-t border-gray-100">
-                <span className="text-emerald-600 font-medium">{isSpanish ? 'Bonus perfil de salud' : 'Health profile bonus'}</span>
-                <span className="font-bold text-emerald-600">+{earnedProfileBonus}</span>
+              <div className="flex justify-between text-sm pt-1 border-t border-[#1E1E3A]">
+                <span className="text-[#00D4A1] font-medium">{isSpanish ? 'Bonus perfil de salud' : 'Health profile bonus'}</span>
+                <span className="font-bold text-[#00D4A1]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>+{earnedProfileBonus}</span>
               </div>
             )}
           </div>
 
           {totalDeposits >= 31 && totalDeposits <= 60 && (qualityScore + earnedProfileBonus) < 70 && (
-            <div className="mt-4 p-3 bg-amber-50 rounded-xl">
-              <p className="text-xs text-amber-700">
+            <div className="mt-4 p-3 bg-[#F5C842]/10 border border-[#F5C842]/20 rounded-xl">
+              <p className="text-xs text-[#F5C842]">
                 {isSpanish
                   ? `Necesitas ${70 - (qualityScore + earnedProfileBonus)} puntos mas para desbloquear Premium gratis en el nivel Crecimiento.`
                   : `Need ${70 - (qualityScore + earnedProfileBonus)} more points to unlock free Premium at Growth tier.`}
@@ -433,19 +433,19 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
         </div>
 
         {/* Profile Completeness card */}
-        <div className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-emerald-500">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#00D4A1', borderLeftWidth: 4 }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <ShieldCheck className="w-6 h-6 text-emerald-500" />
-              <span className="font-bold text-gray-900">
+              <ShieldCheck className="w-6 h-6 text-[#00D4A1]" />
+              <span className="font-bold text-white">
                 {isSpanish ? 'Perfil de Salud' : 'Health Profile'}
               </span>
             </div>
-            <span className="text-lg font-bold text-emerald-600">+{earnedProfileBonus}/{maxProfileBonus}</span>
+            <span className="text-lg font-bold text-[#00D4A1]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>+{earnedProfileBonus}/{maxProfileBonus}</span>
           </div>
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-4">
+          <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden mb-4">
             <div
-              className="h-full bg-emerald-500 rounded-full transition-all"
+              className="h-full bg-[#00D4A1] rounded-full transition-all"
               style={{ width: `${(earnedProfileBonus / maxProfileBonus) * 100}%` }}
             />
           </div>
@@ -453,12 +453,12 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
             {profileBonusItems.map(item => (
               <div key={item.key} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${item.done ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${item.done ? 'bg-[#00D4A1] text-[#0A0A1A]' : 'bg-[#1E1E3A] text-[#4A5568]'}`}>
                     {item.done ? '✓' : ''}
                   </span>
-                  <span className={item.done ? 'text-gray-700' : 'text-gray-400'}>{item.label}</span>
+                  <span className={item.done ? 'text-white' : 'text-[#4A5568]'}>{item.label}</span>
                 </div>
-                <span className={`font-medium ${item.done ? 'text-emerald-600' : 'text-gray-400'}`}>
+                <span className={`font-medium ${item.done ? 'text-[#00D4A1]' : 'text-[#4A5568]'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                   {item.done ? `+${item.points}` : `+${item.points} pts`}
                 </span>
               </div>
@@ -468,31 +468,31 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
 
         {/* Complete your health profile CTA */}
         {!profileComplete && (
-          <div className="bg-gradient-to-br from-[#1a0f3d] to-[#2D1B69] rounded-2xl p-5 text-white">
+          <div className="bg-[#111126] border border-[#7B61FF]/30 rounded-2xl p-5">
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-10 h-10 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-5 h-5 text-[#FFD93D]" />
+              <div className="w-10 h-10 bg-[#F5C842]/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-5 h-5 text-[#F5C842]" />
               </div>
               <div>
-                <p className="font-bold text-base">
+                <p className="font-bold text-base text-white">
                   {isSpanish ? 'Aumenta tu valor como dato' : 'Increase your data value'}
                 </p>
-                <p className="text-white/70 text-sm mt-1">
+                <p className="text-[#8B95B0] text-sm mt-1">
                   {isSpanish
-                    ? 'Completa tu perfil de salud para aumentar tu valor como mercancia. Cada campo que completes hace tus datos mas valiosos para los compradores de investigacion.'
-                    : 'Complete your health profile to increase your commodity value. Each field you complete makes your data more valuable to research buyers.'}
+                    ? 'Completa tu perfil de salud para aumentar tu valor como mercancia.'
+                    : 'Complete your health profile to increase your commodity value.'}
                 </p>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
-              <span className="text-sm text-white/70">
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E1E3A]">
+              <span className="text-sm text-[#8B95B0]">
                 {isSpanish
                   ? `${totalProfilePossible} pts disponibles`
                   : `${totalProfilePossible} pts available`}
               </span>
               <button
                 onClick={() => onNavigate?.('profile-edit')}
-                className="flex items-center gap-1 bg-[#FFD93D] text-[#1a0f3d] text-sm font-bold px-4 py-2 rounded-xl"
+                className="flex items-center gap-1 bg-[#F5C842] text-[#0A0A1A] text-sm font-bold px-4 py-2 rounded-xl"
               >
                 {isSpanish ? 'Completar perfil' : 'Complete profile'}
                 <ChevronRight className="w-4 h-4" />
@@ -502,70 +502,70 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
         )}
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl shadow-lg p-5">
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-emerald-500" />
-              <span className="text-sm text-gray-500">
+              <TrendingUp className="w-5 h-5 text-[#00D4A1]" />
+              <span className="text-xs text-[#8B95B0]">
                 {isSpanish ? 'Total depositos' : 'Total deposits'}
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{totalDeposits}</p>
+            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{totalDeposits}</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-5">
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5 text-[#FFD93D]" />
-              <span className="text-sm text-gray-500">
+              <Sparkles className="w-5 h-5 text-[#F5C842]" />
+              <span className="text-xs text-[#8B95B0]">
                 {isSpanish ? 'Calidad promedio' : 'Avg quality'}
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{avgQuality}</p>
+            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{avgQuality}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-5">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-2">
-            <Calendar className="w-5 h-5 text-blue-500" />
-            <span className="text-sm text-gray-500">
+            <Calendar className="w-5 h-5 text-[#7B61FF]" />
+            <span className="text-xs text-[#8B95B0]">
               {isSpanish ? 'Dias como Data Trader' : 'Days as Data Trader'}
             </span>
           </div>
-          <p className="text-3xl font-bold text-gray-900">{daysSinceJoined}</p>
+          <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{daysSinceJoined}</p>
         </div>
 
         {showSexual && (
-          <div className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-[#FF6B6B]">
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#FF6B6B', borderLeftWidth: 4 }}>
             <div className="flex items-center gap-2 mb-2">
               <Flame className="w-5 h-5 text-[#FF6B6B]" />
-              <span className="text-sm text-gray-500">
+              <span className="text-xs text-[#8B95B0]">
                 {isSpanish ? 'Datos dimension sexual' : 'Sexual dimension data'}
               </span>
             </div>
-            <p className="text-3xl font-bold text-gray-900">{sexualDeposits}</p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{sexualDeposits}</p>
+            <p className="text-xs text-[#4A5568] mt-1">
               {isSpanish ? 'depositos' : 'deposits'}
             </p>
-            <p className="text-xs text-emerald-600 mt-2 font-medium">
+            <p className="text-xs text-[#00D4A1] mt-2 font-medium">
               {isSpanish ? 'Dato de alto valor para investigacion' : 'High research value data point'}
             </p>
           </div>
         )}
 
-        <div className="bg-white rounded-2xl shadow-lg p-5 border-l-4 border-amber-500">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}>
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <span className="text-sm text-gray-500">
+            <AlertTriangle className="w-5 h-5 text-[#F5C842]" />
+            <span className="text-xs text-[#8B95B0]">
               {isSpanish ? 'Patron de ansiedad' : 'Anxiety pattern'}
             </span>
           </div>
           {anxietyDeposits >= 30 && highestAnxietyPhase ? (
             <>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-white">
                 {isSpanish
                   ? `Tus ventanas de mayor ansiedad ocurren en la fase ${highestAnxietyPhase}.`
                   : `Your highest anxiety windows occur during the ${highestAnxietyPhase} phase.`}
               </p>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-[#4A5568] mt-2">
                 {isSpanish
                   ? `Basado en ${anxietyDeposits} depositos de ansiedad`
                   : `Based on ${anxietyDeposits} anxiety deposits`}
@@ -573,17 +573,17 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
             </>
           ) : (
             <>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[#8B95B0]">
                 {isSpanish
                   ? 'Tu patron personal de ansiedad se esta calculando. Regresa despues de 30 depositos.'
                   : 'Your personal anxiety pattern is being calculated. Check back after 30 deposits.'}
               </p>
-              <p className="text-xs text-gray-400 mt-2">
+              <p className="text-xs text-[#4A5568] mt-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                 {anxietyDeposits}/30 {isSpanish ? 'depositos' : 'deposits'}
               </p>
-              <div className="h-1.5 bg-gray-200 rounded-full mt-2 overflow-hidden">
+              <div className="h-1.5 bg-[#1E1E3A] rounded-full mt-2 overflow-hidden">
                 <div
-                  className="h-full bg-amber-500 rounded-full"
+                  className="h-full bg-[#F5C842] rounded-full"
                   style={{ width: `${Math.min((anxietyDeposits / 30) * 100, 100)}%` }}
                 />
               </div>
@@ -591,8 +591,8 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-5">
-          <h3 className="font-bold text-gray-900 mb-4">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+          <h3 className="font-bold text-white mb-4" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             {isSpanish ? 'Niveles' : 'Tiers'}
           </h3>
           <div className="space-y-3">
@@ -603,20 +603,20 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
                 <div
                   key={tier.name}
                   className={`flex items-center gap-3 p-3 rounded-xl ${
-                    isCurrentTier ? `${tier.bgColor} text-white` : 'bg-gray-50'
+                    isCurrentTier ? 'bg-[#7B61FF]/15 border border-[#7B61FF]/30' : 'bg-[#0A0A1A]'
                   }`}
                 >
-                  <TIcon className={`w-5 h-5 ${isCurrentTier ? 'text-white' : tier.color}`} />
+                  <TIcon className={`w-5 h-5 ${isCurrentTier ? 'text-[#F5C842]' : 'text-[#4A5568]'}`} />
                   <div className="flex-1">
-                    <p className={`font-medium ${isCurrentTier ? 'text-white' : 'text-gray-900'}`}>
+                    <p className={`font-medium ${isCurrentTier ? 'text-white' : 'text-[#8B95B0]'}`}>
                       {isSpanish ? tier.name : tier.nameEn}
                     </p>
-                    <p className={`text-xs ${isCurrentTier ? 'text-white/70' : 'text-gray-500'}`}>
+                    <p className={`text-xs ${isCurrentTier ? 'text-[#8B95B0]' : 'text-[#4A5568]'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
                       {tier.min}-{tier.max === Infinity ? '100+' : tier.max} {isSpanish ? 'depositos' : 'deposits'}
                     </p>
                   </div>
                   {isCurrentTier && (
-                    <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                    <span className="text-xs bg-[#7B61FF]/20 text-[#7B61FF] px-2 py-1 rounded-full">
                       {isSpanish ? 'Actual' : 'Current'}
                     </span>
                   )}
@@ -626,8 +626,8 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] rounded-2xl p-5">
-          <p className="text-white/90 text-sm leading-relaxed">
+        <div className="bg-[#111126] border border-[#7B61FF]/20 rounded-2xl p-5">
+          <p className="text-[#8B95B0] text-sm leading-relaxed">
             {isSpanish
               ? 'Eres un Data Trader. Tus patrones biologicos son tu mercancia. BioCycle es tu exchange.'
               : 'You are a Data Trader. Your biological patterns are your commodity. BioCycle is your exchange.'}

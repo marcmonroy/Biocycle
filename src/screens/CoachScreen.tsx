@@ -475,10 +475,10 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
             <div
               className={`rounded-2xl px-4 py-3 ${
                 message.role === 'user'
-                  ? 'bg-[#2D1B69] text-white rounded-br-sm'
+                  ? 'bg-[#7B61FF] text-white rounded-br-sm'
                   : message.isError
-                  ? 'bg-red-50 border border-red-100 text-red-700 rounded-bl-sm'
-                  : 'bg-white shadow-md text-gray-800 rounded-bl-sm'
+                  ? 'bg-red-950/50 border border-red-900/50 text-red-400 rounded-bl-sm'
+                  : 'bg-[#111126] border border-[#1E1E3A] text-white rounded-bl-sm'
               }`}
             >
               {message.isError && (
@@ -498,10 +498,10 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
 
       {loading && (
         <div className="flex justify-start">
-          <div className="bg-white shadow-md rounded-2xl rounded-bl-sm px-4 py-3">
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl rounded-bl-sm px-4 py-3">
             <div className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin text-[#2D1B69]" />
-              <span className="text-sm text-gray-500">
+              <Loader2 className="w-5 h-5 animate-spin text-[#7B61FF]" />
+              <span className="text-sm text-[#8B95B0]">
                 {isSpanish ? 'Pensando...' : 'Thinking...'}
               </span>
             </div>
@@ -516,26 +516,26 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const InputBar = () => (
     <div className="px-4 pb-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[#4A5568]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
           {isSpanish
             ? `${messageCount} de ${MONTHLY_LIMIT} mensajes usados`
             : `${messageCount} of ${MONTHLY_LIMIT} messages used`}
         </span>
         {isLimitReached && (
-          <span className="text-xs text-orange-500 font-medium">
+          <span className="text-xs text-[#FF6B6B] font-medium">
             {isSpanish ? 'Limite alcanzado' : 'Limit reached'}
           </span>
         )}
       </div>
 
       {isLimitReached ? (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-center">
-          <p className="text-orange-700 text-sm font-medium mb-1">
+        <div className="bg-[#FF6B6B]/10 border border-[#FF6B6B]/20 rounded-xl p-4 text-center">
+          <p className="text-[#FF6B6B] text-sm font-medium mb-1">
             {isSpanish
               ? 'Has alcanzado tu limite mensual'
               : 'You have reached your monthly limit'}
           </p>
-          <p className="text-orange-600 text-xs">
+          <p className="text-[#8B95B0] text-xs">
             {isSpanish
               ? 'Actualiza tu plan para mensajes ilimitados'
               : 'Upgrade your plan for unlimited messages'}
@@ -544,7 +544,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
       ) : (
         <>
           {!speechSupported && (
-            <p className="text-xs text-amber-600 mb-2">
+            <p className="text-xs text-[#F5C842] mb-2">
               {isSpanish
                 ? 'Entrada de voz no soportada. Por favor usa Chrome.'
                 : 'Voice input not supported. Please use Chrome.'}
@@ -558,25 +558,25 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
               onKeyPress={handleKeyPress}
               disabled={loading}
               placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
-              className="flex-1 px-4 py-3 bg-white rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#2D1B69] focus:border-transparent outline-none disabled:bg-gray-100 disabled:text-gray-400"
+              className="flex-1 px-4 py-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-2 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-50"
             />
             <button
               onClick={toggleListening}
               disabled={loading || !speechSupported}
               className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-gray-200 hover:bg-gray-300'
+                isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-[#1E1E3A] hover:bg-[#2A2A45]'
               } disabled:opacity-50`}
             >
               {isListening ? (
                 <MicOff className="w-5 h-5 text-white" />
               ) : (
-                <Mic className="w-5 h-5 text-gray-600" />
+                <Mic className="w-5 h-5 text-[#8B95B0]" />
               )}
             </button>
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim()}
-              className="w-12 h-12 bg-[#2D1B69] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
+              className="w-12 h-12 bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
             >
               <Send className="w-5 h-5 text-white" />
             </button>
@@ -629,15 +629,15 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
 
   // ── Normal view ──────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-24">
+    <div className="min-h-screen bg-[#0A0A1A] flex flex-col pb-24">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#2D1B69] to-[#FF6B6B] px-5 pt-12 pb-6">
+      <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
               {isSpanish ? 'Tu Coach' : 'Your Coach'}
             </h1>
-            <p className="text-white/70 text-sm mt-1">
+            <p className="text-[#8B95B0] text-sm mt-1">
               {phaseNames[phaseData.phase] || phaseData.phase}
             </p>
           </div>
@@ -646,7 +646,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
             <button
               onClick={toggleMute}
               title={isMuted ? (isSpanish ? 'Activar voz' : 'Unmute') : (isSpanish ? 'Silenciar' : 'Mute')}
-              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-9 h-9 rounded-full bg-[#1E1E3A] hover:bg-[#2A2A45] flex items-center justify-center transition-colors"
             >
               {isMuted ? (
                 <VolumeX className="w-4 h-4 text-white" />
@@ -658,16 +658,16 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
             <button
               onClick={() => setIsFullScreen(true)}
               title={isSpanish ? 'Pantalla completa' : 'Full screen'}
-              className="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-9 h-9 rounded-full bg-[#1E1E3A] hover:bg-[#2A2A45] flex items-center justify-center transition-colors"
             >
-              <Maximize2 className="w-4 h-4 text-white" />
+              <Maximize2 className="w-4 h-4 text-[#8B95B0]" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Bio Avatar */}
-      <div className="flex justify-center py-5 bg-gradient-to-b from-[#2D1B69]/10 to-transparent">
+      <div className="flex justify-center py-5 bg-[#0A0A1A]">
         <BioAvatar state={bioState} size={80} />
       </div>
 

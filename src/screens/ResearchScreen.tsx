@@ -120,17 +120,17 @@ export function ResearchScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-gradient-to-r from-slate-900 to-slate-800 text-white">
+    <div className="min-h-screen bg-[#0F0F1F]">
+      <header className="bg-[#0F0F1F] border-b border-[#1E1E3A] text-white">
         <div className="max-w-6xl mx-auto px-6 py-16 md:py-24">
           <div className="flex items-center gap-3 mb-4">
-            <Database className="w-8 h-8 text-amber-400" />
-            <span className="text-amber-400 font-medium tracking-wide uppercase text-sm">Research Portal</span>
+            <Database className="w-8 h-8 text-[#F5C842]" />
+            <span className="text-[#F5C842] font-medium tracking-wide uppercase text-sm" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Research Portal</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             BioCycle Research Portal
           </h1>
-          <p className="text-xl text-slate-300 max-w-2xl leading-relaxed">
+          <p className="text-xl text-[#8B95B0] max-w-2xl leading-relaxed">
             Access the world's first consented longitudinal hormonal behavioral dataset
           </p>
 
@@ -156,42 +156,42 @@ export function ResearchScreen() {
       </header>
 
       <section className="max-w-6xl mx-auto px-6 py-16">
-        <h2 className="text-2xl font-bold text-slate-900 mb-2">Available Dataset Categories</h2>
-        <p className="text-slate-600 mb-8">Ethically sourced, consented behavioral data correlated with hormonal cycles</p>
+        <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>Available Dataset Categories</h2>
+        <p className="text-[#8B95B0] mb-8">Ethically sourced, consented behavioral data correlated with hormonal cycles</p>
 
         <div className="grid md:grid-cols-2 gap-6">
           {DATASET_CARDS.map((card) => (
             <div
               key={card.title}
-              className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow"
+              className="bg-[#111126] rounded-2xl border border-[#1E1E3A] p-6 hover:border-[#F5C842]/30 transition-colors"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center`}>
                   <card.icon className="w-6 h-6 text-white" />
                 </div>
-                <span className="px-3 py-1 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                <span className="px-3 py-1 bg-[#F5C842]/10 text-[#F5C842] text-xs font-medium rounded-full border border-[#F5C842]/20">
                   Dataset Growing
                 </span>
               </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">{card.title}</h3>
-              <p className="text-slate-600 text-sm leading-relaxed">{card.description}</p>
+              <h3 className="text-lg font-semibold text-white mb-2">{card.title}</h3>
+              <p className="text-[#8B95B0] text-sm leading-relaxed">{card.description}</p>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="bg-slate-900 text-white">
+      <section className="bg-[#0A0A1A] border-t border-[#1E1E3A] text-white">
         <div className="max-w-3xl mx-auto px-6 py-16">
-          <h2 className="text-2xl font-bold mb-2">Register Research Interest</h2>
-          <p className="text-slate-400 mb-8">Connect with our data partnerships team to discuss your research requirements</p>
+          <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>Register Research Interest</h2>
+          <p className="text-[#8B95B0] mb-8">Connect with our data partnerships team to discuss your research requirements</p>
 
           {submitted ? (
-            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-8 text-center">
-              <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-8 h-8 text-emerald-400" />
+            <div className="bg-[#00D4A1]/10 border border-[#00D4A1]/20 rounded-2xl p-8 text-center">
+              <div className="w-16 h-16 bg-[#00D4A1]/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-8 h-8 text-[#00D4A1]" />
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Registration Received</h3>
-              <p className="text-slate-300">
+              <p className="text-[#8B95B0]">
                 Thank you. A BioCycle data partnerships representative will contact you within 48 hours to discuss your research requirements.
               </p>
             </div>
@@ -199,24 +199,24 @@ export function ResearchScreen() {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Company Name</label>
+                  <label className="block text-sm font-medium text-[#8B95B0] mb-2">Company Name</label>
                   <input
                     type="text"
                     required
                     value={formData.companyName}
                     onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-[#111126] border border-[#1E1E3A] rounded-xl px-4 py-3 text-white placeholder-[#4A5568] focus:outline-none focus:border-[#F5C842] focus:ring-1 focus:ring-[#F5C842]"
                     placeholder="Organization name"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Contact Name</label>
+                  <label className="block text-sm font-medium text-[#8B95B0] mb-2">Contact Name</label>
                   <input
                     type="text"
                     required
                     value={formData.contactName}
                     onChange={(e) => setFormData({ ...formData, contactName: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-[#111126] border border-[#1E1E3A] rounded-xl px-4 py-3 text-white placeholder-[#4A5568] focus:outline-none focus:border-[#F5C842] focus:ring-1 focus:ring-[#F5C842]"
                     placeholder="Your name"
                   />
                 </div>
@@ -224,23 +224,23 @@ export function ResearchScreen() {
 
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                  <label className="block text-sm font-medium text-[#8B95B0] mb-2">Email</label>
                   <input
                     type="email"
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-[#111126] border border-[#1E1E3A] rounded-xl px-4 py-3 text-white placeholder-[#4A5568] focus:outline-none focus:border-[#F5C842] focus:ring-1 focus:ring-[#F5C842]"
                     placeholder="work@company.com"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Research Category</label>
+                  <label className="block text-sm font-medium text-[#8B95B0] mb-2">Research Category</label>
                   <select
                     required
                     value={formData.researchCategory}
                     onChange={(e) => setFormData({ ...formData, researchCategory: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    className="w-full bg-[#111126] border border-[#1E1E3A] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F5C842] focus:ring-1 focus:ring-[#F5C842]"
                   >
                     <option value="">Select category</option>
                     {RESEARCH_CATEGORIES.map((cat) => (
@@ -251,12 +251,12 @@ export function ResearchScreen() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">Research Interest</label>
+                <label className="block text-sm font-medium text-[#8B95B0] mb-2">Research Interest</label>
                 <textarea
                   rows={4}
                   value={formData.researchInterest}
                   onChange={(e) => setFormData({ ...formData, researchInterest: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 resize-none"
+                  className="w-full bg-[#111126] border border-[#1E1E3A] rounded-xl px-4 py-3 text-white placeholder-[#4A5568] focus:outline-none focus:border-[#F5C842] focus:ring-1 focus:ring-[#F5C842] resize-none"
                   placeholder="Describe your research objectives and data requirements"
                 />
               </div>
@@ -264,7 +264,7 @@ export function ResearchScreen() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full bg-[#F5C842] hover:bg-[#F5C842]/90 disabled:opacity-50 disabled:cursor-not-allowed text-[#0A0A1A] font-semibold py-4 rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {submitting ? (
                   <>
@@ -280,8 +280,8 @@ export function ResearchScreen() {
         </div>
       </section>
 
-      <footer className="bg-slate-100 border-t border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 py-8 text-center text-sm text-slate-500">
+      <footer className="bg-[#0A0A1A] border-t border-[#1E1E3A]">
+        <div className="max-w-6xl mx-auto px-6 py-8 text-center text-sm text-[#4A5568]">
           BioCycle Research Portal. All data is ethically sourced from consenting participants.
         </div>
       </footer>
@@ -291,12 +291,12 @@ export function ResearchScreen() {
 
 function StatCard({ label, value, icon, highlight }: { label: string; value: string; icon: React.ReactNode; highlight?: boolean }) {
   return (
-    <div className={`rounded-xl p-4 md:p-6 ${highlight ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/50 border border-slate-700/50'}`}>
-      <div className={`mb-2 ${highlight ? 'text-amber-400' : 'text-slate-400'}`}>
+    <div className={`rounded-xl p-4 md:p-6 ${highlight ? 'bg-[#F5C842]/10 border border-[#F5C842]/20' : 'bg-[#111126] border border-[#1E1E3A]'}`}>
+      <div className={`mb-2 ${highlight ? 'text-[#F5C842]' : 'text-[#8B95B0]'}`}>
         {icon}
       </div>
-      <div className={`text-2xl md:text-3xl font-bold ${highlight ? 'text-amber-400' : 'text-white'}`}>{value}</div>
-      <div className="text-xs md:text-sm text-slate-400 mt-1">{label}</div>
+      <div className={`text-2xl md:text-3xl font-bold ${highlight ? 'text-[#F5C842]' : 'text-white'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value}</div>
+      <div className="text-xs md:text-sm text-[#8B95B0] mt-1">{label}</div>
     </div>
   );
 }

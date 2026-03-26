@@ -246,14 +246,14 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const banner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
 
   const baseMetrics = [
-    { label: isEnglish ? 'Energy' : 'Energia', value: phaseData.energy, color: 'bg-[#FFD93D]' },
-    { label: isEnglish ? 'Cognitive' : 'Cognitivo', value: phaseData.cognitive, color: 'bg-[#2D1B69]' },
-    { label: isEnglish ? 'Emotional' : 'Emocional', value: phaseData.emotional, color: 'bg-[#FF6B6B]' },
-    { label: isEnglish ? 'Physical' : 'Fisico', value: phaseData.physical, color: 'bg-emerald-500' },
+    { label: isEnglish ? 'Energy' : 'Energia', value: phaseData.energy, color: '#F5C842' },
+    { label: isEnglish ? 'Cognitive' : 'Cognitivo', value: phaseData.cognitive, color: '#00D4A1' },
+    { label: isEnglish ? 'Emotional' : 'Emocional', value: phaseData.emotional, color: '#FF6B6B' },
+    { label: isEnglish ? 'Physical' : 'Fisico', value: phaseData.physical, color: '#7B61FF' },
   ];
 
   const metrics = showSexual
-    ? [...baseMetrics, { label: 'Sexual', value: phaseData.sexual, color: 'bg-[#FF6B6B]' }]
+    ? [...baseMetrics, { label: 'Sexual', value: phaseData.sexual, color: '#FF6B6B' }]
     : baseMetrics;
 
   const handleLanguageChange = async (newLang: 'ES' | 'EN') => {
@@ -511,21 +511,21 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24">
+    <div className="min-h-screen bg-[#0A0A1A] pb-24">
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
         <div>
-          <p className="text-gray-500 text-sm">
+          <p className="text-[#8B95B0] text-sm">
             {isEnglish ? 'Hello' : 'Hola'}, {profile.nombre || 'Usuario'}
           </p>
-          <h1 className="text-xl font-bold text-gray-900">
+          <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             {isEnglish ? 'Your day' : 'Tu dia'}
           </h1>
         </div>
         <button
           onClick={() => setShowSettings(true)}
-          className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center"
+          className="w-10 h-10 bg-[#111126] border border-[#1E1E3A] rounded-full flex items-center justify-center"
         >
-          <Settings className="w-5 h-5 text-gray-600" />
+          <Settings className="w-5 h-5 text-[#8B95B0]" />
         </button>
       </div>
 
@@ -602,20 +602,20 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
       </div>
 
       <div className="px-5 mt-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
+        <h3 className="text-base font-semibold text-[#8B95B0] mb-3 tracking-wide uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em' }}>
           {isEnglish ? 'Your levels today' : 'Tus niveles hoy'}
         </h3>
-        <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5 space-y-4">
           {metrics.map(({ label, value, color }) => (
             <div key={label}>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-gray-700">{label}</span>
-                <span className="text-sm font-bold text-gray-900">{value}%</span>
+                <span className="text-sm font-medium text-[#8B95B0]">{label}</span>
+                <span className="text-sm font-bold font-mono text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value}%</span>
               </div>
-              <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-1 bg-[#1E1E3A] rounded-full overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${color}`}
-                  style={{ width: `${value}%` }}
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{ width: `${value}%`, backgroundColor: color }}
                 />
               </div>
             </div>
@@ -624,37 +624,37 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
       </div>
 
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-          <div className="relative bg-white rounded-t-3xl w-full max-w-[430px] flex flex-col animate-slide-up" style={{ maxHeight: '80vh' }}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center">
+          <div className="relative bg-[#0F0F1F] border border-[#1E1E3A] rounded-t-3xl w-full max-w-[430px] flex flex-col animate-slide-up" style={{ maxHeight: '80vh' }}>
             <div className="flex items-center justify-between p-6 pb-4 flex-shrink-0">
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
                 {isEnglish ? 'Settings' : 'Configuracion'}
               </h2>
               <button
                 onClick={() => setShowSettings(false)}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
+                className="w-10 h-10 bg-[#1E1E3A] rounded-full flex items-center justify-center"
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className="w-5 h-5 text-[#8B95B0]" />
               </button>
             </div>
 
             <div className="overflow-y-auto flex-1 min-h-0 px-6 pb-24 space-y-4">
-              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between p-4 bg-[#111126] border border-[#1E1E3A] rounded-xl">
                 <div>
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-white">
                     {isEnglish ? 'Language' : 'Idioma'}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#8B95B0]">
                     {isEnglish ? 'Change app language' : 'Cambiar idioma de la app'}
                   </p>
                 </div>
-                <div className="flex bg-gray-200 rounded-lg p-1">
+                <div className="flex bg-[#1E1E3A] rounded-lg p-1">
                   <button
                     onClick={() => handleLanguageChange('ES')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       language === 'ES'
-                        ? 'bg-[#2D1B69] text-white'
-                        : 'text-gray-600'
+                        ? 'bg-[#7B61FF] text-white'
+                        : 'text-[#8B95B0]'
                     }`}
                   >
                     ES
@@ -663,8 +663,8 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                     onClick={() => handleLanguageChange('EN')}
                     className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                       language === 'EN'
-                        ? 'bg-[#2D1B69] text-white'
-                        : 'text-gray-600'
+                        ? 'bg-[#7B61FF] text-white'
+                        : 'text-[#8B95B0]'
                     }`}
                   >
                     EN
@@ -672,12 +672,12 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 </div>
               </div>
 
-              <div className={`flex items-center justify-between p-4 bg-gray-50 rounded-xl ${!canUsePicardia ? 'opacity-50' : ''}`}>
+              <div className={`flex items-center justify-between p-4 bg-[#111126] border border-[#1E1E3A] rounded-xl ${!canUsePicardia ? 'opacity-50' : ''}`}>
                 <div>
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-white">
                     {isEnglish ? 'Picardia Mode' : 'Modo Picardia'}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[#8B95B0]">
                     {!canUsePicardia
                       ? isEnglish
                         ? 'Available for 18+ only'
@@ -691,7 +691,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                   onClick={() => handlePicardiaChange(!picardiaMode)}
                   disabled={!canUsePicardia}
                   className={`w-14 h-8 rounded-full transition-colors relative ${
-                    picardiaMode && canUsePicardia ? 'bg-[#FF6B6B]' : 'bg-gray-300'
+                    picardiaMode && canUsePicardia ? 'bg-[#FF6B6B]' : 'bg-[#1E1E3A]'
                   }`}
                 >
                   <div
@@ -703,10 +703,10 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               </div>
 
               {/* Check-in schedule editor */}
-              <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="p-4 bg-[#111126] border border-[#1E1E3A] rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
-                  <Bell className="w-4 h-4 text-[#2D1B69]" />
-                  <p className="font-semibold text-gray-900">
+                  <Bell className="w-4 h-4 text-[#F5C842]" />
+                  <p className="font-semibold text-white">
                     {isEnglish ? 'Deposit Schedule' : 'Horario de Depósitos'}
                   </p>
                 </div>
@@ -720,20 +720,20 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                     };
                     const label = isEnglish ? (labelMap[slot.label]?.en ?? slot.label) : (labelMap[slot.label]?.es ?? slot.label);
                     return (
-                      <div key={slot.label} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${slot.enabled ? 'border-[#2D1B69]/30 bg-white' : 'border-gray-200 bg-gray-100 opacity-60'}`}>
+                      <div key={slot.label} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${slot.enabled ? 'border-[#7B61FF]/30 bg-[#1E1E3A]' : 'border-[#1E1E3A] bg-[#0A0A1A] opacity-60'}`}>
                         <button
                           onClick={() => toggleCheckinSlot(index)}
-                          className={`w-9 h-5 rounded-full flex-shrink-0 relative transition-colors ${slot.enabled ? 'bg-[#2D1B69]' : 'bg-gray-300'}`}
+                          className={`w-9 h-5 rounded-full flex-shrink-0 relative transition-colors ${slot.enabled ? 'bg-[#7B61FF]' : 'bg-[#2A2A45]'}`}
                         >
                           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${slot.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                         </button>
-                        <span className="flex-1 text-sm font-medium text-gray-700">{label}</span>
+                        <span className="flex-1 text-sm font-medium text-white">{label}</span>
                         <input
                           type="time"
                           value={slot.time}
                           onChange={e => updateCheckinTime(index, e.target.value)}
                           disabled={!slot.enabled}
-                          className="text-sm px-2 py-1 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-[#2D1B69] disabled:opacity-40"
+                          className="text-sm px-2 py-1 border border-[#1E1E3A] rounded-lg bg-[#0A0A1A] text-white focus:outline-none focus:ring-1 focus:ring-[#7B61FF] disabled:opacity-40"
                         />
                       </div>
                     );
@@ -742,7 +742,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 <button
                   onClick={handleScheduleSave}
                   disabled={savingSchedule}
-                  className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-[#2D1B69] text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
+                  className="mt-3 w-full flex items-center justify-center gap-2 py-2 bg-[#7B61FF] text-white text-sm font-semibold rounded-xl disabled:opacity-50 transition-colors"
                 >
                   {savingSchedule ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   {scheduleSaved ? (isEnglish ? 'Saved!' : '¡Guardado!') : (isEnglish ? 'Save schedule' : 'Guardar horario')}
@@ -751,10 +751,10 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
               {/* Legal links */}
               <div className="grid grid-cols-2 gap-2">
-                <a href="/privacy" className="flex items-center justify-center p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                <a href="/privacy" className="flex items-center justify-center p-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-sm text-[#8B95B0] hover:text-white transition-colors">
                   {isEnglish ? 'Privacy Policy' : 'Privacidad'}
                 </a>
-                <a href="/terms" className="flex items-center justify-center p-3 bg-gray-50 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-colors">
+                <a href="/terms" className="flex items-center justify-center p-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-sm text-[#8B95B0] hover:text-white transition-colors">
                   {isEnglish ? 'Terms' : 'Términos'}
                 </a>
               </div>
@@ -763,7 +763,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               <button
                 onClick={handleExportData}
                 disabled={exportingData}
-                className="w-full flex items-center justify-center gap-2 p-4 bg-gray-50 text-gray-700 rounded-xl font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 p-4 bg-[#111126] border border-[#1E1E3A] text-[#8B95B0] rounded-xl font-semibold hover:text-white transition-colors disabled:opacity-50"
               >
                 {exportingData ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                 {exportSuccess
@@ -773,7 +773,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 text-red-600 rounded-xl font-semibold hover:bg-red-100 transition-colors"
+                className="w-full flex items-center justify-center gap-2 p-4 bg-red-950/50 border border-red-900/30 text-red-400 rounded-xl font-semibold hover:bg-red-950 transition-colors"
               >
                 <LogOut className="w-5 h-5" />
                 {isEnglish ? 'Log out' : 'Cerrar sesion'}
@@ -783,25 +783,25 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               {!showDeleteConfirm ? (
                 <button
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="w-full flex items-center justify-center gap-2 p-3 text-red-400 text-sm hover:text-red-600 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 p-3 text-red-500/60 text-sm hover:text-red-400 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   {isEnglish ? 'Delete my account' : 'Eliminar mi cuenta'}
                 </button>
               ) : (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-3">
-                  <p className="text-sm font-semibold text-red-800 text-center">
+                <div className="p-4 bg-red-950/50 border border-red-900/50 rounded-xl space-y-3">
+                  <p className="text-sm font-semibold text-red-300 text-center">
                     {isEnglish
                       ? '⚠️ This will permanently delete all your data including your biological portfolio. This cannot be undone. Are you sure?'
                       : '⚠️ Esto eliminará permanentemente todos tus datos, incluyendo tu portafolio biológico. Esta acción no se puede deshacer. ¿Estás seguro?'}
                   </p>
                   {deleteError && (
-                    <p className="text-xs text-red-600 text-center">{deleteError}</p>
+                    <p className="text-xs text-red-400 text-center">{deleteError}</p>
                   )}
                   <div className="flex gap-2">
                     <button
                       onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }}
-                      className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                      className="flex-1 py-2 border border-[#1E1E3A] rounded-lg text-sm text-[#8B95B0] hover:text-white transition-colors"
                     >
                       {isEnglish ? 'Cancel' : 'Cancelar'}
                     </button>
@@ -819,8 +819,8 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
             </div>
 
             {saving && (
-              <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-t-3xl">
-                <Loader2 className="w-6 h-6 animate-spin text-[#2D1B69]" />
+              <div className="absolute inset-0 bg-[#0A0A1A]/80 flex items-center justify-center rounded-t-3xl">
+                <Loader2 className="w-6 h-6 animate-spin text-[#7B61FF]" />
               </div>
             )}
 
