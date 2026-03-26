@@ -353,24 +353,30 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
                 </button>
                 <form onSubmit={authMode === 'register' ? handleRegister : (e) => { e.preventDefault(); handleSignIn(); }} className="space-y-4">
                   <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8892A4]" />
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-4 bg-[#2D1B69]/20 border border-[#2D1B69]/50 rounded-xl focus:ring-2 focus:ring-[#FF6B6B] focus:border-transparent outline-none transition-all text-white placeholder-slate-500"
+                      className="w-full pl-10 pr-4 py-4 rounded-xl outline-none transition-all text-white"
+                      style={{ background: '#1A1A2E', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}
+                      onFocus={e => (e.target.style.borderColor = '#2D1B69')}
+                      onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.2)')}
                       placeholder={t(content.form.email)}
                       required
                     />
                   </div>
                   <div>
                     <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8892A4]" />
                       <input
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-12 py-4 bg-[#2D1B69]/20 border border-[#2D1B69]/50 rounded-xl focus:ring-2 focus:ring-[#FF6B6B] focus:border-transparent outline-none transition-all text-white placeholder-slate-500"
+                        className="w-full pl-10 pr-12 py-4 rounded-xl outline-none transition-all text-white"
+                        style={{ background: '#1A1A2E', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}
+                        onFocus={e => (e.target.style.borderColor = '#2D1B69')}
+                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.2)')}
                         placeholder={t(content.form.password)}
                         minLength={6}
                         required

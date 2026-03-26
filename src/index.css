@@ -7,3 +7,9 @@ body {
   color: white;
   font-family: 'Inter', system-ui, sans-serif;
 }
+
+input::placeholder,
+textarea::placeholder {
+  color: #8892A4;
+  opacity: 1;
+}
