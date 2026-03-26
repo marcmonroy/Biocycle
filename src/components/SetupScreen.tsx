@@ -58,8 +58,8 @@ function SliderRow({
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
-        <span className="text-sm font-bold text-[#2D1B69]">{value} {unit}</span>
+        <span className="text-sm font-medium text-white">{label}</span>
+        <span className="text-sm font-bold text-[#F5C842]">{value} {unit}</span>
       </div>
       <input
         type="range"
@@ -68,9 +68,9 @@ function SliderRow({
         step={1}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
-        className="w-full accent-rose-400"
+        className="w-full accent-[#7B61FF]"
       />
-      <div className="flex justify-between text-xs text-gray-400 mt-0.5">
+      <div className="flex justify-between text-xs text-[#8B95B0] mt-0.5">
         <span>{min}</span>
         <span>{max}</span>
       </div>
@@ -108,8 +108,8 @@ function MultiSelect({
           onClick={() => toggle(opt)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-all ${
             selected.includes(opt)
-              ? 'border-rose-400 bg-rose-50 text-rose-700'
-              : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              ? 'border-[#7B61FF] bg-[#7B61FF]/20 text-[#7B61FF]'
+              : 'border-[#1E1E3A] text-[#8B95B0] hover:border-[#7B61FF]/50'
           }`}
         >
           {opt}
@@ -268,13 +268,13 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
   // ── Render ───────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-amber-50 flex flex-col items-center justify-start p-4 pt-8">
+    <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-start p-4 pt-8">
       <div className="w-full max-w-md">
         {/* Language toggle */}
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[#8B95B0] hover:text-white border border-[#1E1E3A] rounded-lg transition-colors"
           >
             {lang === 'en' ? 'ES' : 'EN'}
           </button>
@@ -282,12 +282,12 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-xl font-bold text-gray-900">
+          <h1 className="text-xl font-bold text-white">
             {isEnglish
               ? 'Complete your trading account setup'
               : 'Completa la configuracion de tu cuenta de trading'}
           </h1>
-          <p className="text-gray-500 mt-1 text-sm">
+          <p className="text-[#8B95B0] mt-1 text-sm">
             {isEnglish ? `Step ${displayIndex} of ${totalSteps}` : `Paso ${displayIndex} de ${totalSteps}`}
           </p>
           <div className="flex gap-1.5 justify-center mt-3">
@@ -295,16 +295,16 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
               <div
                 key={i}
                 className={`h-1.5 rounded-full transition-all ${
-                  i < displayIndex ? 'bg-rose-400' : 'bg-gray-200'
+                  i < displayIndex ? 'bg-[#7B61FF]' : 'bg-[#1E1E3A]'
                 } ${i === displayIndex - 1 ? 'w-8' : 'w-4'}`}
               />
             ))}
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-6">
+        <div className="bg-[#111126] rounded-2xl border border-[#1E1E3A] p-6">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-sm">
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
               {error}
             </div>
           )}
@@ -312,17 +312,17 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           {/* ── Name ── */}
           {step === 'name' && (
             <div className="space-y-4">
-              <div className="w-16 h-16 bg-rose-100 rounded-full mx-auto flex items-center justify-center">
-                <User className="w-8 h-8 text-rose-500" />
+              <div className="w-16 h-16 bg-[#7B61FF]/20 rounded-full mx-auto flex items-center justify-center">
+                <User className="w-8 h-8 text-[#7B61FF]" />
               </div>
-              <h2 className="text-xl font-semibold text-center text-gray-900">
+              <h2 className="text-xl font-semibold text-center text-white">
                 {isEnglish ? "What's your name?" : '¿Cómo te llamas?'}
               </h2>
               <input
                 type="text"
                 value={nombre}
                 onChange={e => setNombre(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none transition-all text-center text-lg"
+                className="w-full px-4 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all text-center text-lg"
                 placeholder={isEnglish ? 'Your name' : 'Tu nombre'}
                 autoFocus
               />
@@ -332,10 +332,10 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           {/* ── Gender ── */}
           {step === 'gender' && (
             <div className="space-y-4">
-              <div className="w-16 h-16 bg-amber-100 rounded-full mx-auto flex items-center justify-center">
-                <Heart className="w-8 h-8 text-amber-500" />
+              <div className="w-16 h-16 bg-[#F5C842]/20 rounded-full mx-auto flex items-center justify-center">
+                <Heart className="w-8 h-8 text-[#F5C842]" />
               </div>
-              <h2 className="text-xl font-semibold text-center text-gray-900">
+              <h2 className="text-xl font-semibold text-center text-white">
                 {isEnglish ? "What's your gender?" : '¿Cuál es tu género?'}
               </h2>
               <div className="grid grid-cols-2 gap-3">
@@ -347,21 +347,21 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                     key={opt.value}
                     onClick={() => setGenero(opt.value)}
                     className={`p-4 rounded-xl border-2 transition-all ${
-                      genero === opt.value ? 'border-rose-400 bg-rose-50' : 'border-gray-200 hover:border-gray-300'
+                      genero === opt.value ? 'border-[#7B61FF] bg-[#7B61FF]/20' : 'border-[#1E1E3A] hover:border-[#7B61FF]/50'
                     }`}
                   >
                     <span className="text-2xl block mb-1">{opt.icon}</span>
-                    <span className="font-medium text-gray-700">{isEnglish ? opt.labelEn : opt.labelEs}</span>
+                    <span className="font-medium text-white">{isEnglish ? opt.labelEn : opt.labelEs}</span>
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => setGenero('prefiero_no_decir')}
                 className={`w-full p-3 rounded-xl border-2 transition-all ${
-                  genero === 'prefiero_no_decir' ? 'border-rose-400 bg-rose-50' : 'border-gray-200 hover:border-gray-300'
+                  genero === 'prefiero_no_decir' ? 'border-[#7B61FF] bg-[#7B61FF]/20' : 'border-[#1E1E3A] hover:border-[#7B61FF]/50'
                 }`}
               >
-                <span className="font-medium text-gray-700">
+                <span className="font-medium text-white">
                   {isEnglish ? 'Prefer not to say' : 'Prefiero no decir'}
                 </span>
               </button>
@@ -371,13 +371,13 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           {/* ── Birthdate ── */}
           {step === 'birthdate' && (
             <div className="space-y-4">
-              <div className="w-16 h-16 bg-blue-100 rounded-full mx-auto flex items-center justify-center">
-                <Calendar className="w-8 h-8 text-blue-500" />
+              <div className="w-16 h-16 bg-[#00D4A1]/20 rounded-full mx-auto flex items-center justify-center">
+                <Calendar className="w-8 h-8 text-[#00D4A1]" />
               </div>
-              <h2 className="text-xl font-semibold text-center text-gray-900">
+              <h2 className="text-xl font-semibold text-center text-white">
                 {isEnglish ? 'Your birthdate' : 'Tu fecha de nacimiento'}
               </h2>
-              <p className="text-sm text-gray-600 text-center">
+              <p className="text-sm text-[#8B95B0] text-center">
                 {isEnglish
                   ? 'Your birthdate activates your biological forecast'
                   : 'Tu fecha de nacimiento activa tu pronóstico biológico'}
@@ -386,15 +386,15 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 type="date"
                 value={fechaNacimiento}
                 onChange={e => { setFechaNacimiento(e.target.value); setBirthdateError(false); }}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none transition-all text-center ${
-                  birthdateError ? 'border-red-400 bg-red-50' : 'border-gray-200'
+                className={`w-full px-4 py-3 bg-[#1A1A2E] text-white border rounded-xl focus:border-[#7B61FF] focus:outline-none transition-all text-center ${
+                  birthdateError ? 'border-red-500/50' : 'border-white/20'
                 }`}
                 max={new Date().toISOString().split('T')[0]}
               />
               {birthdateError && (
-                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
-                  <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-red-600">
+                <div className="flex items-start gap-2 p-3 bg-red-900/30 border border-red-500/30 rounded-xl">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400">
                     {isEnglish
                       ? 'Birthdate is required to calculate your cycles and research eligibility.'
                       : 'La fecha de nacimiento es necesaria para calcular tus ciclos y elegibilidad.'}
@@ -407,32 +407,32 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           {/* ── Cycle (female only) ── */}
           {step === 'cycle' && (
             <div className="space-y-4">
-              <div className="w-16 h-16 bg-rose-100 rounded-full mx-auto flex items-center justify-center">
+              <div className="w-16 h-16 bg-[#FF6B6B]/20 rounded-full mx-auto flex items-center justify-center">
                 <span className="text-2xl">🌙</span>
               </div>
-              <h2 className="text-xl font-semibold text-center text-gray-900">
+              <h2 className="text-xl font-semibold text-center text-white">
                 {isEnglish ? 'Your menstrual cycle' : 'Tu ciclo menstrual'}
               </h2>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   {isEnglish ? 'Average cycle length' : 'Duración promedio del ciclo'}
                 </label>
                 <div className="flex items-center justify-center gap-4">
-                  <button onClick={() => setCycleLength(Math.max(21, cycleLength - 1))} className="w-10 h-10 rounded-full border border-gray-200 hover:bg-gray-50">-</button>
-                  <span className="text-2xl font-bold text-rose-500 w-16 text-center">{cycleLength}</span>
-                  <button onClick={() => setCycleLength(Math.min(35, cycleLength + 1))} className="w-10 h-10 rounded-full border border-gray-200 hover:bg-gray-50">+</button>
-                  <span className="text-gray-500">{isEnglish ? 'days' : 'días'}</span>
+                  <button onClick={() => setCycleLength(Math.max(21, cycleLength - 1))} className="w-10 h-10 rounded-full border border-[#1E1E3A] hover:bg-[#1A1A2E] text-white">-</button>
+                  <span className="text-2xl font-bold text-[#F5C842] w-16 text-center">{cycleLength}</span>
+                  <button onClick={() => setCycleLength(Math.min(35, cycleLength + 1))} className="w-10 h-10 rounded-full border border-[#1E1E3A] hover:bg-[#1A1A2E] text-white">+</button>
+                  <span className="text-[#8B95B0]">{isEnglish ? 'days' : 'días'}</span>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   {isEnglish ? 'Start of your last period' : 'Inicio de tu último período'}
                 </label>
                 <input
                   type="date"
                   value={lastPeriodDate}
                   onChange={e => setLastPeriodDate(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none transition-all text-center"
+                  className="w-full px-4 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none rounded-xl transition-all text-center"
                   max={new Date().toISOString().split('T')[0]}
                 />
               </div>
@@ -442,13 +442,13 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           {/* ── Schedule ── */}
           {step === 'schedule' && (
             <div className="space-y-4">
-              <div className="w-16 h-16 bg-purple-100 rounded-full mx-auto flex items-center justify-center">
-                <Bell className="w-8 h-8 text-purple-500" />
+              <div className="w-16 h-16 bg-[#7B61FF]/20 rounded-full mx-auto flex items-center justify-center">
+                <Bell className="w-8 h-8 text-[#7B61FF]" />
               </div>
-              <h2 className="text-xl font-semibold text-center text-gray-900">
+              <h2 className="text-xl font-semibold text-center text-white">
                 {isEnglish ? 'Your deposit schedule' : 'Tu horario de depósitos'}
               </h2>
-              <p className="text-sm text-gray-500 text-center">
+              <p className="text-sm text-[#8B95B0] text-center">
                 {isEnglish
                   ? 'Choose when Bio reminds you to check in each day'
                   : 'Elige cuándo Bio te recuerda registrarte cada día'}
@@ -461,28 +461,28 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                     <div
                       key={slot.label}
                       className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all ${
-                        slot.enabled ? 'border-rose-300 bg-rose-50' : 'border-gray-200 bg-gray-50 opacity-60'
+                        slot.enabled ? 'border-[#7B61FF]/50 bg-[#7B61FF]/10' : 'border-[#1E1E3A] bg-[#0A0A1A] opacity-60'
                       }`}
                     >
                       <button
                         onClick={() => toggleSlot(index)}
-                        className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${slot.enabled ? 'bg-rose-400' : 'bg-gray-300'}`}
+                        className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${slot.enabled ? 'bg-[#7B61FF]' : 'bg-[#1E1E3A]'}`}
                       >
                         <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${slot.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
                       </button>
-                      <span className="flex-1 font-medium text-gray-700 text-sm">{label}</span>
+                      <span className="flex-1 font-medium text-white text-sm">{label}</span>
                       <input
                         type="time"
                         value={slot.time}
                         onChange={e => updateTime(index, e.target.value)}
                         disabled={!slot.enabled}
-                        className="px-2 py-1 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none disabled:opacity-40 bg-white"
+                        className="px-2 py-1 bg-[#1A1A2E] text-white border border-white/20 rounded-lg text-sm focus:border-[#7B61FF] focus:outline-none disabled:opacity-40"
                       />
                     </div>
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-400 text-center">
+              <p className="text-xs text-[#8B95B0] text-center">
                 {isEnglish ? 'You can change these anytime in Settings' : 'Puedes cambiarlos en Ajustes'}
               </p>
             </div>
@@ -493,15 +493,15 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             <div className="space-y-4">
               <div className="text-center">
                 <span className="text-3xl">💪</span>
-                <h2 className="text-lg font-bold text-gray-900 mt-2">
+                <h2 className="text-lg font-bold text-white mt-2">
                   {isEnglish ? 'Health Profile' : 'Perfil de Salud'}
                 </h2>
-                <span className="inline-block mt-1 px-3 py-1 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full">
+                <span className="inline-block mt-1 px-3 py-1 bg-[#00D4A1]/20 text-[#00D4A1] text-xs font-semibold rounded-full border border-[#00D4A1]/30">
                   {isEnglish ? 'Increase your data trading value' : 'Aumenta el valor de tus datos'}
                 </span>
               </div>
 
-              <p className="text-xs text-gray-500 text-center bg-gray-50 rounded-xl p-3">
+              <p className="text-xs text-[#8B95B0] text-center bg-[#0A0A1A] rounded-xl p-3 border border-[#1E1E3A]">
                 {isEnglish
                   ? 'This information improves your forecast accuracy and increases your data trading value. All fields optional.'
                   : 'Esta información mejora la precisión de tu pronóstico y aumenta el valor de tus datos. Todos los campos son opcionales.'}
@@ -511,7 +511,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 {/* Height & Weight */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-white mb-1">
                       {isEnglish ? 'Height (cm)' : 'Altura (cm)'}
                     </label>
                     <input
@@ -520,11 +520,11 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                       onChange={e => setHeightCm(e.target.value)}
                       placeholder="170"
                       min={100} max={250}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none"
+                      className="w-full px-3 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl text-sm"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                    <label className="block text-xs font-medium text-white mb-1">
                       {isEnglish ? 'Weight (kg)' : 'Peso (kg)'}
                     </label>
                     <input
@@ -533,19 +533,19 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                       onChange={e => setWeightKg(e.target.value)}
                       placeholder="65"
                       min={30} max={300}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none"
+                      className="w-full px-3 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl text-sm"
                     />
                   </div>
                 </div>
                 {bmi && (
-                  <p className="text-xs text-center text-gray-500">
-                    BMI: <span className="font-semibold text-[#2D1B69]">{bmi}</span>
+                  <p className="text-xs text-center text-[#8B95B0]">
+                    BMI: <span className="font-semibold text-[#F5C842]">{bmi}</span>
                   </p>
                 )}
 
                 {/* Exercise Frequency */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-xs font-medium text-white mb-1">
                     {isEnglish ? 'Exercise frequency' : 'Frecuencia de ejercicio'}
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -555,8 +555,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                         onClick={() => setExerciseFrequency(exerciseFrequency === opt ? '' : opt)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-all ${
                           exerciseFrequency === opt
-                            ? 'border-rose-400 bg-rose-50 text-rose-700'
-                            : 'border-gray-200 text-gray-600'
+                            ? 'border-[#7B61FF] bg-[#7B61FF]/20 text-[#7B61FF]'
+                            : 'border-[#1E1E3A] text-[#8B95B0] hover:border-[#7B61FF]/50'
                         }`}
                       >
                         {opt}
@@ -567,7 +567,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
                 {/* Exercise Type */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-xs font-medium text-white mb-1">
                     {isEnglish ? 'Exercise type' : 'Tipo de ejercicio'}
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -577,8 +577,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                         onClick={() => setExerciseType(exerciseType === opt ? '' : opt)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-all ${
                           exerciseType === opt
-                            ? 'border-rose-400 bg-rose-50 text-rose-700'
-                            : 'border-gray-200 text-gray-600'
+                            ? 'border-[#7B61FF] bg-[#7B61FF]/20 text-[#7B61FF]'
+                            : 'border-[#1E1E3A] text-[#8B95B0] hover:border-[#7B61FF]/50'
                         }`}
                       >
                         {opt}
@@ -589,7 +589,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
                 {/* Diet */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                  <label className="block text-xs font-medium text-white mb-1">
                     {isEnglish ? 'Diet type' : 'Tipo de dieta'}
                   </label>
                   <div className="flex flex-wrap gap-2">
@@ -599,8 +599,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                         onClick={() => setDietType(dietType === opt ? '' : opt)}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium border-2 transition-all ${
                           dietType === opt
-                            ? 'border-rose-400 bg-rose-50 text-rose-700'
-                            : 'border-gray-200 text-gray-600'
+                            ? 'border-[#7B61FF] bg-[#7B61FF]/20 text-[#7B61FF]'
+                            : 'border-[#1E1E3A] text-[#8B95B0] hover:border-[#7B61FF]/50'
                         }`}
                       >
                         {opt}
@@ -629,7 +629,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
               <button
                 onClick={() => setHealthSkipped(!healthSkipped)}
-                className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors py-1"
+                className="w-full text-xs text-[#8B95B0] hover:text-white transition-colors py-1"
               >
                 {healthSkipped
                   ? (isEnglish ? '↩ Include my health data' : '↩ Incluir mis datos de salud')
@@ -643,15 +643,15 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             <div className="space-y-4">
               <div className="text-center">
                 <span className="text-3xl">🧬</span>
-                <h2 className="text-lg font-bold text-gray-900 mt-2">
+                <h2 className="text-lg font-bold text-white mt-2">
                   {isEnglish ? 'Medical Profile' : 'Perfil Médico'}
                 </h2>
-                <span className="inline-block mt-1 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-full">
+                <span className="inline-block mt-1 px-3 py-1 bg-[#7B61FF]/20 text-[#7B61FF] text-xs font-semibold rounded-full border border-[#7B61FF]/30">
                   {isEnglish ? 'Premium data — highest research value' : 'Datos premium — mayor valor de investigación'}
                 </span>
               </div>
 
-              <p className="text-xs text-gray-500 text-center bg-purple-50 border border-purple-100 rounded-xl p-3">
+              <p className="text-xs text-[#8B95B0] text-center bg-[#7B61FF]/10 border border-[#7B61FF]/20 rounded-xl p-3">
                 {isEnglish
                   ? 'Medical data is the highest-value research commodity. Pharmaceutical companies pay premium prices for this data. Your privacy is protected — data is anonymized before any research transaction.'
                   : 'Los datos médicos son la mercancía de investigación de mayor valor. Las farmacéuticas pagan precios premium. Tu privacidad está protegida — los datos son anonimizados antes de cualquier transacción.'}
@@ -660,7 +660,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
               <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
                 {/* Known conditions */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs font-semibold text-white mb-2">
                     {isEnglish ? 'Known conditions' : 'Condiciones conocidas'}
                   </label>
                   <MultiSelect
@@ -673,7 +673,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
                 {/* Current medications */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs font-semibold text-white mb-2">
                     {isEnglish ? 'Current medications' : 'Medicamentos actuales'}
                   </label>
                   <MultiSelect
@@ -686,7 +686,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
                 {/* Blood type */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs font-semibold text-white mb-2">
                     {isEnglish ? 'Blood type (optional)' : 'Tipo de sangre (opcional)'}
                   </label>
                   <div className="grid grid-cols-4 gap-2">
@@ -696,8 +696,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                         onClick={() => setBloodType(bloodType === bt ? '' : bt)}
                         className={`py-2 rounded-xl border-2 font-bold text-sm transition-all ${
                           bloodType === bt
-                            ? 'border-rose-400 bg-rose-50 text-rose-700'
-                            : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                            ? 'border-[#7B61FF] bg-[#7B61FF]/20 text-[#7B61FF]'
+                            : 'border-[#1E1E3A] hover:border-[#7B61FF]/50 text-[#8B95B0]'
                         }`}
                       >
                         {bt}
@@ -708,7 +708,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
                 {/* Family history */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs font-semibold text-white mb-2">
                     {isEnglish ? 'Family history' : 'Antecedentes familiares'}
                   </label>
                   <MultiSelect
@@ -722,7 +722,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
               <button
                 onClick={() => setMedicalSkipped(!medicalSkipped)}
-                className="w-full text-xs text-gray-400 hover:text-gray-600 transition-colors py-1"
+                className="w-full text-xs text-[#8B95B0] hover:text-white transition-colors py-1"
               >
                 {medicalSkipped
                   ? (isEnglish ? '↩ Include my medical data' : '↩ Incluir mis datos médicos')
@@ -736,7 +736,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             {displayIndex > 1 && (
               <button
                 onClick={prevStep}
-                className="flex-1 py-3 border border-gray-200 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                className="flex-1 py-3 border border-[#1E1E3A] text-[#8B95B0] font-medium rounded-xl hover:bg-[#1A1A2E] hover:text-white transition-all flex items-center justify-center gap-2"
               >
                 <ArrowLeft className="w-5 h-5" />
                 {isEnglish ? 'Back' : 'Atrás'}
@@ -745,7 +745,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
             <button
               onClick={nextStep}
               disabled={!canProceed() || loading}
-              className="flex-1 py-3 bg-gradient-to-r from-rose-400 to-amber-400 text-white font-semibold rounded-xl hover:from-rose-500 hover:to-amber-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 bg-[#F5C842] hover:bg-[#F5C842]/90 text-[#0A0A1A] font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
