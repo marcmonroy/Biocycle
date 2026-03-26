@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Profile } from '../lib/supabase';
 import { PhaseData, ForecastDay } from '../utils/phaseEngine';
-import { MessageCircle, X, Send, Loader2, AlertCircle } from 'lucide-react';
+import { MessageCircle, X, Send, Loader2, AlertCircle, Mic, MicOff } from 'lucide-react';
 import { callCoachAPI, getMessageCount, incrementMessageCount, getPhaseNames } from '../screens/CoachScreen';
 
 interface AmbientCoachProps {
@@ -53,7 +53,10 @@ export function AmbientCoach({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(getMessageCount());
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
@@ -63,6 +66,47 @@ export function AmbientCoach({
   const hoursUntilHighAnxiety = upcomingHighAnxiety
     ? Math.round((upcomingHighAnxiety.date.getTime() - new Date().getTime()) / (1000 * 60 * 60))
     : null;
+
+  // ── Speech Recognition setup ────────────────────────────────────
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = isSpanish ? 'es-ES' : 'en-US';
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setIsListening(false);
+      // Auto-send after voice input
+      setMessages(prev => [...prev, { role: 'user', content: transcript }]);
+      setLoading(true);
+      callCoachAPI(transcript, profile, phaseData, recentAnxiety).then(result => {
+        if (result.error) {
+          setMessages(prev => [...prev, { role: 'assistant', content: result.error!, isError: true }]);
+        } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: result.content }]);
+          const newCount = incrementMessageCount();
+          setMessageCount(newCount);
+        }
+        setLoading(false);
+      });
+    };
+
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognitionRef.current?.abort();
+    };
+  }, [isSpanish]);
 
   useEffect(() => {
     if (isOpen) {
@@ -171,6 +215,29 @@ export function AmbientCoach({
     setLoading(false);
   };
 
+  const toggleListening = () => {
+    if (!speechSupported) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: isSpanish
+          ? 'Por favor usa la pantalla principal del coach para entrada de voz.'
+          : 'Please use the main coach screen for voice input.',
+      }]);
+      return;
+    }
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch {
+        setIsListening(false);
+      }
+    }
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -191,7 +258,9 @@ export function AmbientCoach({
     <>
       <button
         onClick={handleOpen}
-        className="fixed bottom-28 right-4 w-14 h-14 bg-[#2D1B69] rounded-full shadow-lg flex items-center justify-center z-40 hover:scale-105 transition-transform"
+        className={`fixed bottom-28 right-4 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-40 hover:scale-105 transition-all ${
+          isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-[#2D1B69]'
+        }`}
         aria-label="Open coach"
       >
         <MessageCircle className="w-6 h-6 text-white" />
@@ -199,21 +268,21 @@ export function AmbientCoach({
 
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
-          <div className="bg-white rounded-t-3xl w-full max-w-[430px] h-[70vh] flex flex-col animate-slide-up">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="bg-[#111126] rounded-t-3xl w-full max-w-[430px] h-[70vh] flex flex-col animate-slide-up">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#1E1E3A]">
               <div>
-                <h2 className="font-bold text-gray-900">
+                <h2 className="font-bold text-white">
                   {isSpanish ? 'Tu Coach' : 'Your Coach'}
                 </h2>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-[#8B95B0]">
                   {messageCount} / {MONTHLY_LIMIT} {isSpanish ? 'mensajes' : 'messages'}
                 </p>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
+                className="w-10 h-10 bg-[#1E1E3A] rounded-full flex items-center justify-center"
               >
-                <X className="w-5 h-5 text-gray-600" />
+                <X className="w-5 h-5 text-[#8B95B0]" />
               </button>
             </div>
 
@@ -226,10 +295,10 @@ export function AmbientCoach({
                   <div
                     className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                       message.role === 'user'
-                        ? 'bg-[#2D1B69] text-white rounded-br-sm'
+                        ? 'bg-[#7B61FF] text-white rounded-br-sm'
                         : message.isError
-                        ? 'bg-red-50 border border-red-100 text-red-700 rounded-bl-sm'
-                        : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        ? 'bg-red-900/30 border border-red-500/30 text-red-400 rounded-bl-sm'
+                        : 'bg-[#1E1E3A] text-white rounded-bl-sm'
                     }`}
                   >
                     {message.isError && (
@@ -245,10 +314,10 @@ export function AmbientCoach({
 
               {loading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-2.5">
+                  <div className="bg-[#1E1E3A] rounded-2xl rounded-bl-sm px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin text-[#2D1B69]" />
-                      <span className="text-sm text-gray-500">
+                      <Loader2 className="w-4 h-4 animate-spin text-[#7B61FF]" />
+                      <span className="text-sm text-[#8B95B0]">
                         {isSpanish ? 'Pensando...' : 'Thinking...'}
                       </span>
                     </div>
@@ -256,31 +325,58 @@ export function AmbientCoach({
                 </div>
               )}
 
+              {isListening && (
+                <div className="flex justify-center">
+                  <div className="bg-[#FF6B6B]/20 border border-[#FF6B6B]/40 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                    <span className="w-2 h-2 bg-[#FF6B6B] rounded-full animate-pulse" />
+                    <span className="text-sm text-[#FF6B6B]">
+                      {isSpanish ? 'Escuchando...' : 'Listening...'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100">
+            <div className="px-4 py-3 border-t border-[#1E1E3A]">
               {isLimitReached ? (
-                <div className="bg-orange-50 rounded-xl p-3 text-center">
-                  <p className="text-orange-700 text-sm">
+                <div className="bg-orange-900/30 border border-orange-500/30 rounded-xl p-3 text-center">
+                  <p className="text-orange-400 text-sm">
                     {isSpanish ? 'Limite mensual alcanzado' : 'Monthly limit reached'}
                   </p>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleListening}
+                    disabled={loading}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors disabled:opacity-50 ${
+                      isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-[#1E1E3A] hover:bg-[#2A2A45]'
+                    }`}
+                    aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+                  >
+                    {isListening ? (
+                      <MicOff className="w-4 h-4 text-white" />
+                    ) : (
+                      <Mic className="w-4 h-4 text-[#8B95B0]" />
+                    )}
+                  </button>
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    disabled={loading}
-                    placeholder={isSpanish ? 'Escribe...' : 'Type...'}
-                    className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl focus:ring-2 focus:ring-[#2D1B69] focus:bg-white outline-none text-sm"
+                    disabled={loading || isListening}
+                    placeholder={isListening
+                      ? (isSpanish ? 'Escuchando...' : 'Listening...')
+                      : (isSpanish ? 'Escribe...' : 'Type...')}
+                    className="flex-1 px-4 py-2.5 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8B95B0] rounded-xl text-sm"
                   />
                   <button
                     onClick={sendMessage}
-                    disabled={loading || !input.trim()}
-                    className="w-10 h-10 bg-[#2D1B69] rounded-xl flex items-center justify-center disabled:opacity-50"
+                    disabled={loading || !input.trim() || isListening}
+                    className="w-10 h-10 bg-[#7B61FF] rounded-xl flex items-center justify-center disabled:opacity-50 flex-shrink-0"
                   >
                     <Send className="w-4 h-4 text-white" />
                   </button>
