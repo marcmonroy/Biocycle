@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2 } from 'lucide-react';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download } from 'lucide-react';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
 interface HomeScreenProps {
@@ -220,6 +220,11 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteComplete, setDeleteComplete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Export state
+  const [exportingData, setExportingData] = useState(false);
+  const [exportSuccess, setExportSuccess] = useState(false);
 
   const isEnglish = language === 'EN';
   const showSexual = isAdult(profile);
@@ -300,19 +305,78 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
   const handleDeleteAccount = async () => {
     setDeleting(true);
+    setDeleteError(null);
+    const userId = profile.id;
     try {
-      // Delete all user data in order
-      await supabase.from('nutrition_logs').delete().eq('user_id', profile.id);
-      await supabase.from('weekly_checkins').delete().eq('user_id', profile.id);
-      await supabase.from('checkins').delete().eq('user_id', profile.id);
-      await supabase.from('profiles').delete().eq('id', profile.id);
+      console.log('[Delete] Step 1: Deleting checkins...');
+      const { error: e1 } = await supabase.from('checkins').delete().eq('user_id', userId);
+      if (e1) throw new Error(`checkins: ${e1.message}`);
+
+      console.log('[Delete] Step 2: Deleting weekly_checkins...');
+      const { error: e2 } = await supabase.from('weekly_checkins').delete().eq('user_id', userId);
+      if (e2) throw new Error(`weekly_checkins: ${e2.message}`);
+
+      console.log('[Delete] Step 3: Deleting nutrition_logs...');
+      const { error: e3 } = await supabase.from('nutrition_logs').delete().eq('user_id', userId);
+      if (e3) throw new Error(`nutrition_logs: ${e3.message}`);
+
+      console.log('[Delete] Step 4: Deleting profile...');
+      const { error: e4 } = await supabase.from('profiles').delete().eq('id', userId);
+      if (e4) throw new Error(`profiles: ${e4.message}`);
+
+      console.log('[Delete] Step 5: Signing out...');
       setDeleteComplete(true);
       setTimeout(async () => {
         await supabase.auth.signOut();
       }, 3000);
-    } catch (err) {
-      console.error('Delete error:', err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('[Delete] Error:', msg);
+      setDeleteError(isEnglish ? `Error: ${msg}. Please try again.` : `Error: ${msg}. Intenta de nuevo.`);
       setDeleting(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExportingData(true);
+    try {
+      const { data: checkins, error } = await supabase
+        .from('checkins')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('checkin_date', { ascending: false });
+      if (error) throw error;
+
+      const headers = ['date', 'phase', 'emotional', 'physical', 'cognitive', 'stress', 'social', 'sexual', 'anxiety', 'quality_score', 'notes'];
+      const rows = (checkins ?? []).map((c: Record<string, unknown>) => [
+        c.checkin_date ?? '',
+        c.phase_at_checkin ?? '',
+        c.factor_emocional ?? '',
+        c.factor_fisico ?? '',
+        c.factor_cognitivo ?? '',
+        c.factor_estres ?? '',
+        c.factor_social ?? '',
+        c.factor_sexual ?? '',
+        c.factor_ansiedad ?? '',
+        c.calidad_score ?? '',
+        `"${String(c.notas ?? '').replace(/"/g, '""')}"`,
+      ]);
+      const csv = [headers.join(','), ...rows.map((r: unknown[]) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `biocycle_data_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 3000);
+    } catch (err) {
+      console.error('[Export] Error:', err);
+    } finally {
+      setExportingData(false);
     }
   };
 
@@ -574,7 +638,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1 px-6 pb-10 space-y-4">
+            <div className="overflow-y-auto flex-1 min-h-0 px-6 pb-24 space-y-4">
               <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                 <div>
                   <p className="font-semibold text-gray-900">
@@ -695,6 +759,18 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 </a>
               </div>
 
+              {/* Export My Data */}
+              <button
+                onClick={handleExportData}
+                disabled={exportingData}
+                className="w-full flex items-center justify-center gap-2 p-4 bg-gray-50 text-gray-700 rounded-xl font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                {exportingData ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                {exportSuccess
+                  ? (isEnglish ? 'Your data has been exported.' : 'Tus datos han sido exportados.')
+                  : (isEnglish ? 'Export My Data' : 'Exportar mis datos')}
+              </button>
+
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 p-4 bg-red-50 text-red-600 rounded-xl font-semibold hover:bg-red-100 transition-colors"
@@ -719,9 +795,12 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                       ? '⚠️ This will permanently delete all your data including your biological portfolio. This cannot be undone. Are you sure?'
                       : '⚠️ Esto eliminará permanentemente todos tus datos, incluyendo tu portafolio biológico. Esta acción no se puede deshacer. ¿Estás seguro?'}
                   </p>
+                  {deleteError && (
+                    <p className="text-xs text-red-600 text-center">{deleteError}</p>
+                  )}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setShowDeleteConfirm(false)}
+                      onClick={() => { setShowDeleteConfirm(false); setDeleteError(null); }}
                       className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
                     >
                       {isEnglish ? 'Cancel' : 'Cancelar'}
