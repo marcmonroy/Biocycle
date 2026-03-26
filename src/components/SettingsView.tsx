@@ -15,7 +15,7 @@ export function SettingsView({
   onLangChange,
   onPicardiaToggle,
 }: SettingsViewProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
 
   return (
     <div className="fade-up py-2">

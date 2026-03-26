@@ -31,7 +31,7 @@ export function TodayView({
   onFlip,
   onShare,
 }: TodayViewProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
   const currentCard = cards[activeCard] || cards[0];
 
   return (

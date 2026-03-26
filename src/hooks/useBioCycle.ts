@@ -33,7 +33,7 @@ export function useBioCycle({
   const [view, setView] = useState<'today' | 'library' | 'settings'>('today');
   const [filterGender, setFilterGender] = useState<'all' | 'female' | 'male'>('all');
 
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
   const isAdult = userAge >= 18;
   const hour = new Date().getHours();
   const dow = new Date().getDay();

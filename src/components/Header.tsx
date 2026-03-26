@@ -8,7 +8,7 @@ interface HeaderProps {
 }
 
 export function Header({ lang, isAdult, picardiaMode, onPicardiaToggle }: HeaderProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
 
   return (
     <div className="flex justify-between items-center px-4 pt-4 pb-2.5 border-b border-[#1a1a2e]">

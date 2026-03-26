@@ -718,7 +718,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                       evening: { en: 'Evening', es: 'Tarde' },
                       night:   { en: 'Night',   es: 'Noche' },
                     };
-                    const label = isEnglish ? labelMap[slot.label].en : labelMap[slot.label].es;
+                    const label = isEnglish ? (labelMap[slot.label]?.en ?? slot.label) : (labelMap[slot.label]?.es ?? slot.label);
                     return (
                       <div key={slot.label} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${slot.enabled ? 'border-[#2D1B69]/30 bg-white' : 'border-gray-200 bg-gray-100 opacity-60'}`}>
                         <button

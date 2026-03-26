@@ -7,7 +7,7 @@ interface PicardiaModalProps {
 }
 
 export function PicardiaModal({ lang, onConfirm, onCancel }: PicardiaModalProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
 
   return (
     <div className="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-6">

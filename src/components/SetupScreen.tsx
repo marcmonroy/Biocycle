@@ -456,7 +456,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
               <div className="space-y-3">
                 {checkinTimes.map((slot, index) => {
                   const labels = slotLabels[slot.label];
-                  const label = isEnglish ? labels.en : labels.es;
+                  const label = isEnglish ? (labels?.en ?? slot.label) : (labels?.es ?? slot.label);
                   return (
                     <div
                       key={slot.label}

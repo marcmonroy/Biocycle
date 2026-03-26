@@ -33,7 +33,7 @@ export function LibraryView({
   onFlip,
   onShare,
 }: LibraryViewProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
 
   const filters: { key: FilterGender; label: string }[] = [
     { key: 'all', label: t.allCards },

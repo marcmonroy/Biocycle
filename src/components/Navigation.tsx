@@ -9,7 +9,7 @@ interface NavigationProps {
 }
 
 export function Navigation({ lang, view, onViewChange }: NavigationProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
 
   const navItems: { key: ViewType; label: string }[] = [
     { key: 'today', label: `🎴 ${t.today}` },

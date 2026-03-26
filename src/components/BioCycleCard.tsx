@@ -28,7 +28,7 @@ export function BioCycleCard({
   onFlip,
   onShare,
 }: BioCycleCardProps) {
-  const t = UI[lang];
+  const t = UI[lang] ?? UI.en;
   const bannerText = card.bannerFeeling?.[lang]?.replace('{name}', userName) || '';
 
   return (
