@@ -358,10 +358,7 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-4 rounded-xl outline-none transition-all text-white"
-                      style={{ background: '#1A1A2E', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}
-                      onFocus={e => (e.target.style.borderColor = '#2D1B69')}
-                      onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.2)')}
+                      className="w-full pl-10 pr-4 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#2D1B69] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all"
                       placeholder={t(content.form.email)}
                       required
                     />
@@ -373,10 +370,7 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-12 py-4 rounded-xl outline-none transition-all text-white"
-                        style={{ background: '#1A1A2E', border: '1px solid rgba(255,255,255,0.2)', color: 'white' }}
-                        onFocus={e => (e.target.style.borderColor = '#2D1B69')}
-                        onBlur={e => (e.target.style.borderColor = 'rgba(255,255,255,0.2)')}
+                        className="w-full pl-10 pr-12 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#2D1B69] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all"
                         placeholder={t(content.form.password)}
                         minLength={6}
                         required
