@@ -29,6 +29,8 @@ export type Profile = {
   known_conditions?: string[] | null;
   current_medications?: string[] | null;
   family_history?: string[] | null;
+  whatsapp_phone?: string | null;
+  whatsapp_enabled?: boolean | null;
 };
 
 export type Checkin = {

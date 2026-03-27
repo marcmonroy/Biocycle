@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle, Bell } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle, Bell, MessageCircle } from 'lucide-react';
 import {
   CheckinTime,
   DEFAULT_CHECKIN_TIMES,
@@ -10,6 +10,7 @@ import {
 
 type SetupStep =
   | 'name'
+  | 'phone'
   | 'gender'
   | 'birthdate'
   | 'cycle'
@@ -128,6 +129,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
   // Core fields
   const [nombre, setNombre] = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [genero, setGenero] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [cycleLength, setCycleLength] = useState(28);
@@ -162,8 +165,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
   // ── Step navigation ──────────────────────────────────────────────
   const STEP_ORDER: SetupStep[] = showCycleStep
-    ? ['name', 'gender', 'birthdate', 'cycle', 'schedule', 'healthprofile', 'medicalprofile']
-    : ['name', 'gender', 'birthdate', 'schedule', 'healthprofile', 'medicalprofile'];
+    ? ['name', 'phone', 'gender', 'birthdate', 'cycle', 'schedule', 'healthprofile', 'medicalprofile']
+    : ['name', 'phone', 'gender', 'birthdate', 'schedule', 'healthprofile', 'medicalprofile'];
 
   const totalSteps = STEP_ORDER.length;
   const displayIndex = STEP_ORDER.indexOf(step) + 1;
@@ -189,6 +192,7 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
   const canProceed = () => {
     if (step === 'name') return nombre.trim().length >= 2;
+    if (step === 'phone') return true; // phone is optional
     if (step === 'gender') return genero !== '';
     if (step === 'birthdate') return fechaNacimiento !== '';
     return true; // all other steps are optional or have defaults
@@ -200,6 +204,10 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
     setError(null);
 
     try {
+      const whatsappPhone = phoneNumber.trim()
+        ? `${countryCode}${phoneNumber.trim().replace(/\D/g, '')}`
+        : null;
+
       const payload: Record<string, unknown> = {
         id: userId,
         nombre,
@@ -209,6 +217,8 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
         last_period_date: lastPeriodDate || null,
         idioma: isEnglish ? 'EN' : 'ES',
         checkin_times: checkinTimes,
+        whatsapp_phone: whatsappPhone,
+        whatsapp_enabled: !!whatsappPhone,
       };
 
       if (!healthSkipped) {
@@ -326,6 +336,61 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                 placeholder={isEnglish ? 'Your name' : 'Tu nombre'}
                 autoFocus
               />
+            </div>
+          )}
+
+          {/* ── Phone ── */}
+          {step === 'phone' && (
+            <div className="space-y-4">
+              <div className="w-16 h-16 bg-[#00D4A1]/20 rounded-full mx-auto flex items-center justify-center">
+                <MessageCircle className="w-8 h-8 text-[#00D4A1]" />
+              </div>
+              <h2 className="text-xl font-semibold text-center text-white">
+                {isEnglish ? 'WhatsApp for daily cards' : 'WhatsApp para tus cartas diarias'}
+              </h2>
+              <p className="text-sm text-[#8B95B0] text-center">
+                {isEnglish
+                  ? 'Receive your daily BioCycle card on WhatsApp. Optional — you can skip this.'
+                  : 'Recibe tu carta diaria de BioCycle por WhatsApp. Opcional — puedes omitir esto.'}
+              </p>
+              <div className="flex gap-2">
+                <select
+                  value={countryCode}
+                  onChange={e => setCountryCode(e.target.value)}
+                  className="px-3 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none rounded-xl text-sm"
+                >
+                  <option value="+1">🇺🇸 +1</option>
+                  <option value="+52">🇲🇽 +52</option>
+                  <option value="+34">🇪🇸 +34</option>
+                  <option value="+57">🇨🇴 +57</option>
+                  <option value="+54">🇦🇷 +54</option>
+                  <option value="+56">🇨🇱 +56</option>
+                  <option value="+51">🇵🇪 +51</option>
+                  <option value="+58">🇻🇪 +58</option>
+                  <option value="+44">🇬🇧 +44</option>
+                  <option value="+49">🇩🇪 +49</option>
+                  <option value="+33">🇫🇷 +33</option>
+                  <option value="+55">🇧🇷 +55</option>
+                </select>
+                <input
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={e => setPhoneNumber(e.target.value)}
+                  className="flex-1 px-4 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all"
+                  placeholder={isEnglish ? '8005551234' : '5512345678'}
+                />
+              </div>
+              {phoneNumber.trim() && (
+                <p className="text-xs text-[#8B95B0] text-center">
+                  {isEnglish ? 'Will be saved as:' : 'Se guardará como:'}{' '}
+                  <span className="text-[#00D4A1] font-mono">{countryCode}{phoneNumber.trim().replace(/\D/g, '')}</span>
+                </p>
+              )}
+              <p className="text-xs text-[#4A5568] text-center">
+                {isEnglish
+                  ? 'You can update this anytime in Settings.'
+                  : 'Puedes actualizar esto en Configuración.'}
+              </p>
             </div>
           )}
 

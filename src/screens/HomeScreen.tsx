@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download } from 'lucide-react';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle, Send } from 'lucide-react';
+import { sendBioCycleCard } from '../services/whatsappService';
+import { CardTimeSlot } from '../data/cardLibrary';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
 interface HomeScreenProps {
@@ -226,6 +228,15 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [exportingData, setExportingData] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  // WhatsApp state
+  const [whatsappEnabled, setWhatsappEnabled] = useState(profile.whatsapp_enabled ?? false);
+  const [whatsappPhone, setWhatsappPhone] = useState(profile.whatsapp_phone ?? '');
+  const [editingPhone, setEditingPhone] = useState(false);
+  const [phoneInput, setPhoneInput] = useState(profile.whatsapp_phone ?? '');
+  const [savingWhatsapp, setSavingWhatsapp] = useState(false);
+  const [sendingTestCard, setSendingTestCard] = useState(false);
+  const [testCardResult, setTestCardResult] = useState<string | null>(null);
+
   const isEnglish = language === 'EN';
   const showSexual = isAdult(profile);
   const canUsePicardia = showSexual;
@@ -281,6 +292,49 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleWhatsappToggle = async (enabled: boolean) => {
+    setWhatsappEnabled(enabled);
+    setSavingWhatsapp(true);
+    await supabase.from('profiles').update({ whatsapp_enabled: enabled }).eq('id', profile.id);
+    setSavingWhatsapp(false);
+    onProfileUpdate();
+  };
+
+  const handlePhoneSave = async () => {
+    setSavingWhatsapp(true);
+    const cleaned = phoneInput.trim();
+    setWhatsappPhone(cleaned);
+    await supabase.from('profiles').update({ whatsapp_phone: cleaned || null }).eq('id', profile.id);
+    setSavingWhatsapp(false);
+    setEditingPhone(false);
+    onProfileUpdate();
+  };
+
+  const handleSendTestCard = async () => {
+    if (!whatsappPhone) return;
+    setSendingTestCard(true);
+    setTestCardResult(null);
+
+    const hour = new Date().getHours();
+    const timeSlot: CardTimeSlot =
+      hour < 12 ? 'morning' : hour < 17 ? 'midday' : hour < 21 ? 'evening' : 'night';
+
+    const result = await sendBioCycleCard(
+      profile.id,
+      { ...profile, whatsapp_enabled: true, whatsapp_phone: whatsappPhone },
+      timeSlot,
+      phaseData.phase,
+    );
+
+    setTestCardResult(
+      result.success
+        ? (isEnglish ? '✓ Card sent!' : '✓ Carta enviada!')
+        : (isEnglish ? `Error: ${result.error}` : `Error: ${result.error}`),
+    );
+    setSendingTestCard(false);
+    setTimeout(() => setTestCardResult(null), 5000);
   };
 
   const handleScheduleSave = async () => {
@@ -700,6 +754,93 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                     }`}
                   />
                 </button>
+              </div>
+
+              {/* WhatsApp Cards */}
+              <div className="p-4 bg-[#111126] border border-[#1E1E3A] rounded-xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-[#00D4A1]" />
+                    <p className="font-semibold text-white">
+                      {isEnglish ? 'WhatsApp Cards' : 'Cartas por WhatsApp'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleWhatsappToggle(!whatsappEnabled)}
+                    disabled={savingWhatsapp}
+                    className={`w-14 h-8 rounded-full transition-colors relative disabled:opacity-50 ${
+                      whatsappEnabled ? 'bg-[#00D4A1]' : 'bg-[#1E1E3A]'
+                    }`}
+                  >
+                    <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow transition-transform ${
+                      whatsappEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                <p className="text-sm text-[#8B95B0]">
+                  {isEnglish ? 'Receive your daily BioCycle card on WhatsApp' : 'Recibe tu carta diaria de BioCycle por WhatsApp'}
+                </p>
+
+                {/* Phone number display / edit */}
+                {!editingPhone ? (
+                  <div className="flex items-center justify-between bg-[#0A0A1A] rounded-lg px-3 py-2">
+                    <span className="text-sm font-mono text-white">
+                      {whatsappPhone || (isEnglish ? 'No number set' : 'Sin número')}
+                    </span>
+                    <button
+                      onClick={() => { setPhoneInput(whatsappPhone); setEditingPhone(true); }}
+                      className="text-xs text-[#7B61FF] hover:text-white transition-colors"
+                    >
+                      {isEnglish ? 'Edit' : 'Editar'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      type="tel"
+                      value={phoneInput}
+                      onChange={e => setPhoneInput(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#00D4A1] focus:outline-none placeholder-[#8892A4] rounded-lg text-sm font-mono"
+                      placeholder="+18005551234"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setEditingPhone(false)}
+                        className="flex-1 py-1.5 text-sm border border-[#1E1E3A] text-[#8B95B0] rounded-lg hover:text-white transition-colors"
+                      >
+                        {isEnglish ? 'Cancel' : 'Cancelar'}
+                      </button>
+                      <button
+                        onClick={handlePhoneSave}
+                        disabled={savingWhatsapp}
+                        className="flex-1 py-1.5 text-sm bg-[#00D4A1] text-[#0A0A1A] font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-1"
+                      >
+                        {savingWhatsapp ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        {isEnglish ? 'Save' : 'Guardar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Test send button */}
+                {whatsappPhone && (
+                  <button
+                    onClick={handleSendTestCard}
+                    disabled={sendingTestCard || !whatsappEnabled}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-[#00D4A1]/10 border border-[#00D4A1]/30 text-[#00D4A1] text-sm font-medium rounded-xl hover:bg-[#00D4A1]/20 transition-colors disabled:opacity-50"
+                  >
+                    {sendingTestCard
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Send className="w-4 h-4" />}
+                    {isEnglish ? "Send me today's card on WhatsApp" : 'Enviarme la carta de hoy por WhatsApp'}
+                  </button>
+                )}
+
+                {testCardResult && (
+                  <p className={`text-xs text-center ${testCardResult.startsWith('✓') ? 'text-[#00D4A1]' : 'text-red-400'}`}>
+                    {testCardResult}
+                  </p>
+                )}
               </div>
 
               {/* Check-in schedule editor */}
