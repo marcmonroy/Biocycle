@@ -81,12 +81,14 @@ export function AuthScreen() {
 
         <div className="text-center mb-8">
           <img
-            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
             alt="BioCycle"
             className="w-[150px] h-auto mx-auto mb-6"
+            loading="eager"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
           <h1 className="text-3xl font-bold text-white mb-2">
-            {isEnglish ? 'Know yourself before it happens.' : 'Conocete antes de que suceda.'}
+            {isEnglish ? 'Know yourself before it happens.' : 'Conócete antes de que suceda.'}
           </h1>
           <p className="text-lg font-medium text-[#F5C842] mb-4">
             {isEnglish ? 'Knowing yourself pays.' : 'Conocerte paga.'}

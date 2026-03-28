@@ -315,9 +315,11 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
         <div className="bg-[#111126] rounded-2xl border border-[#1E1E3A] p-6">
           <div className="flex justify-center mb-4">
             <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
               alt="BioCycle"
               className="w-[100px] h-auto object-contain"
+              loading="eager"
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
           </div>
           {error && (

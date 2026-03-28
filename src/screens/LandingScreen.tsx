@@ -4,7 +4,7 @@ import { Brain, Zap, Heart, Shield, DollarSign, Check, Users, Database, ArrowRig
 
 const content = {
   hero: {
-    headline: { en: 'Know yourself before it happens.', es: 'Conocete antes de que suceda.' },
+    headline: { en: 'Know yourself before it happens.', es: 'Conócete antes de que suceda.' },
     subheadline: { en: 'Knowing yourself pays.', es: 'Conocerte paga.' },
     subtitle: {
       en: 'Every self-observation grows into biological intelligence. Your patterns become a tradeable asset. BioCycle is where your data blooms.',
@@ -88,7 +88,7 @@ const content = {
     ],
   },
   preview: {
-    title: { en: 'Know yourself before it happens.', es: 'Conocete antes de que suceda.' },
+    title: { en: 'Know yourself before it happens.', es: 'Conócete antes de que suceda.' },
     subtitle: {
       en: 'BioCycle predicts your moods, energy, and impulses 7 days in advance.',
       es: 'BioCycle predice tus estados de animo, energia e impulsos con 7 dias de anticipacion.',
