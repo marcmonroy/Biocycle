@@ -68,40 +68,42 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 via-white to-amber-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0A0A1A] flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="flex justify-end mb-4">
           <button
             onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
-            className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-[#8B95B0] hover:text-white border border-[#1E1E3A] rounded-lg transition-colors"
           >
             {lang === 'en' ? 'ES' : 'EN'}
           </button>
         </div>
 
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-br from-rose-400 to-amber-400 rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg">
-            <span className="text-3xl text-white font-bold">B</span>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <img
+            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+            alt="BioCycle"
+            className="w-[150px] h-auto mx-auto mb-6"
+          />
+          <h1 className="text-3xl font-bold text-white mb-2">
             {isEnglish ? 'Know yourself before it happens.' : 'Conocete antes de que suceda.'}
           </h1>
-          <p className="text-lg font-medium text-gray-700 mb-4">
+          <p className="text-lg font-medium text-[#F5C842] mb-4">
             {isEnglish ? 'Knowing yourself pays.' : 'Conocerte paga.'}
           </p>
-          <div className="text-sm text-gray-600 leading-relaxed space-y-1">
+          <div className="text-sm text-[#8B95B0] leading-relaxed space-y-1">
             <p>{isEnglish ? 'BioCycle is your biological data bank.' : 'BioCycle es tu banco de datos biologicos.'}</p>
             <p>{isEnglish ? 'Every check-in is a deposit that grows in value over time.' : 'Cada check-in es un deposito que crece en valor con el tiempo.'}</p>
             <p>{isEnglish ? 'Your patterns are your commodity.' : 'Tus patrones son tu mercancia.'}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6">
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-6 space-y-6">
           <div className="flex gap-2">
             <button
               onClick={() => handleOAuthLogin('google')}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border border-[#1E1E3A] bg-[#1A1A2E] rounded-xl hover:bg-[#2A2A3E] transition-colors disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -121,54 +123,54 @@ export function AuthScreen() {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              <span className="text-sm font-medium text-gray-700">Google</span>
+              <span className="text-sm font-medium text-white">Google</span>
             </button>
 
             <button
               onClick={() => handleOAuthLogin('apple')}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border border-[#1E1E3A] bg-[#1A1A2E] rounded-xl hover:bg-[#2A2A3E] transition-colors disabled:opacity-50"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
               </svg>
-              <span className="text-sm font-medium text-gray-700">Apple</span>
+              <span className="text-sm font-medium text-white">Apple</span>
             </button>
           </div>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full border-t border-[#1E1E3A]"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">{isEnglish ? 'or with email' : 'o con email'}</span>
+              <span className="px-4 bg-[#111126] text-[#8B95B0]">{isEnglish ? 'or with email' : 'o con email'}</span>
             </div>
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-lg text-red-600 text-sm">
+            <div className="p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
               {error}
             </div>
           )}
 
           {message && (
-            <div className="p-3 bg-green-50 border border-green-100 rounded-lg text-green-600 text-sm">
+            <div className="p-3 bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-lg text-[#00D4A1] text-sm">
               {message}
             </div>
           )}
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-white mb-1">
                 Email
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8892A4]" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none transition-all"
+                  className="w-full pl-10 pr-4 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all"
                   placeholder={isEnglish ? 'you@email.com' : 'tu@email.com'}
                   required
                 />
@@ -177,7 +179,7 @@ export function AuthScreen() {
 
             {mode !== 'forgot' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-white mb-1">
                   {isEnglish ? 'Password' : 'Contrasena'}
                 </label>
                 <div className="relative">
@@ -185,7 +187,7 @@ export function AuthScreen() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-400 focus:border-transparent outline-none transition-all"
+                    className="w-full pl-4 pr-10 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none placeholder-[#8892A4] rounded-xl transition-all"
                     placeholder="********"
                     required
                     minLength={6}
@@ -193,7 +195,7 @@ export function AuthScreen() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8892A4] hover:text-white"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -204,7 +206,7 @@ export function AuthScreen() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-rose-400 to-amber-400 text-white font-semibold rounded-xl hover:from-rose-500 hover:to-amber-500 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-3 bg-[#F5C842] hover:bg-[#F5C842]/90 text-[#0A0A1A] font-semibold rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -224,15 +226,15 @@ export function AuthScreen() {
               <>
                 <button
                   onClick={() => setMode('forgot')}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-[#8B95B0] hover:text-white"
                 >
                   {isEnglish ? 'Forgot your password?' : 'Olvidaste tu contrasena?'}
                 </button>
                 <div>
-                  <span className="text-gray-500">{isEnglish ? "Don't have an account? " : 'No tienes cuenta? '}</span>
+                  <span className="text-[#8B95B0]">{isEnglish ? "Don't have an account? " : 'No tienes cuenta? '}</span>
                   <button
                     onClick={() => setMode('signup')}
-                    className="text-rose-500 font-medium hover:text-rose-600"
+                    className="text-[#7B61FF] font-medium hover:text-white"
                   >
                     {isEnglish ? 'Create one' : 'Crear una'}
                   </button>
@@ -241,10 +243,10 @@ export function AuthScreen() {
             )}
             {mode === 'signup' && (
               <div>
-                <span className="text-gray-500">{isEnglish ? 'Already have an account? ' : 'Ya tienes cuenta? '}</span>
+                <span className="text-[#8B95B0]">{isEnglish ? 'Already have an account? ' : 'Ya tienes cuenta? '}</span>
                 <button
                   onClick={() => setMode('login')}
-                  className="text-rose-500 font-medium hover:text-rose-600"
+                  className="text-[#7B61FF] font-medium hover:text-white"
                 >
                   {isEnglish ? 'Sign in' : 'Iniciar sesion'}
                 </button>
@@ -253,7 +255,7 @@ export function AuthScreen() {
             {mode === 'forgot' && (
               <button
                 onClick={() => setMode('login')}
-                className="text-rose-500 font-medium hover:text-rose-600"
+                className="text-[#7B61FF] font-medium hover:text-white"
               >
                 {isEnglish ? 'Back to sign in' : 'Volver a iniciar sesion'}
               </button>

@@ -313,6 +313,13 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
         </div>
 
         <div className="bg-[#111126] rounded-2xl border border-[#1E1E3A] p-6">
+          <div className="flex justify-center mb-4">
+            <img
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+              alt="BioCycle"
+              className="w-[100px] h-auto object-contain"
+            />
+          </div>
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
               {error}

@@ -166,8 +166,13 @@ function App() {
 
   if (appState === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#2D1B69] to-[#1D0B49] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#FFD93D]" />
+      <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-center gap-6">
+        <img
+          src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
+          alt="BioCycle"
+          className="w-[200px] h-auto object-contain"
+        />
+        <Loader2 className="w-6 h-6 animate-spin text-[#F5C842]" />
       </div>
     );
   }

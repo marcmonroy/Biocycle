@@ -297,7 +297,14 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
     <div className="min-h-screen bg-[#0A0A1A] pb-24">
       <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
         <div className="flex items-start justify-between">
-          <div>
+          <div className="flex items-center gap-3">
+            <img
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+              alt="BioCycle"
+              className="w-[120px] h-auto object-contain"
+            />
+          </div>
+          <div className="mt-3">
             <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
               {isSpanish ? 'Tu Cuenta de Trading' : 'Your Trading Account'}
             </h1>

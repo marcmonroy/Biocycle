@@ -278,9 +278,11 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#1a0f3d]/80 backdrop-blur-lg border-b border-[#2D1B69]/30">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-[#2D1B69] to-[#4A2C9A] rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">B</span>
-            </div>
+            <img
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
+              alt="BioCycle"
+              className="w-8 h-8 object-contain"
+            />
             <span className="font-bold text-lg">BioCycle</span>
           </div>
           <div className="flex items-center gap-4">
@@ -301,6 +303,13 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
         </div>
 
         <div className="relative z-10 flex flex-col items-center px-6 text-center">
+          <div className="mb-6">
+            <img
+              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
+              alt="BioCycle Logo"
+              className="w-[200px] h-auto mx-auto"
+            />
+          </div>
           <div className="mb-8">
             <img
               src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/biocycle.png?v=2"
