@@ -442,39 +442,6 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
         </div>
       </section>
 
-      <section className="py-24 bg-[#150c2e]">
-        <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t(content.stages.title)}</h2>
-          <div className="grid md:grid-cols-3 gap-4 md:gap-0 relative">
-            {content.stages.items.map((stage, i) => (
-              <div key={i} className="relative flex flex-col items-center">
-                <div className="bg-[#1a0f3d] border border-[#2D1B69]/30 rounded-2xl p-8 w-full hover:border-[#FFD93D]/30 transition-colors relative z-10">
-                  <div className="w-16 h-16 bg-gradient-to-br from-[#2D1B69] to-[#4A2C9A] rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <stage.icon className="w-8 h-8 text-[#FFD93D]" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-center mb-4">{t(stage.title)}</h3>
-                  <p className="text-slate-400 leading-relaxed text-center">{t(stage.desc)}</p>
-                </div>
-                {i < 2 && (
-                  <div className="hidden md:flex absolute top-1/2 -right-2 transform -translate-y-1/2 z-20">
-                    <div className="w-8 h-8 bg-[#FFD93D] rounded-full flex items-center justify-center">
-                      <ChevronRight className="w-5 h-5 text-[#1a0f3d]" />
-                    </div>
-                  </div>
-                )}
-                {i < 2 && (
-                  <div className="md:hidden flex justify-center my-4">
-                    <div className="w-8 h-8 bg-[#FFD93D] rounded-full flex items-center justify-center rotate-90">
-                      <ChevronRight className="w-5 h-5 text-[#1a0f3d]" />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="py-24 bg-[#1a0f3d]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -518,6 +485,39 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
               ]}
               lang={lang}
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="py-24 bg-[#150c2e]">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-16">{t(content.stages.title)}</h2>
+          <div className="grid md:grid-cols-3 gap-4 md:gap-0 relative">
+            {content.stages.items.map((stage, i) => (
+              <div key={i} className="relative flex flex-col items-center">
+                <div className="bg-[#1a0f3d] border border-[#2D1B69]/30 rounded-2xl p-8 w-full hover:border-[#FFD93D]/30 transition-colors relative z-10">
+                  <div className="w-16 h-16 bg-gradient-to-br from-[#2D1B69] to-[#4A2C9A] rounded-2xl flex items-center justify-center mx-auto mb-6">
+                    <stage.icon className="w-8 h-8 text-[#FFD93D]" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-center mb-4">{t(stage.title)}</h3>
+                  <p className="text-slate-400 leading-relaxed text-center">{t(stage.desc)}</p>
+                </div>
+                {i < 2 && (
+                  <div className="hidden md:flex absolute top-1/2 -right-2 transform -translate-y-1/2 z-20">
+                    <div className="w-8 h-8 bg-[#FFD93D] rounded-full flex items-center justify-center">
+                      <ChevronRight className="w-5 h-5 text-[#1a0f3d]" />
+                    </div>
+                  </div>
+                )}
+                {i < 2 && (
+                  <div className="md:hidden flex justify-center my-4">
+                    <div className="w-8 h-8 bg-[#FFD93D] rounded-full flex items-center justify-center rotate-90">
+                      <ChevronRight className="w-5 h-5 text-[#1a0f3d]" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </section>
