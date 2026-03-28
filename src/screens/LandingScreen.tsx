@@ -278,11 +278,6 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0A0A1A]/90 backdrop-blur-lg border-b border-[#1E1E3A]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_small.png"
-              alt="BioCycle"
-              className="w-8 h-8 object-contain"
-            />
             <span className="font-bold text-lg">BioCycle</span>
           </div>
           <div className="flex items-center gap-4">
