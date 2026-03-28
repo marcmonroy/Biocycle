@@ -186,9 +186,12 @@ export function AmbientCoach({
       setSessionFlag('anxiety_warning');
     }
 
-    if (contextualMessage) {
-      setMessages([{ role: 'assistant', content: contextualMessage }]);
+    if (!contextualMessage) {
+      contextualMessage = isSpanish
+        ? `Hola ${profile.nombre}. Soy Bio, tu coach de inteligencia biológica. Conozco tus patrones. Sé lo que se aproxima. ¿Qué quieres saber sobre ti mismo hoy?`
+        : `Hi ${profile.nombre}. I am Bio, your biological intelligence coach. I know your patterns. I know what is coming. What would you like to know about yourself today?`;
     }
+    setMessages([{ role: 'assistant', content: contextualMessage }]);
   };
 
   const sendMessage = async () => {

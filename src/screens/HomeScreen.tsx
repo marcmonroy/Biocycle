@@ -233,6 +233,8 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [whatsappPhone, setWhatsappPhone] = useState(profile.whatsapp_phone ?? '');
   const [editingPhone, setEditingPhone] = useState(false);
   const [phoneInput, setPhoneInput] = useState(profile.whatsapp_phone ?? '');
+  const [settingsCountryCode, setSettingsCountryCode] = useState('+1809');
+  const [settingsPhoneNumber, setSettingsPhoneNumber] = useState('');
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [sendingTestCard, setSendingTestCard] = useState(false);
   const [testCardResult, setTestCardResult] = useState<string | null>(null);
@@ -796,13 +798,40 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <input
-                      type="tel"
-                      value={phoneInput}
-                      onChange={e => setPhoneInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#00D4A1] focus:outline-none placeholder-[#8892A4] rounded-lg text-sm font-mono"
-                      placeholder="+18005551234"
-                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={settingsCountryCode}
+                        onChange={e => {
+                          setSettingsCountryCode(e.target.value);
+                          setPhoneInput(`${e.target.value}${settingsPhoneNumber.replace(/\D/g, '')}`);
+                        }}
+                        className="px-2 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#00D4A1] focus:outline-none rounded-lg text-xs"
+                      >
+                        <option value="+1809">🇩🇴 +1 809</option>
+                        <option value="+1829">🇩🇴 +1 829</option>
+                        <option value="+1849">🇩🇴 +1 849</option>
+                        <option value="+1">🇺🇸 +1</option>
+                        <option value="+52">🇲🇽 +52</option>
+                        <option value="+34">🇪🇸 +34</option>
+                        <option value="+57">🇨🇴 +57</option>
+                        <option value="+54">🇦🇷 +54</option>
+                        <option value="+56">🇨🇱 +56</option>
+                        <option value="+51">🇵🇪 +51</option>
+                        <option value="+58">🇻🇪 +58</option>
+                        <option value="+44">🇬🇧 +44</option>
+                        <option value="+55">🇧🇷 +55</option>
+                      </select>
+                      <input
+                        type="tel"
+                        value={settingsPhoneNumber}
+                        onChange={e => {
+                          setSettingsPhoneNumber(e.target.value);
+                          setPhoneInput(`${settingsCountryCode}${e.target.value.replace(/\D/g, '')}`);
+                        }}
+                        className="flex-1 px-3 py-2 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#00D4A1] focus:outline-none placeholder-[#8892A4] rounded-lg text-sm font-mono"
+                        placeholder="8095551234"
+                      />
+                    </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setEditingPhone(false)}

@@ -290,6 +290,18 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
           </button>
         </div>
 
+        {/* Logo */}
+        <div className="flex justify-center mb-4">
+          <img
+            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
+            alt="BioCycle"
+            width="120"
+            style={{ display: 'block' }}
+            loading="eager"
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+          />
+        </div>
+
         {/* Header */}
         <div className="text-center mb-6">
           <h1 className="text-xl font-bold text-white">
@@ -313,15 +325,6 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
         </div>
 
         <div className="bg-[#111126] rounded-2xl border border-[#1E1E3A] p-6">
-          <div className="flex justify-center mb-4">
-            <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
-              alt="BioCycle"
-              className="w-[100px] h-auto object-contain"
-              loading="eager"
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-          </div>
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-red-400 text-sm">
               {error}
@@ -368,6 +371,9 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                   onChange={e => setCountryCode(e.target.value)}
                   className="px-3 py-3 bg-[#1A1A2E] text-white border border-white/20 focus:border-[#7B61FF] focus:outline-none rounded-xl text-sm"
                 >
+                  <option value="+1809">🇩🇴 +1 809</option>
+                  <option value="+1829">🇩🇴 +1 829</option>
+                  <option value="+1849">🇩🇴 +1 849</option>
                   <option value="+1">🇺🇸 +1</option>
                   <option value="+52">🇲🇽 +52</option>
                   <option value="+34">🇪🇸 +34</option>

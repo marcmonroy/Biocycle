@@ -83,7 +83,8 @@ export function AuthScreen() {
           <img
             src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
             alt="BioCycle"
-            className="w-[150px] h-auto mx-auto mb-6"
+            width="160"
+            style={{ display: 'block', margin: '0 auto 24px auto' }}
             loading="eager"
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
