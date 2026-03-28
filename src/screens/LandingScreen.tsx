@@ -274,8 +274,8 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a0f3d] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#1a0f3d]/80 backdrop-blur-lg border-b border-[#2D1B69]/30">
+    <div className="min-h-screen bg-[#0A0A1A] text-white">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0A0A1A]/90 backdrop-blur-lg border-b border-[#1E1E3A]">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img
@@ -296,36 +296,21 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
         </div>
       </nav>
 
-      <section className="relative min-h-screen flex flex-col items-center justify-center pt-20 pb-12 overflow-hidden">
-        <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#2D1B69]/20 blur-3xl" />
-          <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 translate-y-1/2 w-[400px] h-[400px] rounded-full bg-[#FFD93D]/10 blur-3xl" />
-        </div>
-
+      <section className="relative min-h-screen flex flex-col items-center justify-center pb-12 overflow-hidden">
         <div className="relative z-10 flex flex-col items-center px-6 text-center">
-          <div className="mb-6">
-            <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
-              alt="BioCycle Logo"
-              className="w-[200px] h-auto mx-auto"
-            />
-          </div>
-          <div className="mb-8">
-            <img
-              src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/biocycle.png?v=2"
-              alt="BioCycle DNA Tree"
-              className={`w-full max-w-[600px] h-auto drop-shadow-2xl transition-opacity duration-700 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
-              onLoad={() => setHeroLoaded(true)}
-            />
-          </div>
+          <img
+            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
+            alt="BioCycle"
+            className="w-[220px] h-auto mx-auto mt-[60px] mb-8"
+          />
 
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight max-w-3xl">
+          <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight max-w-3xl text-[#F5C842]" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
             {t(content.hero.headline)}
           </h1>
-          <p className="text-2xl md:text-3xl font-semibold text-[#FFD93D] mb-6">
+          <p className="text-2xl md:text-3xl font-semibold text-white mb-6">
             {t(content.hero.subheadline)}
           </p>
-          <p className="text-lg md:text-xl text-slate-300 mb-10 leading-relaxed max-w-2xl">
+          <p className="text-lg md:text-xl text-slate-400 mb-10 leading-relaxed max-w-2xl">
             {t(content.hero.subtitle)}
           </p>
 
