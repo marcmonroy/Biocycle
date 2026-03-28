@@ -296,43 +296,56 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
         </div>
       </nav>
 
-      <section className="relative min-h-screen flex flex-col items-center justify-center pb-12 overflow-hidden">
-        <div className="relative z-10 flex flex-col items-center px-6 text-center">
-          <img
-            src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
-            alt="BioCycle"
-            className="w-[220px] h-auto mx-auto mt-[60px] mb-8"
-          />
+      {/* Hero section with full-screen background image */}
+      <section
+        style={{
+          position: 'relative',
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundImage: 'url(https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/biocycle_hero.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        {/* Dark overlay */}
+        <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(10,10,26,0.6)', zIndex: 1 }} />
 
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 leading-tight max-w-3xl text-[#F5C842]" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
+        {/* Content centered over image */}
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 24px', textAlign: 'center', width: '100%', maxWidth: '720px' }}>
+
+          <h1 style={{ fontFamily: 'Clash Display, system-ui, sans-serif', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 700, color: '#ffffff', marginBottom: '16px', lineHeight: 1.15, maxWidth: '640px' }}>
             {t(content.hero.headline)}
           </h1>
-          <p className="text-2xl md:text-3xl font-semibold text-white mb-6">
+          <p style={{ fontSize: 'clamp(1.2rem, 2.5vw, 1.75rem)', fontWeight: 600, color: '#F5C842', marginBottom: '16px' }}>
             {t(content.hero.subheadline)}
           </p>
-          <p className="text-lg md:text-xl text-slate-400 mb-10 leading-relaxed max-w-2xl">
+          <p style={{ fontSize: '1.1rem', color: '#94a3b8', marginBottom: '40px', lineHeight: 1.6, maxWidth: '560px' }}>
             {t(content.hero.subtitle)}
           </p>
 
-          <div className="w-full max-w-md">
+          <div style={{ width: '100%', maxWidth: '420px' }}>
             {authMode === 'none' ? (
-              <div className="space-y-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <button
                   onClick={() => setAuthMode('register')}
-                  className="w-full px-6 py-4 bg-[#FF6B6B] text-white font-semibold rounded-xl hover:bg-[#FF5252] transition-all shadow-lg shadow-[#FF6B6B]/25 flex items-center justify-center gap-2"
+                  style={{ width: '100%', padding: '16px 24px', backgroundColor: '#FF6B6B', color: '#ffffff', fontWeight: 600, fontSize: '1rem', borderRadius: '12px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   {t(content.openAccountButton)}
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight style={{ width: '20px', height: '20px' }} />
                 </button>
                 <button
                   onClick={() => setAuthMode('signin')}
-                  className="w-full px-6 py-4 bg-transparent border-2 border-[#FFD93D] text-[#FFD93D] font-semibold rounded-xl hover:bg-[#FFD93D]/10 transition-all flex items-center justify-center gap-2"
+                  style={{ width: '100%', padding: '14px 24px', backgroundColor: 'transparent', color: '#FFD93D', fontWeight: 600, fontSize: '1rem', borderRadius: '12px', border: '2px solid #FFD93D', cursor: 'pointer' }}
                 >
                   {t(content.signInButton)}
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <button
                   onClick={() => {
                     setAuthMode('none');
