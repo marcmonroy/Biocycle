@@ -1,5 +1,6 @@
 import { Profile } from '../lib/supabase';
 import { ForecastDay } from '../utils/phaseEngine';
+import { getTodayStats } from '../utils/statsUtils';
 import { Battery, Brain, Heart, Dumbbell, Flame, AlertTriangle } from 'lucide-react';
 
 interface ForecastScreenProps {
@@ -82,6 +83,23 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
   const monthNames = isSpanish ? monthNamesEs : monthNamesEn;
   const phaseInsights = isSpanish ? phaseInsightsEs : phaseInsightsEn;
 
+  // ── Single source of truth: override forecast[0] with live today stats ──
+  const todayStats = getTodayStats(profile);
+  const forecastWithToday: ForecastDay[] = forecast.map((day, i) =>
+    i === 0
+      ? {
+          ...day,
+          phase: todayStats.phase,
+          energy: todayStats.energy,
+          cognitive: todayStats.cognitive,
+          emotional: todayStats.emotional,
+          physical: todayStats.physical,
+          sexual: todayStats.sexual,
+          anxiety: todayStats.anxiety,
+        }
+      : day,
+  );
+
   const formatDate = (date: Date) => {
     return `${dayNames[date.getDay()]} ${date.getDate()} ${monthNames[date.getMonth()]}`;
   };
@@ -137,7 +155,7 @@ export function ForecastScreen({ profile, forecast }: ForecastScreenProps) {
       )}
 
       <div className="px-4 mt-3 space-y-3">
-        {forecast.map((day, index) => {
+        {forecastWithToday.map((day, index) => {
           const isToday = index === 0;
           const phaseName = phaseNames[day.phase] || { es: day.phase, en: day.phase };
           const insight = phaseInsights[day.phase] || day.insight;

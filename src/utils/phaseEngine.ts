@@ -282,12 +282,13 @@ export function getForecast(profile: Profile | null): ForecastDay[] {
       const adjustedDay = baseCycleDay > 28 ? baseCycleDay - 28 : baseCycleDay;
       phaseData = getFemalePhase(adjustedDay);
     } else if (isMale) {
+      // For today (i=0) use actual current time to match calculatePhase(); future days use 10am.
       const forecastDate = new Date(date);
-      forecastDate.setHours(10, 0, 0, 0);
+      if (i > 0) forecastDate.setHours(10, 0, 0, 0);
       phaseData = getMalePhase(forecastDate);
     } else {
       const forecastDate = new Date(date);
-      forecastDate.setHours(10, 0, 0, 0);
+      if (i > 0) forecastDate.setHours(10, 0, 0, 0);
       phaseData = getCircadianPhase(forecastDate);
     }
 

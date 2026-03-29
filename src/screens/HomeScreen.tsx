@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
+import { getTodayStats } from '../utils/statsUtils';
 import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle } from 'lucide-react';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
@@ -240,13 +241,16 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const showSexual = isAdult(profile);
   const canUsePicardia = showSexual;
 
-  const anxietyScore = phaseData.anxiety;
+  // ── Single source of truth for today's stats ─────────────────────
+  const todayStats = getTodayStats(profile);
+
+  const anxietyScore = todayStats.anxiety;
   const anxietyLevel = anxietyScore >= 70 ? 'high' : anxietyScore >= 40 ? 'elevated' : 'low';
 
-  const content = phaseContent[phaseData.phase] || phaseContent.follicular;
-  const imageUrl = phaseImages[phaseData.phase] || phaseImages.follicular;
-  const phaseLabel = phaseLabels[phaseData.phase] || phaseLabels.follicular;
-  const emoji = bannerEmojis[phaseData.phase] || '';
+  const content = phaseContent[todayStats.phase] || phaseContent.follicular;
+  const imageUrl = phaseImages[todayStats.phase] || phaseImages.follicular;
+  const phaseLabel = phaseLabels[todayStats.phase] || phaseLabels.follicular;
+  const emoji = bannerEmojis[todayStats.phase] || '';
 
   const userName = profile.nombre || 'User';
   const replaceNamePlaceholder = (text: string) => text.replace(/\[name\]/gi, userName);
@@ -256,14 +260,14 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const banner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
 
   const baseMetrics = [
-    { label: isEnglish ? 'Energy' : 'Energia', value: phaseData.energy, color: '#F5C842' },
-    { label: isEnglish ? 'Cognitive' : 'Cognitivo', value: phaseData.cognitive, color: '#00D4A1' },
-    { label: isEnglish ? 'Emotional' : 'Emocional', value: phaseData.emotional, color: '#FF6B6B' },
-    { label: isEnglish ? 'Physical' : 'Fisico', value: phaseData.physical, color: '#7B61FF' },
+    { label: isEnglish ? 'Energy' : 'Energia', value: todayStats.energy, color: '#F5C842' },
+    { label: isEnglish ? 'Cognitive' : 'Cognitivo', value: todayStats.cognitive, color: '#00D4A1' },
+    { label: isEnglish ? 'Emotional' : 'Emocional', value: todayStats.emotional, color: '#FF6B6B' },
+    { label: isEnglish ? 'Physical' : 'Fisico', value: todayStats.physical, color: '#7B61FF' },
   ];
 
   const metrics = showSexual
-    ? [...baseMetrics, { label: 'Sexual', value: phaseData.sexual, color: '#FF6B6B' }]
+    ? [...baseMetrics, { label: 'Sexual', value: todayStats.sexual, color: '#FF6B6B' }]
     : baseMetrics;
 
   const handleLanguageChange = async (newLang: 'ES' | 'EN') => {
@@ -1014,10 +1018,10 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
             </div>
 
             <p className="text-gray-600 text-sm leading-relaxed mb-4">
-              {anxietyExplanations[phaseData.phase]
+              {anxietyExplanations[todayStats.phase]
                 ? isEnglish
-                  ? anxietyExplanations[phaseData.phase].en
-                  : anxietyExplanations[phaseData.phase].es
+                  ? anxietyExplanations[todayStats.phase].en
+                  : anxietyExplanations[todayStats.phase].es
                 : isEnglish
                 ? 'Your biology affects anxiety vulnerability. This is normal and temporary.'
                 : 'Tu biologia afecta la vulnerabilidad a la ansiedad. Esto es normal y temporal.'}
