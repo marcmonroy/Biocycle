@@ -44,10 +44,7 @@ export async function sendBioCycleCard(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userId,
-        cardId: card.id,
         teaserText,
-        imageUrl: card.image,
         phoneNumber: phone,
         language,
       }),

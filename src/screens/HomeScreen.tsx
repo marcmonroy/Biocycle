@@ -1,9 +1,7 @@
 import { useState, useRef } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle, Send } from 'lucide-react';
-import { sendBioCycleCard } from '../services/whatsappService';
-import { CardTimeSlot } from '../data/cardLibrary';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle } from 'lucide-react';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
 interface HomeScreenProps {
@@ -236,8 +234,6 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [settingsCountryCode, setSettingsCountryCode] = useState('+1809');
   const [settingsPhoneNumber, setSettingsPhoneNumber] = useState('');
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
-  const [sendingTestCard, setSendingTestCard] = useState(false);
-  const [testCardResult, setTestCardResult] = useState<string | null>(null);
 
   const isEnglish = language === 'EN';
   const showSexual = isAdult(profile);
@@ -314,30 +310,6 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
     onProfileUpdate();
   };
 
-  const handleSendTestCard = async () => {
-    if (!whatsappPhone) return;
-    setSendingTestCard(true);
-    setTestCardResult(null);
-
-    const hour = new Date().getHours();
-    const timeSlot: CardTimeSlot =
-      hour < 12 ? 'morning' : hour < 17 ? 'midday' : hour < 21 ? 'evening' : 'night';
-
-    const result = await sendBioCycleCard(
-      profile.id,
-      { ...profile, whatsapp_enabled: true, whatsapp_phone: whatsappPhone },
-      timeSlot,
-      phaseData.phase,
-    );
-
-    setTestCardResult(
-      result.success
-        ? (isEnglish ? '✓ Card sent!' : '✓ Carta enviada!')
-        : (isEnglish ? `Error: ${result.error}` : `Error: ${result.error}`),
-    );
-    setSendingTestCard(false);
-    setTimeout(() => setTestCardResult(null), 5000);
-  };
 
   const handleScheduleSave = async () => {
     setSavingSchedule(true);
@@ -851,25 +823,6 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                   </div>
                 )}
 
-                {/* Test send button */}
-                {whatsappPhone && (
-                  <button
-                    onClick={handleSendTestCard}
-                    disabled={sendingTestCard || !whatsappEnabled}
-                    className="w-full flex items-center justify-center gap-2 py-2 bg-[#00D4A1]/10 border border-[#00D4A1]/30 text-[#00D4A1] text-sm font-medium rounded-xl hover:bg-[#00D4A1]/20 transition-colors disabled:opacity-50"
-                  >
-                    {sendingTestCard
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Send className="w-4 h-4" />}
-                    {isEnglish ? "Send me today's card on WhatsApp" : 'Enviarme la carta de hoy por WhatsApp'}
-                  </button>
-                )}
-
-                {testCardResult && (
-                  <p className={`text-xs text-center ${testCardResult.startsWith('✓') ? 'text-[#00D4A1]' : 'text-red-400'}`}>
-                    {testCardResult}
-                  </p>
-                )}
               </div>
 
               {/* Check-in schedule editor */}

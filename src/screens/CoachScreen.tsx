@@ -255,9 +255,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // ── Voice output state ───────────────────────────────────────────
-  const [isMuted, setIsMuted] = useState(
-    () => localStorage.getItem('biocycle_coach_muted') === 'true'
-  );
+  const [isMuted, setIsMuted] = useState(false);
 
   // ── Bio avatar state ─────────────────────────────────────────────
   const [bioState, setBioState] = useState<'idle' | 'speaking' | 'listening'>('idle');
@@ -276,6 +274,16 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     tag.id = 'bio-avatar-styles';
     tag.textContent = AVATAR_STYLES;
     document.head.appendChild(tag);
+  }, []);
+
+  // ── Clear any persisted mute state and speak greeting ────────────
+  useEffect(() => {
+    localStorage.removeItem('biocycle_coach_muted');
+    const timer = setTimeout(() => {
+      speakResponse(greetingMessage);
+    }, 600);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Speech RECOGNITION setup ─────────────────────────────────────
@@ -336,10 +344,14 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
       utterance.pitch = 1.0;
 
       const voices = window.speechSynthesis.getVoices();
+      const targetLocale = isSpanish ? 'es-ES' : 'en-US';
       const targetLang = isSpanish ? 'es' : 'en';
       const voice =
-        voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ?? null;
+        voices.find(v => v.lang.toLowerCase() === targetLocale.toLowerCase()) ??
+        voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ??
+        null;
       if (voice) utterance.voice = voice;
+      utterance.lang = targetLocale;
 
       utterance.onstart = () => setBioState('speaking');
       utterance.onend = () => setBioState('idle');
