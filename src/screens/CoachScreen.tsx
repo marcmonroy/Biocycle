@@ -265,6 +265,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const touchStartY = useRef<number>(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
 
   // ── Inject avatar CSS once ───────────────────────────────────────
@@ -405,6 +406,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
 
     const userMessage = input.trim();
     setInput('');
+    setTimeout(() => inputRef.current?.focus(), 0);
     const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }];
     setMessages(updatedMessages);
     setLoading(true);
@@ -564,11 +566,13 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
           )}
           <div className="flex items-center gap-2">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
               disabled={loading}
+              autoFocus
               placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
               className="flex-1 px-4 py-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-2 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-50"
             />

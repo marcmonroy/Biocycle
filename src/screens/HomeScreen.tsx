@@ -205,6 +205,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [picardiaMode, setPicardiaMode] = useState(profile.picardia_mode || false);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [copyToast, setCopyToast] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Schedule editor state
@@ -522,8 +523,12 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
     } catch (err) {
       console.error('Share error:', err);
       setSharing(false);
-      alert(isEnglish ? 'Could not share. Please try again.' : 'No se pudo compartir. Intenta de nuevo.');
     }
+  };
+
+  const showCopyToast = () => {
+    setCopyToast(true);
+    setTimeout(() => setCopyToast(false), 2000);
   };
 
   const copyToClipboard = async (blob: Blob, shareText?: string) => {
@@ -533,7 +538,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
           ? `Know yourself before it happens. 👉 https://biocycle.app`
           : `Conócete antes de que suceda. 👉 https://biocycle.app`)
       );
-      alert(isEnglish ? 'Link copied to clipboard!' : '¡Enlace copiado al portapapeles!');
+      showCopyToast();
     } catch {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -546,6 +551,12 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
   return (
     <div className="min-h-screen bg-[#0A0A1A] pb-24">
+      {/* Copy toast */}
+      {copyToast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-2.5 bg-[#00D4A1] text-[#0A0A1A] text-sm font-semibold rounded-full shadow-lg pointer-events-none">
+          {isEnglish ? 'Link copied!' : '¡Enlace copiado!'}
+        </div>
+      )}
       <div className="px-5 pt-12 pb-4 flex items-center justify-between">
         <div>
           <p className="text-[#8B95B0] text-sm">
