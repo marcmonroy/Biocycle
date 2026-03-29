@@ -67,6 +67,13 @@ export function AmbientCoach({
     ? Math.round((upcomingHighAnxiety.date.getTime() - new Date().getTime()) / (1000 * 60 * 60))
     : null;
 
+  // ── Preload TTS voices ───────────────────────────────────────────
+  useEffect(() => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }, []);
+
   // ── Speech Recognition setup ────────────────────────────────────
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -120,78 +127,31 @@ export function AmbientCoach({
     }
   }, [isOpen]);
 
+  const speakGreeting = (text: string) => {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.92;
+    utterance.pitch = 1.0;
+    const targetLocale = isSpanish ? 'es-ES' : 'en-US';
+    const targetLang = isSpanish ? 'es' : 'en';
+    const voices = window.speechSynthesis.getVoices();
+    const voice =
+      voices.find(v => v.lang.toLowerCase() === targetLocale.toLowerCase()) ??
+      voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ??
+      null;
+    if (voice) utterance.voice = voice;
+    utterance.lang = targetLocale;
+    window.speechSynthesis.speak(utterance);
+  };
+
   const generateContextualOpener = () => {
-    let contextualMessage = '';
     const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
-
-    if (currentScreen === 'home' && !hasShownContextual('home_phase')) {
-      const phaseDescEs: Record<string, string> = {
-        menstrual: 'Tu cuerpo esta en modo de descanso y regeneracion.',
-        follicular: 'Tu energia esta en aumento y tu mente esta aguda.',
-        ovulatory: 'Estas en tu pico de energia y carisma social.',
-        luteal: 'Es momento de introspección y completar proyectos.',
-        weekly_peak: 'Tu testosterona esta en su pico semanal.',
-        morning_peak: 'Tu enfoque mental esta en su mejor momento.',
-        afternoon_dip: 'Es natural sentir menos energia a esta hora.',
-        evening_balanced: 'Tu cuerpo encuentra equilibrio al atardecer.',
-        night_rest: 'Tu sistema se prepara para el descanso.',
-      };
-      const phaseDescEn: Record<string, string> = {
-        menstrual: 'Your body is in rest and regeneration mode.',
-        follicular: 'Your energy is rising and your mind is sharp.',
-        ovulatory: 'You are at your peak of energy and social charisma.',
-        luteal: 'It is time for introspection and completing projects.',
-        weekly_peak: 'Your testosterone is at its weekly peak.',
-        morning_peak: 'Your mental focus is at its best.',
-        afternoon_dip: 'It is natural to feel less energy at this time.',
-        evening_balanced: 'Your body finds balance at sunset.',
-        night_rest: 'Your system is preparing for rest.',
-      };
-      const desc = isSpanish ? phaseDescEs[phaseData.phase] : phaseDescEn[phaseData.phase];
-      contextualMessage = isSpanish
-        ? `Estas en tu ${phaseName} hoy. ${desc || ''} Que preguntas tienes?`
-        : `You are in your ${phaseName} today. ${desc || ''} What questions do you have?`;
-      setSessionFlag('home_phase');
-    } else if (lastCheckinData && !hasShownContextual('checkin_feedback')) {
-      const dimLabelsEs: Record<string, string> = {
-        emotional: 'emocional',
-        physical: 'fisico',
-        cognitive: 'cognitivo',
-        stress: 'estres',
-        social: 'social',
-        sexual: 'sexual',
-        anxiety: 'ansiedad',
-      };
-      const dimLabelsEn: Record<string, string> = {
-        emotional: 'emotional',
-        physical: 'physical',
-        cognitive: 'cognitive',
-        stress: 'stress',
-        social: 'social',
-        sexual: 'sexual',
-        anxiety: 'anxiety',
-      };
-      const dimLabel = isSpanish
-        ? dimLabelsEs[lastCheckinData.lowestDimension] || lastCheckinData.lowestDimension
-        : dimLabelsEn[lastCheckinData.lowestDimension] || lastCheckinData.lowestDimension;
-
-      contextualMessage = isSpanish
-        ? `Note que tu nivel ${dimLabel} esta en ${lastCheckinData.lowestScore} hoy. Quieres hablar sobre lo que podria estar afectandolo?`
-        : `I noticed your ${dimLabel} level is at ${lastCheckinData.lowestScore} today. Want to talk about what might be affecting it?`;
-      setSessionFlag('checkin_feedback');
-    } else if (hoursUntilHighAnxiety && !hasShownContextual('anxiety_warning')) {
-      contextualMessage = isSpanish
-        ? `Veo una ventana de alta vulnerabilidad en ${hoursUntilHighAnxiety} horas. Quieres prepararte juntos?`
-        : `I see a high vulnerability window in ${hoursUntilHighAnxiety} hours. Want to prepare for it together?`;
-      setSessionFlag('anxiety_warning');
-    }
-
-    if (!contextualMessage) {
-      contextualMessage = isSpanish
-        ? `Hola ${profile.nombre}. Soy Bio, tu coach de inteligencia biológica. Conozco tus patrones. Sé lo que se aproxima. ¿Qué quieres saber sobre ti mismo hoy?`
-        : `Hi ${profile.nombre}. I am Bio, your biological intelligence coach. I know your patterns. I know what is coming. What would you like to know about yourself today?`;
-    }
-    setMessages([{ role: 'assistant', content: contextualMessage }]);
+    const greeting = isSpanish
+      ? `¡Hola ${profile.nombre}! Soy Bio, tu coach de inteligencia biológica. Hoy estás en tu fase ${phaseName}. ¿En qué puedo ayudarte?`
+      : `Hi ${profile.nombre}! I am Bio, your biological intelligence coach. Today you are in your ${phaseName} phase. How can I help you?`;
+    setMessages([{ role: 'assistant', content: greeting }]);
+    setTimeout(() => speakGreeting(greeting), 300);
   };
 
   const sendMessage = async () => {
