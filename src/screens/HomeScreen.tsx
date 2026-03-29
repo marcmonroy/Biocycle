@@ -497,20 +497,24 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
 
         const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
 
+        const shareText = isEnglish
+          ? `${headline}\n\nKnow yourself before it happens. 👉 https://biocycle.app`
+          : `${headline}\n\nConócete antes de que suceda. 👉 https://biocycle.app`;
+
         if (navigator.share && navigator.canShare({ files: [file] })) {
           try {
             await navigator.share({
               files: [file],
               title: 'BioCycle',
-              text: isEnglish ? 'Check out my BioCycle phase!' : 'Mira mi fase en BioCycle!',
+              text: shareText,
             });
           } catch (err) {
             if ((err as Error).name !== 'AbortError') {
-              await copyToClipboard(blob);
+              await copyToClipboard(blob, shareText);
             }
           }
         } else {
-          await copyToClipboard(blob);
+          await copyToClipboard(blob, shareText);
         }
 
         setSharing(false);
@@ -522,12 +526,14 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
     }
   };
 
-  const copyToClipboard = async (blob: Blob) => {
+  const copyToClipboard = async (blob: Blob, shareText?: string) => {
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob }),
-      ]);
-      alert(isEnglish ? 'Image copied to clipboard!' : 'Imagen copiada al portapapeles!');
+      await navigator.clipboard.writeText(
+        shareText ?? (isEnglish
+          ? `Know yourself before it happens. 👉 https://biocycle.app`
+          : `Conócete antes de que suceda. 👉 https://biocycle.app`)
+      );
+      alert(isEnglish ? 'Link copied to clipboard!' : '¡Enlace copiado al portapapeles!');
     } catch {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
