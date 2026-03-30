@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
+import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 
 export type CoachSessionType = 'scheduled' | 'adhoc';
 
@@ -535,51 +536,29 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     };
   }, [isSpanish]);
 
-  // ── Preload TTS voices ───────────────────────────────────────────
+  // ── Preload Web Speech fallback voices ──────────────────────────
   useEffect(() => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.getVoices();
-    };
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
   }, []);
 
   // ── Sync bioState with mic ───────────────────────────────────────
   useEffect(() => {
-    if (isListening) {
-      setBioState('listening');
-    } else if (!window.speechSynthesis?.speaking) {
-      setBioState('idle');
-    }
+    if (isListening) setBioState('listening');
   }, [isListening]);
 
-  // ── Voice output helpers ─────────────────────────────────────────
+  // ── Voice output via ElevenLabs (falls back to Web Speech) ──────
   const speakResponse = useCallback(
     (text: string) => {
-      if (isMuted || !window.speechSynthesis) return;
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.0;
-
-      const voices = window.speechSynthesis.getVoices();
-      const targetLocale = isSpanish ? 'es-ES' : 'en-US';
-      const targetLang = isSpanish ? 'es' : 'en';
-      const voice =
-        voices.find(v => v.lang.toLowerCase() === targetLocale.toLowerCase()) ??
-        voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ??
-        null;
-      if (voice) utterance.voice = voice;
-      utterance.lang = targetLocale;
-
-      utterance.onstart = () => setBioState('speaking');
-      utterance.onend = () => setBioState('idle');
-      utterance.onerror = () => setBioState('idle');
-
-      window.speechSynthesis.speak(utterance);
+      if (isMuted) return;
+      setBioState('speaking');
+      speakWithElevenLabs(text, profile.idioma, profile.picardia_mode ?? false, {
+        onStart: () => setBioState('speaking'),
+        onEnd:   () => setBioState('idle'),
+      });
     },
-    [isMuted, isSpanish]
+    [isMuted, profile.idioma, profile.picardia_mode]
   );
 
   const toggleMute = () => {
@@ -587,7 +566,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     setIsMuted(next);
     localStorage.setItem('biocycle_coach_muted', String(next));
     if (next) {
-      window.speechSynthesis?.cancel();
+      cancelSpeech();
       setBioState('idle');
     }
   };
