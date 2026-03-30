@@ -5,7 +5,7 @@ import { BottomNav, Screen } from './components/BottomNav';
 import { HomeScreen } from './screens/HomeScreen';
 import { ForecastScreen } from './screens/ForecastScreen';
 import { CheckinScreen } from './screens/CheckinScreen';
-import { CoachScreen } from './screens/CoachScreen';
+import { CoachScreen, CoachSessionType } from './screens/CoachScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { ResearchScreen } from './screens/ResearchScreen';
@@ -28,8 +28,16 @@ function App() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [lastCheckinData, setLastCheckinData] = useState<{ lowestDimension: string; lowestScore: number } | null>(null);
   const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
+  const [coachSessionType, setCoachSessionType] = useState<CoachSessionType>('adhoc');
 
   useEffect(() => {
+    // Detect ?session=scheduled from WhatsApp link
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('session') === 'scheduled') {
+      sessionStorage.setItem('biocycle_pending_scheduled', '1');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     if (window.location.pathname === '/admin') {
       setAppState('admin');
       return;
@@ -95,6 +103,12 @@ function App() {
     if (data) {
       setProfile(data);
       setAppState('home');
+      const pending = sessionStorage.getItem('biocycle_pending_scheduled');
+      if (pending) {
+        sessionStorage.removeItem('biocycle_pending_scheduled');
+        setCoachSessionType('scheduled');
+        setCurrentScreen('coach');
+      }
     } else {
       setAppState('setup');
     }
@@ -164,6 +178,11 @@ function App() {
     }
   };
 
+  const handleNavigate = (screen: Screen) => {
+    if (screen === 'coach') setCoachSessionType('adhoc');
+    setCurrentScreen(screen);
+  };
+
   if (appState === 'loading') {
     return (
       <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-center gap-6">
@@ -215,7 +234,7 @@ function App() {
           <HomeScreen
             profile={profile}
             phaseData={phaseData}
-            onNavigate={setCurrentScreen}
+            onNavigate={handleNavigate}
             onProfileUpdate={handleProfileUpdate}
           />
         )}
@@ -230,7 +249,7 @@ function App() {
           />
         )}
         {currentScreen === 'coach' && (
-          <CoachScreen profile={profile} phaseData={phaseData} />
+          <CoachScreen profile={profile} phaseData={phaseData} sessionType={coachSessionType} />
         )}
         {currentScreen === 'dashboard' && (
           <DashboardScreen profile={profile} onNavigate={setCurrentScreen} />
@@ -245,7 +264,7 @@ function App() {
             }}
           />
         )}
-        <BottomNav currentScreen={currentScreen} onNavigate={setCurrentScreen} profile={profile} />
+        <BottomNav currentScreen={currentScreen} onNavigate={handleNavigate} profile={profile} />
         <AmbientCoach
           profile={profile}
           phaseData={phaseData}

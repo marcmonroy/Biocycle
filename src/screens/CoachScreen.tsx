@@ -3,9 +3,12 @@ import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
 
+export type CoachSessionType = 'scheduled' | 'adhoc';
+
 interface CoachScreenProps {
   profile: Profile;
   phaseData: PhaseData;
+  sessionType?: CoachSessionType;
 }
 
 type Message = {
@@ -352,7 +355,7 @@ function BioAvatar({
   );
 }
 
-export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
+export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: CoachScreenProps) {
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
 
@@ -392,10 +395,24 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const userName = profile.nombre || (isSpanish ? 'amigo' : 'friend');
   const dayName = getDayName(isSpanish);
   const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
+  const isSienna = profile.picardia_mode === true;
+
+  // ── Adhoc greeting (static, no API call) ─────────────────────────
+  const adhocGreeting = sessionType === 'adhoc'
+    ? (isSpanish
+        ? (isSienna
+            ? `Hola ${userName}. Fuera de horario. ¿Qué pasa?`
+            : `Hola ${userName}. No es tu hora programada pero siempre estoy aquí. ¿Qué tienes en mente?`)
+        : (isSienna
+            ? `Hey ${userName}. Off schedule. What is going on?`
+            : `Hey ${userName}. Not your scheduled time but I am always here. What is on your mind?`))
+    : null;
 
   // ── Core chat state ──────────────────────────────────────────────
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [greetingLoading, setGreetingLoading] = useState(true);
+  const [messages, setMessages] = useState<Message[]>(
+    adhocGreeting ? [{ role: 'assistant', content: adhocGreeting }] : []
+  );
+  const [greetingLoading, setGreetingLoading] = useState(!adhocGreeting);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(getMessageCount());
@@ -430,11 +447,19 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     document.head.appendChild(tag);
   }, []);
 
-  // ── Generate dynamic greeting on mount (cached per session) ──────
+  // ── Generate greeting on mount ───────────────────────────────────
   useEffect(() => {
     if (greetingGeneratedRef.current) return;
     greetingGeneratedRef.current = true;
     localStorage.removeItem('biocycle_coach_muted');
+
+    // Adhoc: greeting already in state — just speak it
+    if (sessionType === 'adhoc') {
+      if (adhocGreeting) setTimeout(() => speakResponse(adhocGreeting), 400);
+      return;
+    }
+
+    // Scheduled: full dynamic API greeting
     setBioState('speaking');
 
     const cacheKey = `biocycle_greeting_${profile.id}_${new Date().toDateString()}_${phaseData.phase}`;

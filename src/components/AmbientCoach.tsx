@@ -146,11 +146,15 @@ export function AmbientCoach({
   };
 
   const generateContextualOpener = () => {
-    const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
-    const coachName = profile.picardia_mode ? 'Sienna' : 'Jules';
+    const isSienna = profile.picardia_mode === true;
+    const name = profile.nombre || (isSpanish ? 'amigo' : 'friend');
     const greeting = isSpanish
-      ? `¡Hola ${profile.nombre}! Soy ${coachName}, tu coach de BioCycle. Hoy estás en tu fase ${phaseName}. ¿En qué puedo ayudarte?`
-      : `Hi ${profile.nombre}! I am ${coachName}, your BioCycle coach. Today you are in your ${phaseName} phase. How can I help you?`;
+      ? (isSienna
+          ? `Hola ${name}. Fuera de horario. ¿Qué pasa?`
+          : `Hola ${name}. No es tu hora programada pero siempre estoy aquí. ¿Qué tienes en mente?`)
+      : (isSienna
+          ? `Hey ${name}. Off schedule. What is going on?`
+          : `Hey ${name}. Not your scheduled time but I am always here. What is on your mind?`);
     setMessages([{ role: 'assistant', content: greeting }]);
     setTimeout(() => speakGreeting(greeting), 300);
   };
