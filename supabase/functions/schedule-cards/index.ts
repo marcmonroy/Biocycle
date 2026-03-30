@@ -241,21 +241,33 @@ Deno.serve(async (req: Request) => {
       console.log(`[schedule-cards] User ${profile.id} matched slot ${matchingSlot.label} (${matchingSlot.time})`);
 
 
-      // 3. Determine phase
+      // 3. Determine phase and card
       const phase = calculatePhase(profile, now);
       const card = PHASE_CARD_MAP[phase] ?? FALLBACK_CARD;
       const isSpanish = profile.idioma === "ES";
-      const teaserText = isSpanish ? card.teaser_ES : card.teaser_EN;
+
+      const FALLBACK_TEASER = "Tu biología tiene algo importante que decirte hoy. 🧬";
+      const teaserText = (isSpanish ? card.teaser_ES : card.teaser_EN) || FALLBACK_TEASER;
       const language = isSpanish ? "ES" : "EN";
 
+      // Phone number passed exactly as stored — no modification
+      const phoneNumber = profile.whatsapp_phone;
+
+      if (!phoneNumber) {
+        console.warn(`[schedule-cards] User ${profile.id} — whatsapp_phone is empty, skipping`);
+        results.push({ userId: profile.id, status: "skipped", detail: "no phone number" });
+        continue;
+      }
+
       console.log(
-        `[schedule-cards] Sending to user=${profile.id} phase=${phase} slot=${matchingSlot.label}`,
+        `[schedule-cards] Sending to user=${profile.id} phone=${phoneNumber} phase=${phase} slot=${matchingSlot.label} teaser="${teaserText.slice(0, 40)}..."`,
       );
 
       // 4. Call send-whatsapp-card edge function
       let twilio_sid: string | null = null;
       let success = false;
       let error_message: string | null = null;
+      let httpStatus: number | null = null;
 
       try {
         const sendRes = await fetch(sendCardUrl, {
@@ -268,35 +280,56 @@ Deno.serve(async (req: Request) => {
             userId: profile.id,
             cardId: card.id,
             teaserText,
-            phoneNumber: profile.whatsapp_phone,
+            phoneNumber,
             language,
           }),
         });
 
-        const sendData = await sendRes.json();
+        httpStatus = sendRes.status;
+        let sendData: Record<string, unknown>;
+
+        try {
+          sendData = await sendRes.json();
+        } catch {
+          throw new Error(`Non-JSON response from send-whatsapp-card (HTTP ${httpStatus})`);
+        }
+
+        console.log(`[schedule-cards] send-whatsapp-card response HTTP=${httpStatus}:`, JSON.stringify(sendData));
+
         if (sendData.success && sendData.sid) {
-          twilio_sid = sendData.sid;
+          twilio_sid = sendData.sid as string;
           success = true;
+          console.log(`[schedule-cards] ✓ Sent to user=${profile.id} sid=${twilio_sid}`);
         } else {
-          error_message =
-            sendData.error?.message ?? JSON.stringify(sendData.error) ?? "Unknown error";
+          const errDetail = sendData.error
+            ? (typeof sendData.error === "object"
+                ? JSON.stringify(sendData.error)
+                : String(sendData.error))
+            : sendData.message
+            ? String(sendData.message)
+            : `HTTP ${httpStatus} — no sid returned`;
+          error_message = errDetail;
+          console.error(`[schedule-cards] ✗ Failed for user=${profile.id}: ${error_message}`);
         }
       } catch (sendErr) {
-        error_message =
-          sendErr instanceof Error ? sendErr.message : "Fetch failed";
+        error_message = sendErr instanceof Error ? sendErr.message : "Fetch failed";
+        console.error(`[schedule-cards] ✗ Fetch error for user=${profile.id}: ${error_message}`);
       }
 
       // 5. Log to whatsapp_sends
-      await supabase.from("whatsapp_sends").insert({
+      const { error: insertErr } = await supabase.from("whatsapp_sends").insert({
         user_id: profile.id,
         card_id: card.id,
-        phone_number: profile.whatsapp_phone,
+        phone_number: phoneNumber,
         teaser_text: teaserText,
         image_url: card.image,
         twilio_sid,
         success,
         error_message,
       });
+      if (insertErr) {
+        console.warn(`[schedule-cards] Failed to insert whatsapp_sends for user=${profile.id}: ${insertErr.message}`);
+      }
 
       results.push({
         userId: profile.id,
