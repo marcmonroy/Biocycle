@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { getTodayStats } from '../utils/statsUtils';
@@ -227,6 +227,35 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   // Export state
   const [exportingData, setExportingData] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+
+  // Trading streak
+  const [tradingStreak, setTradingStreak] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data: sessions } = await supabase
+        .from('conversation_sessions')
+        .select('session_date')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .order('session_date', { ascending: false });
+
+      let streak = 0;
+      if (sessions && sessions.length > 0) {
+        const uniqueDays = [...new Set(sessions.map((s: { session_date: string }) => s.session_date))];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let cursor = new Date(today);
+        for (const day of uniqueDays) {
+          const d = new Date(day as string);
+          d.setHours(0, 0, 0, 0);
+          const diff = Math.round((cursor.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff === 0 || diff === 1) { streak++; cursor = d; } else break;
+        }
+      }
+      setTradingStreak(streak);
+    })();
+  }, [profile.id]);
 
   // WhatsApp state
   const [whatsappEnabled, setWhatsappEnabled] = useState(profile.whatsapp_enabled ?? false);
@@ -576,6 +605,21 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
         >
           <Settings className="w-5 h-5 text-[#8B95B0]" />
         </button>
+      </div>
+
+      {/* Trading Streak */}
+      <div className="px-5 mb-4">
+        {tradingStreak > 0 ? (
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔥</span>
+            <span className="text-3xl font-bold text-[#FFD93D]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{tradingStreak}</span>
+            <span className="text-sm text-[#8B95B0]">{isEnglish ? 'Trading days' : 'días de Trading'}</span>
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-[#FF6B6B]">
+            {isEnglish ? '🔥 Start your streak today' : '🔥 Empieza tu racha hoy'}
+          </p>
+        )}
       </div>
 
       <div className="px-5">
