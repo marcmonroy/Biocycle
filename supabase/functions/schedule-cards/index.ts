@@ -72,19 +72,26 @@ function calculatePhase(profile: Profile, now: Date): string {
 
 type TimeSlot = "morning" | "midday" | "evening" | "night";
 
+// Dominican Republic is UTC-4 (fixed offset, no DST)
+const DR_UTC_OFFSET = -4;
+
+function getLocalHour(now: Date): number {
+  return (now.getUTCHours() + DR_UTC_OFFSET + 24) % 24;
+}
+
 function getTimeSlot(now: Date): TimeSlot {
-  const hour = now.getHours();
-  if (hour >= 5 && hour < 12) return "morning";
-  if (hour >= 12 && hour < 17) return "midday";
-  if (hour >= 17 && hour < 21) return "evening";
+  const hour = getLocalHour(now);
+  if (hour >= 6 && hour < 11) return "morning";
+  if (hour >= 11 && hour < 15) return "midday";
+  if (hour >= 15 && hour < 20) return "evening";
   return "night";
 }
 
-/** Returns true if the slot's scheduled HH:MM falls within the current hour */
+/** Returns true if the slot's scheduled HH:MM matches the current local hour */
 function slotMatchesCurrentHour(slot: CheckinTime, now: Date): boolean {
   if (!slot.enabled) return false;
   const [hh] = slot.time.split(":").map(Number);
-  return hh === now.getHours();
+  return hh === getLocalHour(now);
 }
 
 // ── Card selection (simplified — selects from CARD_LIBRARY by phase/gender) ─
@@ -183,10 +190,11 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const now = new Date();
-  const currentHour = now.getHours();
+  const utcHour = now.getUTCHours();
+  const localHour = getLocalHour(now);
   const currentTimeSlot = getTimeSlot(now);
 
-  console.log(`[schedule-cards] Running at hour=${currentHour}, slot=${currentTimeSlot}`);
+  console.log(`[schedule-cards] Running at utcHour=${utcHour}, localHour=${localHour} (DR UTC-4), slot=${currentTimeSlot}`);
 
   // 1. Fetch all WhatsApp-enabled profiles
   const { data: profiles, error: profilesError } = await supabase
@@ -223,11 +231,11 @@ Deno.serve(async (req: Request) => {
           ];
 
       const enabledSlots = times.filter((s) => s.enabled).map((s) => s.time).join(", ");
-      console.log(`[schedule-cards] User ${profile.id} enabled slots: [${enabledSlots}] — checking hour ${currentHour}`);
+      console.log(`[schedule-cards] User ${profile.id} enabled slots: [${enabledSlots}] — checking localHour ${localHour}`);
 
       const matchingSlot = times.find((slot) => slotMatchesCurrentHour(slot, now));
       if (!matchingSlot) {
-        console.log(`[schedule-cards] User ${profile.id} — no slot matches hour ${currentHour}, skipping`);
+        console.log(`[schedule-cards] User ${profile.id} — no slot matches localHour ${localHour}, skipping`);
         continue;
       }
       console.log(`[schedule-cards] User ${profile.id} matched slot ${matchingSlot.label} (${matchingSlot.time})`);
@@ -308,7 +316,7 @@ Deno.serve(async (req: Request) => {
   );
 
   return new Response(
-    JSON.stringify({ ok: true, hour: currentHour, slot: currentTimeSlot, results }),
+    JSON.stringify({ ok: true, utcHour, localHour, slot: currentTimeSlot, results }),
     { status: 200, headers: { "Content-Type": "application/json" } },
   );
 });
