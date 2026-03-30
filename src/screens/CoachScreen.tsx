@@ -201,6 +201,90 @@ export async function callCoachAPI(
   }
 }
 
+// ── Dynamic greeting generation ──────────────────────────────────────────────
+
+function getFallbackGreeting(profile: Profile, phaseName: string, isSpanish: boolean, isSienna: boolean): string {
+  if (isSienna) {
+    return isSpanish
+      ? `Hola ${profile.nombre}. Soy Sienna. Hoy estás en fase ${phaseName}. Vamos al grano. Estado emocional — número del 1 al 10. Ya.`
+      : `Hey ${profile.nombre}. Sienna here. You are in your ${phaseName} phase today. Let us get into it. Emotional state — number 1 to 10. Go.`;
+  }
+  return isSpanish
+    ? `Hola ${profile.nombre}, soy Jules, tu coach de BioCycle. Hoy estás en tu fase ${phaseName}. Empecemos. Estado emocional ahora mismo — dame un número del 1 al 10.`
+    : `Hi ${profile.nombre}, I am Jules, your BioCycle coach. Today you are in your ${phaseName} phase. Let us begin. Emotional state right now — give me a number 1 to 10.`;
+}
+
+async function generateGreeting(
+  profile: Profile,
+  phaseData: PhaseData,
+  lastEmotional: number | null,
+  lastAnxiety: number | null,
+): Promise<string> {
+  const isSpanish = profile.idioma === 'ES';
+  const phaseNames = getPhaseNames(isSpanish);
+  const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
+  const cycleDay = phaseData.cycleDay ? String(phaseData.cycleDay) : 'N/A';
+  const timeSlot = getTimeSlot();
+  const isSienna = profile.picardia_mode === true;
+
+  const userData = `User data: Name: ${profile.nombre}, Phase: ${phaseName}, Day in cycle: ${cycleDay}, Time slot: ${timeSlot}, Last emotional score: ${lastEmotional ?? 'N/A'}, Last anxiety score: ${lastAnxiety ?? 'N/A'}, Language: ${profile.idioma}`;
+
+  const julesSystem = `You are Jules, a warm wise grounded BioCycle coach with the personality of someone who has lived fully and knows what matters. Generate a single opening greeting for a BioCycle session.
+
+Rules for the greeting:
+- Address the user by first name warmly but not sycophantically
+- Reference something specific about their biology today — their phase, day in cycle, or a prediction
+- Include one line of gentle biological humor or insight that makes them smile
+- Reference one thing coming today based on their phase — delivered as a friend not a doctor
+- End with a warm open question that invites them into the conversation — not a command to begin
+- Keep it to 4-6 sentences maximum
+- Never sound like a form, a notification, or a wellness app
+- Sound like a real person who knows them and their biology
+
+${userData}`;
+
+  const siennaSystem = `You are Sienna, BioCycle's bold direct conspiratorial coach in Spice Mode. Generate a single opening greeting for a BioCycle session.
+
+Rules for the greeting:
+- Use the user's name — no fluff around it
+- Hit them immediately with something real about their biology today — phase, day, prediction
+- One line of dry humor or biological conspiracy — make them smirk
+- One direct prediction about today — no softening
+- End with a short punchy question that opens the conversation
+- Keep it to 3-5 sentences — Sienna does not ramble
+- Never sound clinical, never sound like a wellness app, never lose the warmth underneath the boldness
+
+${userData}`;
+
+  try {
+    const response = await fetch('/.netlify/functions/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        system: isSienna ? siennaSystem : julesSystem,
+        messages: [{ role: 'user', content: 'Generate the opening greeting now.' }],
+      }),
+    });
+
+    const data = await response.json();
+    let greeting = '';
+    if (data.content && Array.isArray(data.content) && data.content[0]?.text) {
+      greeting = data.content[0].text;
+    } else if (typeof data.content === 'string') {
+      greeting = data.content;
+    } else if (data.text) {
+      greeting = data.text;
+    } else if (data.message) {
+      greeting = data.message;
+    }
+    return greeting.trim() || getFallbackGreeting(profile, phaseName, isSpanish, isSienna);
+  } catch {
+    return getFallbackGreeting(profile, phaseName, isSpanish, isSienna);
+  }
+}
+
 // CSS keyframe animations injected once
 const AVATAR_STYLES = `
   @keyframes bio-breathe {
@@ -307,18 +391,14 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
   const dayName = getDayName(isSpanish);
   const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
 
-  const greetingMessage = isSpanish
-    ? `Hola ${userName}. Soy Bio, tu coach de inteligencia biologica. Hoy es ${dayName}. Estas en tu fase ${phaseName}. Tu ${highest.label} esta fuerte hoy y tu ${lowest.label} necesita atencion. Que te gustaria saber sobre ti?`
-    : `Hi ${userName}. I am Bio, your biological intelligence coach. Today is ${dayName}. You are in your ${phaseName} phase. Your ${highest.label} is strong today and your ${lowest.label} needs attention. What would you like to know about yourself?`;
-
   // ── Core chat state ──────────────────────────────────────────────
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: greetingMessage },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [greetingLoading, setGreetingLoading] = useState(true);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(getMessageCount());
   const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
+  const greetingGeneratedRef = useRef(false);
 
   // ── Speech input state ───────────────────────────────────────────
   const [isListening, setIsListening] = useState(false);
@@ -348,13 +428,54 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     document.head.appendChild(tag);
   }, []);
 
-  // ── Clear any persisted mute state and speak greeting ────────────
+  // ── Generate dynamic greeting on mount (cached per session) ──────
   useEffect(() => {
+    if (greetingGeneratedRef.current) return;
+    greetingGeneratedRef.current = true;
     localStorage.removeItem('biocycle_coach_muted');
-    const timer = setTimeout(() => {
-      speakResponse(greetingMessage);
-    }, 600);
-    return () => clearTimeout(timer);
+    setBioState('speaking');
+
+    const cacheKey = `biocycle_greeting_${profile.id}_${new Date().toDateString()}_${phaseData.phase}`;
+    const cached = sessionStorage.getItem(cacheKey);
+
+    const applyGreeting = (text: string) => {
+      setMessages([{ role: 'assistant', content: text }]);
+      setGreetingLoading(false);
+      setTimeout(() => speakResponse(text), 400);
+    };
+
+    if (cached) {
+      applyGreeting(cached);
+      return;
+    }
+
+    (async () => {
+      // Fetch recent checkin data for personalization
+      const { data } = await supabase
+        .from('checkins')
+        .select('factor_ansiedad, factor_emocional')
+        .eq('user_id', profile.id)
+        .order('checkin_date', { ascending: false })
+        .limit(5);
+
+      let anxAvg: number | null = null;
+      let lastEmotionalVal: number | null = null;
+
+      if (data && data.length > 0) {
+        const anxData = data.filter((c: Checkin) => c.factor_ansiedad != null);
+        if (anxData.length > 0) {
+          anxAvg = Math.round(anxData.reduce((s: number, c: Checkin) => s + (c.factor_ansiedad || 0), 0) / anxData.length * 10) / 10;
+        }
+        const emoItem = data.find((c: Checkin) => c.factor_emocional != null);
+        if (emoItem) lastEmotionalVal = emoItem.factor_emocional ?? null;
+      }
+
+      setRecentAnxiety(anxAvg);
+
+      const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg);
+      sessionStorage.setItem(cacheKey, greeting);
+      applyGreeting(greeting);
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -449,31 +570,9 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Load recent anxiety ──────────────────────────────────────────
-  useEffect(() => {
-    loadRecentAnxietyData();
-  }, [profile.id]);
-
-  const loadRecentAnxietyData = async () => {
-    const { data } = await supabase
-      .from('checkins')
-      .select('factor_ansiedad')
-      .eq('user_id', profile.id)
-      .not('factor_ansiedad', 'is', null)
-      .order('checkin_date', { ascending: false })
-      .limit(5);
-
-    if (data && data.length > 0) {
-      const avg =
-        data.reduce((sum: number, c: Checkin) => sum + (c.factor_ansiedad || 0), 0) /
-        data.length;
-      setRecentAnxiety(Math.round(avg * 10) / 10);
-    }
-  };
-
   // ── Send message ─────────────────────────────────────────────────
   const sendMessage = async () => {
-    if (!input.trim() || loading || isLimitReached) return;
+    if (!input.trim() || loading || isLimitReached || greetingLoading) return;
 
     const userMessage = input.trim();
     setInput('');
@@ -551,6 +650,22 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
 
   const MessageList = () => (
     <>
+      {greetingLoading && (
+        <div className="flex justify-start">
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl rounded-bl-sm px-4 py-3">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 rounded-full bg-[#7B61FF] animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[#7B61FF] animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-[#7B61FF] animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs text-[#4A5568]">
+                {isSpanish ? 'Preparando tu sesión...' : 'Preparing your session...'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
       {messages.map((message, index) => (
         <div
           key={index}
@@ -642,14 +757,14 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading}
+              disabled={loading || greetingLoading}
               autoFocus
-              placeholder={isSpanish ? 'Escribe tu mensaje...' : 'Type your message...'}
+              placeholder={greetingLoading ? (isSpanish ? 'Preparando...' : 'Preparing...') : (isSpanish ? 'Escribe tu mensaje...' : 'Type your message...')}
               className="flex-1 px-4 py-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-2 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-50"
             />
             <button
               onClick={toggleListening}
-              disabled={loading || !speechSupported}
+              disabled={loading || !speechSupported || greetingLoading}
               className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
                 isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-[#1E1E3A] hover:bg-[#2A2A45]'
               } disabled:opacity-50`}
@@ -662,7 +777,7 @@ export function CoachScreen({ profile, phaseData }: CoachScreenProps) {
             </button>
             <button
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || greetingLoading}
               className="w-12 h-12 bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
             >
               <Send className="w-5 h-5 text-white" />
