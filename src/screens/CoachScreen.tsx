@@ -165,6 +165,7 @@ export async function callCoachAPI(
         max_tokens: 1000,
         system: systemPrompt,
         messages,
+        picardia_mode: profile.picardia_mode ?? false,
       }),
     });
 
@@ -265,6 +266,7 @@ ${userData}`;
         max_tokens: 300,
         system: isSienna ? siennaSystem : julesSystem,
         messages: [{ role: 'user', content: 'Generate the opening greeting now.' }],
+        picardia_mode: profile.picardia_mode ?? false,
       }),
     });
 

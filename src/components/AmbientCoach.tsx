@@ -147,9 +147,10 @@ export function AmbientCoach({
 
   const generateContextualOpener = () => {
     const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
+    const coachName = profile.picardia_mode ? 'Sienna' : 'Jules';
     const greeting = isSpanish
-      ? `¡Hola ${profile.nombre}! Soy Bio, tu coach de inteligencia biológica. Hoy estás en tu fase ${phaseName}. ¿En qué puedo ayudarte?`
-      : `Hi ${profile.nombre}! I am Bio, your biological intelligence coach. Today you are in your ${phaseName} phase. How can I help you?`;
+      ? `¡Hola ${profile.nombre}! Soy ${coachName}, tu coach de BioCycle. Hoy estás en tu fase ${phaseName}. ¿En qué puedo ayudarte?`
+      : `Hi ${profile.nombre}! I am ${coachName}, your BioCycle coach. Today you are in your ${phaseName} phase. How can I help you?`;
     setMessages([{ role: 'assistant', content: greeting }]);
     setTimeout(() => speakGreeting(greeting), 300);
   };
