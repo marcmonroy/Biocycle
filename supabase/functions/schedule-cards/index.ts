@@ -220,25 +220,45 @@ Deno.serve(async (req: Request) => {
 
   for (const profile of eligible) {
     try {
-      // 2. Check if any enabled slot matches the current hour
-      const times: CheckinTime[] = Array.isArray(profile.checkin_times)
-        ? profile.checkin_times
-        : [
+      // 2. Parse checkin_times — handles both pre-parsed object and raw JSON string
+      const rawTimes = profile.checkin_times;
+      const checkinTimes: CheckinTime[] = (() => {
+        try {
+          const parsed = typeof rawTimes === "string" ? JSON.parse(rawTimes) : rawTimes;
+          return Array.isArray(parsed) && parsed.length > 0
+            ? parsed
+            : [
+                { label: "morning", time: "07:30", enabled: true },
+                { label: "midday",  time: "12:30", enabled: true },
+                { label: "evening", time: "19:00", enabled: true },
+                { label: "night",   time: "21:30", enabled: true },
+              ];
+        } catch {
+          console.warn(`[schedule-cards] User ${profile.id} — failed to parse checkin_times, using defaults`);
+          return [
             { label: "morning", time: "07:30", enabled: true },
-            { label: "midday", time: "12:30", enabled: true },
+            { label: "midday",  time: "12:30", enabled: true },
             { label: "evening", time: "19:00", enabled: true },
-            { label: "night", time: "21:30", enabled: true },
+            { label: "night",   time: "21:30", enabled: true },
           ];
+        }
+      })();
 
-      const enabledSlots = times.filter((s) => s.enabled).map((s) => s.time).join(", ");
-      console.log(`[schedule-cards] User ${profile.id} enabled slots: [${enabledSlots}] — checking localHour ${localHour}`);
+      console.log(
+        `[schedule-cards] User ${profile.id} checkinTimes=${JSON.stringify(checkinTimes)} localHour=${localHour}`,
+      );
 
-      const matchingSlot = times.find((slot) => slotMatchesCurrentHour(slot, now));
+      const matchingSlot = checkinTimes.find((slot) => {
+        if (!slot.enabled) return false;
+        const slotHour = parseInt(slot.time.split(":")[0], 10);
+        return slotHour === localHour;
+      });
+
       if (!matchingSlot) {
-        console.log(`[schedule-cards] User ${profile.id} — no slot matches localHour ${localHour}, skipping`);
+        console.log(`[schedule-cards] User ${profile.id} — no slot matches localHour=${localHour}, skipping`);
         continue;
       }
-      console.log(`[schedule-cards] User ${profile.id} matched slot ${matchingSlot.label} (${matchingSlot.time})`);
+      console.log(`[schedule-cards] User ${profile.id} — matched slot label=${matchingSlot.label} time=${matchingSlot.time}`);
 
 
       // 3. Determine phase and card
@@ -282,6 +302,7 @@ Deno.serve(async (req: Request) => {
             teaserText,
             phoneNumber,
             language,
+            timeSlot: matchingSlot.label,
           }),
         });
 
