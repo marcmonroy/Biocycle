@@ -284,6 +284,7 @@ Deno.serve(async (req: Request) => {
       );
 
       // 4. Call send-whatsapp-card edge function
+      console.log(`[schedule-cards] Calling send-whatsapp-card url=${sendCardUrl} authKey=SERVICE_ROLE key_prefix=${serviceRoleKey.slice(0, 8)}...`);
       let twilio_sid: string | null = null;
       let success = false;
       let error_message: string | null = null;
@@ -293,7 +294,7 @@ Deno.serve(async (req: Request) => {
         const sendRes = await fetch(sendCardUrl, {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${anonKey}`,
+            Authorization: "Bearer " + serviceRoleKey,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
