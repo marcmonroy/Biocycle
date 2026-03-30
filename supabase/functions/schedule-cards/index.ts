@@ -222,11 +222,16 @@ Deno.serve(async (req: Request) => {
             { label: "night", time: "21:30", enabled: true },
           ];
 
+      const enabledSlots = times.filter((s) => s.enabled).map((s) => s.time).join(", ");
+      console.log(`[schedule-cards] User ${profile.id} enabled slots: [${enabledSlots}] — checking hour ${currentHour}`);
+
       const matchingSlot = times.find((slot) => slotMatchesCurrentHour(slot, now));
       if (!matchingSlot) {
-        // No slot scheduled for this hour — skip
+        console.log(`[schedule-cards] User ${profile.id} — no slot matches hour ${currentHour}, skipping`);
         continue;
       }
+      console.log(`[schedule-cards] User ${profile.id} matched slot ${matchingSlot.label} (${matchingSlot.time})`);
+
 
       // 3. Determine phase
       const phase = calculatePhase(profile, now);
@@ -255,7 +260,6 @@ Deno.serve(async (req: Request) => {
             userId: profile.id,
             cardId: card.id,
             teaserText,
-            imageUrl: card.image,
             phoneNumber: profile.whatsapp_phone,
             language,
           }),

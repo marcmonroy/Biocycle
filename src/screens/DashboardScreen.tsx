@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
-import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download, ShieldCheck, ChevronRight } from 'lucide-react';
+import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download, ShieldCheck, ChevronRight, Zap } from 'lucide-react';
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -77,6 +77,7 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const [showPremiumUnlocked, setShowPremiumUnlocked] = useState(false);
   const [profileBonusPoints, setProfileBonusPoints] = useState(0);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [tradingStreak, setTradingStreak] = useState(0);
 
   useEffect(() => {
     loadDashboardData();
@@ -173,6 +174,51 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           }
         }
       }
+
+      // Trading Streak: consecutive days with a completed coach session (fallback to checkins)
+      const { data: sessions } = await supabase
+        .from('conversation_sessions')
+        .select('session_date')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .order('session_date', { ascending: false });
+
+      let streak = 0;
+      if (sessions && sessions.length > 0) {
+        const uniqueDays = [...new Set(sessions.map((s: { session_date: string }) => s.session_date))];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let cursor = new Date(today);
+        for (const day of uniqueDays) {
+          const d = new Date(day);
+          d.setHours(0, 0, 0, 0);
+          const diff = Math.round((cursor.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff === 0 || diff === 1) {
+            streak++;
+            cursor = d;
+          } else {
+            break;
+          }
+        }
+      } else if (checkins && checkins.length > 0) {
+        // Fallback: count consecutive days in checkins
+        const uniqueCheckinDays = [...new Set(checkins.map((c: Checkin) => c.checkin_date))].sort((a, b) => b.localeCompare(a));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        let cursor = new Date(today);
+        for (const day of uniqueCheckinDays) {
+          const d = new Date(day);
+          d.setHours(0, 0, 0, 0);
+          const diff = Math.round((cursor.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff === 0 || diff === 1) {
+            streak++;
+            cursor = d;
+          } else {
+            break;
+          }
+        }
+      }
+      setTradingStreak(streak);
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -360,6 +406,27 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
               </p>
             </div>
           )}
+        </div>
+
+        {/* Trading Streak */}
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#FFD93D', borderLeftWidth: 4 }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-5 h-5 text-[#FFD93D]" />
+              <span className="text-sm text-[#8B95B0]">
+                {isSpanish ? 'Trading Streak' : 'Trading Streak'}
+              </span>
+            </div>
+            {tradingStreak > 0 ? (
+              <span className="text-3xl font-bold text-[#FFD93D]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                {tradingStreak} {isSpanish ? 'días' : 'days'}
+              </span>
+            ) : (
+              <span className="text-sm text-[#4A5568]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                {isSpanish ? 'Empieza tu racha hoy' : 'Start your streak today'}
+              </span>
+            )}
+          </div>
         </div>
 
         {showPremiumUnlocked && (
