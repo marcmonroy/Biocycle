@@ -817,7 +817,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                   onClick={() => handlePicardiaChange(!picardiaMode)}
                   disabled={!canUsePicardia}
                   className={`w-14 h-8 rounded-full transition-colors relative ${
-                    picardiaMode && canUsePicardia ? 'bg-[#FF6B6B]' : 'bg-[#1E1E3A]'
+                    picardiaMode && canUsePicardia ? 'bg-[#00C896]' : 'bg-[#1E1E3A]'
                   }`}
                 >
                   <div
