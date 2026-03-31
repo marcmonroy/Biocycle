@@ -937,7 +937,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       </div>
 
       {/* Input */}
-      <InputBar />
+      <VoiceBubble />
     </div>
   );
 }

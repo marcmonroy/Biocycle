@@ -272,6 +272,7 @@ function App() {
           currentScreen={currentScreen}
           lastCheckinData={lastCheckinData}
           recentAnxiety={recentAnxiety}
+          onNavigate={handleNavigate}
         />
       </div>
     );
