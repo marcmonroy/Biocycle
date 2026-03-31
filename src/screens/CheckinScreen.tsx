@@ -181,6 +181,7 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
 
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [streak, setStreak] = useState(0);
+  const [missedCount, setMissedCount] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
@@ -196,6 +197,16 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
         .gte('session_date', since.toISOString().split('T')[0])
         .order('session_date', { ascending: true });
       setSessions((data as SessionRow[]) ?? []);
+
+      // Compute missed slots for today
+      const todayStr = new Date().toISOString().split('T')[0];
+      const todaySlots = new Set(
+        (data ?? [])
+          .filter((s: SessionRow) => s.session_date === todayStr)
+          .map((s: SessionRow) => s.time_slot)
+      );
+      const missed = ['morning', 'afternoon', 'night'].filter(slot => !todaySlots.has(slot)).length;
+      setMissedCount(missed);
 
       // Compute streak from all completed sessions
       const { data: allSessions } = await supabase
@@ -517,9 +528,32 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
       {!showManual ? (
         <button
           onClick={() => setShowManual(true)}
-          className="w-full py-3 text-[#4A5568] text-sm border border-[#1E1E3A] rounded-xl hover:border-[#2A2A45] hover:text-[#8B95B0] transition-colors"
+          className={`w-full py-3 text-sm rounded-xl border transition-colors flex items-center justify-center gap-2 ${
+            missedCount === 0
+              ? 'text-[#4A5568] border-[#1E1E3A] hover:border-[#2A2A45] hover:text-[#8B95B0]'
+              : missedCount === 1
+              ? 'bg-[#FFD93D] text-[#0A0A1A] font-semibold border-transparent hover:bg-[#F0CA30]'
+              : 'bg-[#FF6B6B] text-white font-semibold border-transparent hover:bg-[#F05050]'
+          }`}
         >
-          {isSpanish ? '¿Perdiste una sesión? Ingrésala manualmente' : 'Missed a session? Log it manually'}
+          {missedCount > 0 && (
+            <span className={`w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0 ${
+              missedCount === 1 ? 'bg-[#0A0A1A]/20 text-[#0A0A1A]' : 'bg-white/20 text-white'
+            }`}>
+              {missedCount}
+            </span>
+          )}
+          {isSpanish
+            ? missedCount === 0
+              ? '¿Perdiste una sesión? Ingrésala manualmente'
+              : missedCount === 1
+              ? '1 sesión perdida hoy — regístrala ahora'
+              : `${missedCount} sesiones perdidas — regístralas ahora`
+            : missedCount === 0
+            ? 'Missed a session? Log it manually'
+            : missedCount === 1
+            ? '1 session missed today — log it now'
+            : `${missedCount} sessions missed — log them now`}
         </button>
       ) : (
         <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5 space-y-4">

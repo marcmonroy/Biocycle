@@ -157,6 +157,15 @@ function buildSystemPrompt(
   const isSiennaMode = profile.picardia_mode === true;
   const name = profile.nombre ?? 'friend';
 
+  // Date awareness — prepended to every prompt so the model never confuses past/future
+  const dateStr = new Date().toLocaleDateString(
+    isSpanish ? 'es-ES' : 'en-US',
+    { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+  );
+  const dateLine = isSpanish
+    ? `Hoy es ${dateStr}. Cualquier fecha anterior a hoy ya ocurrió. Nunca le digas a un usuario que una fecha pasada no ha ocurrido aún.\n\n`
+    : `Today is ${dateStr}. Any date before today has already happened. Never tell a user a past date has not occurred.\n\n`;
+
   // Append recent session history block (CHANGE 8)
   const historyBlock = recentSummaries.length > 0
     ? `\n\nRecent session history: ${recentSummaries.join(' | ')}`
@@ -164,7 +173,7 @@ function buildSystemPrompt(
 
   // ── Scheduled morning session (CHANGE 3) ──────────────────────────
   if (sessionType === 'scheduled' && timeSlot === 'morning') {
-    return `You are Jules. This is the morning session for ${name}.
+    return dateLine + `You are Jules. This is the morning session for ${name}.
 
 STEP 1 — GREETING AND FORECAST (do this first):
 Open with a warm good morning using their name. Then deliver today's biological forecast in 2-3 sentences — concise, fun, specific to their phase. Reference what their body will likely experience today based on phase ${phaseName} day ${cycleDay}. Make it feel like insider knowledge not a medical report. Example tone: "Your follicular phase has your brain running on extra RAM today. Creative thinking and social energy both peak before noon. Use the morning window."
@@ -194,7 +203,7 @@ User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${
     const adultLine = profile.picardia_mode
       ? '\n3. Sexual energy — "Sexual energy today? 1 to 10."'
       : '';
-    return `You are Jules. This is the afternoon check-in for ${name}. They are in ${phaseName} phase.
+    return dateLine + `You are Jules. This is the afternoon check-in for ${name}. They are in ${phaseName} phase.
 
 STEP 1 — BRIEF OPENER:
 One sentence check-in opener referencing something from this morning's session if available. ${morningRef} Example: "Your stress was at 7 this morning — how has the day treated you since?"
@@ -215,7 +224,7 @@ User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${
 
   // ── Scheduled night session (CHANGE 5) ────────────────────────────
   if (sessionType === 'scheduled' && timeSlot === 'night') {
-    return `You are Jules. This is the night wrap-up for ${name}.
+    return dateLine + `You are Jules. This is the night wrap-up for ${name}.
 
 STEP 1 — DAY CLOSE:
 Warm evening opener. Reference their phase and what today meant biologically.
@@ -291,7 +300,7 @@ Rules:
 
 User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}`;
 
-  return isSiennaMode ? siennaPrompt : julesPrompt;
+  return dateLine + (isSiennaMode ? siennaPrompt : julesPrompt);
 }
 
 export async function callCoachAPI(

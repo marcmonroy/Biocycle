@@ -22,9 +22,17 @@ exports.handler = async (event) => {
     // Strip picardia_mode before forwarding to Anthropic (not a valid API field)
     delete parsed.picardia_mode;
 
+    // Prepend today's date to every system prompt so the model never confuses past/future
+    const todayDate = new Date().toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    const dateLine = `Today is ${todayDate}. Any date before today has already happened. Never tell a user a past date has not occurred.\n\n`;
+
     // If no system prompt was provided by the client, inject one based on personality
     if (!parsed.system) {
-      parsed.system = picardiaMode ? SIENNA_SYSTEM : JULES_SYSTEM;
+      parsed.system = dateLine + (picardiaMode ? SIENNA_SYSTEM : JULES_SYSTEM);
+    } else {
+      parsed.system = dateLine + parsed.system;
     }
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
