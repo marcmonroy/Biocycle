@@ -694,6 +694,39 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
         </div>
       </div>
 
+      {/* Research study notification — hardcoded false until a study is live */}
+      {(() => {
+        const isStudyAvailable = false;
+        if (!isStudyAvailable) return null;
+        return (
+          <div className="px-5 mt-4">
+            <div className="bg-[#111126] border border-[#F5C842]/30 rounded-2xl p-5">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#F5C842' + '22', border: '1px solid #F5C84244' }}>
+                  <span className="text-lg">🔬</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm mb-0.5" style={{ color: '#F5C842' }}>
+                    {isEnglish ? 'Research Opportunity Available' : 'Oportunidad de Investigación Disponible'}
+                  </p>
+                  <p className="text-[#8B95B0] text-xs leading-relaxed">
+                    {isEnglish
+                      ? 'A study matching your profile is open. Review the details on the Trading Floor.'
+                      : 'Hay un estudio que coincide con tu perfil. Revisa los detalles en el Trading Floor.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => window.location.href = '/trading-floor'}
+                className="mt-4 w-full py-2.5 bg-[#F5C842] text-[#0A0A1A] text-sm font-bold rounded-xl hover:opacity-90 transition-opacity"
+              >
+                {isEnglish ? 'View Study' : 'Ver Estudio'}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="px-5 mt-6">
         <h3 className="text-base font-semibold text-[#8B95B0] mb-3 tracking-wide uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.1em' }}>
           {isEnglish ? 'Your levels today' : 'Tus niveles hoy'}

@@ -571,15 +571,21 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
   const isSienna = profile.picardia_mode === true;
 
-  // ── Adhoc greeting (static, no API call) ─────────────────────────
+  // ── Adhoc greeting — prefer intelligent greeting from AmbientCoach ──
   const adhocGreeting = sessionType === 'adhoc'
-    ? (isSpanish
-        ? (isSienna
-            ? `Hola ${userName}. Fuera de horario. ¿Qué pasa?`
-            : `Hola ${userName}. No es tu hora programada pero siempre estoy aquí. ¿Qué tienes en mente?`)
-        : (isSienna
-            ? `Hey ${userName}. Off schedule. What is going on?`
-            : `Hey ${userName}. Not your scheduled time but I am always here. What is on your mind?`))
+    ? (() => {
+        const stored = sessionStorage.getItem('biocycle_adhoc_greeting');
+        sessionStorage.removeItem('biocycle_adhoc_greeting'); // consume once
+        if (stored) return stored;
+        // Fallback generic
+        return isSpanish
+          ? (isSienna
+              ? `Hola ${userName}. Fuera de horario. ¿Qué pasa?`
+              : `Hola ${userName}. No es tu hora programada pero siempre estoy aquí. ¿Qué tienes en mente?`)
+          : (isSienna
+              ? `Hey ${userName}. Off schedule. What is going on?`
+              : `Hey ${userName}. Not your scheduled time but I am always here. What is on your mind?`);
+      })()
     : null;
 
   // ── Session tracking state (CHANGE 6 & 7) ───────────────────────

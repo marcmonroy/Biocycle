@@ -85,12 +85,10 @@ function getNextWeekDate(): Date {
 
 function getDepositLabel(isSpanish: boolean): { label: string; emoji: string } {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 11) {
+  if (hour >= 5 && hour < 12) {
     return { label: isSpanish ? 'Depósito Matutino' : 'Morning Deposit', emoji: '🌅' };
-  } else if (hour >= 11 && hour < 15) {
-    return { label: isSpanish ? 'Depósito del Mediodía' : 'Midday Deposit', emoji: '☀️' };
-  } else if (hour >= 15 && hour < 20) {
-    return { label: isSpanish ? 'Depósito Vespertino' : 'Evening Deposit', emoji: '🌇' };
+  } else if (hour >= 12 && hour < 19) {
+    return { label: isSpanish ? 'Depósito Vespertino' : 'Afternoon Deposit', emoji: '☀️' };
   } else {
     return { label: isSpanish ? 'Depósito Nocturno' : 'Night Deposit', emoji: '🌙' };
   }
@@ -308,7 +306,7 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
 
   // ── Manual deposit state ────────────────────────────────────────────────
   const [showManual, setShowManual] = useState(false);
-  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const manualDate = new Date().toISOString().split('T')[0]; // always today
   const [manualSlot, setManualSlot] = useState<'morning' | 'afternoon' | 'night'>('morning');
   const [manualValues, setManualValues] = useState<Record<string, number>>({
     physical: 5, cognitive: 5, emotional: 5, stress: 5, social: 5, anxiety: 5, sexual: 5,
@@ -522,18 +520,10 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
             </div>
           )}
 
-          {/* Date selector */}
-          <div>
-            <label className="block text-sm text-[#8B95B0] mb-1">
-              {isSpanish ? 'Fecha' : 'Date'}
-            </label>
-            <input
-              type="date"
-              value={manualDate}
-              max={new Date().toISOString().split('T')[0]}
-              onChange={e => setManualDate(e.target.value)}
-              className="w-full px-3 py-2 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#7B61FF]"
-            />
+          {/* Today's date — read-only */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl">
+            <span className="text-[#8B95B0] text-xs">{isSpanish ? 'Fecha:' : 'Date:'}</span>
+            <span className="text-white text-sm font-medium">{new Date().toLocaleDateString(isSpanish ? 'es-ES' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           </div>
 
           {/* Slot selector */}
@@ -603,12 +593,17 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
           <button
             onClick={handleManualSubmit}
             disabled={manualLoading}
-            className="w-full py-3 bg-[#7B61FF] text-white font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+            className="w-full py-3 bg-[#2A2A3E] text-[#8B95B0] font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-colors hover:bg-[#333350] hover:text-white border border-[#4A5568]/40"
           >
             {manualLoading
               ? <Loader2 className="w-4 h-4 animate-spin" />
               : (isSpanish ? 'Guardar depósito manual' : 'Log Manual Deposit')}
           </button>
+          <p className="text-xs text-[#4A5568] text-center leading-relaxed">
+            {isSpanish
+              ? 'Solo para sesiones de hoy que hayas perdido. Los datos ingresados manualmente se ponderan diferente en el matching de investigación.'
+              : "Only for today's missed sessions. Data is weighted differently in research matching."}
+          </p>
         </div>
       )}
     </div>
