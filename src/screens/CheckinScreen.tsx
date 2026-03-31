@@ -16,8 +16,7 @@ interface CheckinScreenProps {
   onComplete: () => void;
 }
 
-type Tab = 'daily';
-type Factor = 'emotional' | 'physical' | 'cognitive' | 'stress' | 'social' | 'sexual' | 'anxiety';
+type Factor ='emotional' | 'physical' | 'cognitive' | 'stress' | 'social' | 'sexual' | 'anxiety';
 type WakeFeeling = 'exhausted' | 'tired' | 'rested' | 'energized';
 type SugarIntake = 'low' | 'medium' | 'high';
 
@@ -95,14 +94,9 @@ function getDepositLabel(isSpanish: boolean): { label: string; emoji: string } {
 }
 
 export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('daily');
   const isSpanish = profile.idioma === 'ES';
   const showSexual = isAdult(profile);
   const depositLabel = getDepositLabel(isSpanish);
-
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'daily', label: isSpanish ? 'Historial' : 'Check-in History' },
-  ];
 
   return (
     <div className="min-h-screen bg-[#0A0A1A] pb-24">
@@ -111,33 +105,16 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
           {isSpanish ? 'Centro de Datos' : 'Data Hub'}
         </h1>
         {/* Time-of-day deposit label */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2">
           <span className="text-lg">{depositLabel.emoji}</span>
           <span className="text-[#F5C842] font-semibold text-base tracking-wide">
             {depositLabel.label}
           </span>
         </div>
-        <div className="flex gap-1 bg-[#111126] border border-[#1E1E3A] rounded-xl p-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab.key
-                  ? 'bg-[#7B61FF] text-white shadow-sm'
-                  : 'text-[#8B95B0] hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       <div className="px-5 pt-4">
-        {activeTab === 'daily' && (
-          <DailyTab profile={profile} phaseData={phaseData} onComplete={onComplete} showSexual={showSexual} isSpanish={isSpanish} />
-        )}
+        <DailyTab profile={profile} phaseData={phaseData} onComplete={onComplete} showSexual={showSexual} isSpanish={isSpanish} />
       </div>
     </div>
   );
@@ -480,7 +457,51 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
         </div>
       )}
 
-      {/* ── SECTION B: EMERGENCY MANUAL DEPOSIT ───────────────────── */}
+      {/* ── SECTION B: RESEARCH STUDIES ────────────────────────────── */}
+      {(() => {
+        const isStudyAvailable = false;
+        return (
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[#F5C842] font-bold text-sm uppercase tracking-widest">
+                {isSpanish ? 'Estudios de Investigación' : 'Research Studies'}
+              </p>
+              {isStudyAvailable ? (
+                <span className="px-2 py-0.5 bg-[#00C896]/20 text-[#00C896] text-xs font-semibold rounded-full border border-[#00C896]/30">
+                  {isSpanish ? 'Nuevo' : 'New'}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 bg-[#1E1E3A] text-[#4A5568] text-xs font-semibold rounded-full">
+                  {isSpanish ? 'Sin activos' : 'None active'}
+                </span>
+              )}
+            </div>
+            {isStudyAvailable ? (
+              <div className="space-y-3">
+                <p className="text-[#8B95B0] text-sm">
+                  {isSpanish
+                    ? 'Nuevo estudio disponible — coincide con tu perfil'
+                    : 'New study available — matches your profile'}
+                </p>
+                <button
+                  onClick={() => window.location.href = '/trading-floor'}
+                  className="w-full py-2.5 bg-[#00C896] text-[#0A0A1A] font-semibold rounded-xl text-sm transition-colors hover:bg-[#00B085]"
+                >
+                  {isSpanish ? 'Ver estudio' : 'View study'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-[#4A5568] text-sm">
+                {isSpanish
+                  ? 'Sin estudios activos por ahora'
+                  : 'No active studies right now'}
+              </p>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── SECTION C: EMERGENCY MANUAL DEPOSIT ───────────────────── */}
 
       {manualSuccess && (
         <div className="flex items-center gap-3 p-4 bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-xl">

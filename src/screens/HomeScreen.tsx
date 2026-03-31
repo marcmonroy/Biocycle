@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { getTodayStats } from '../utils/statsUtils';
-import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle } from 'lucide-react';
+import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle, Lock } from 'lucide-react';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
 
 interface HomeScreenProps {
@@ -958,6 +958,26 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                       </div>
                     );
                   })}
+                  {/* 4th slot — Premium locked */}
+                  <div className="flex items-center gap-2 p-2 rounded-lg border border-[#1E1E3A] bg-[#0A0A1A] opacity-50 cursor-not-allowed">
+                    <div className="w-9 h-5 rounded-full bg-[#2A2A45] flex-shrink-0 relative">
+                      <span className="absolute top-0.5 left-0.5 w-4 h-4 bg-white/30 rounded-full shadow" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium text-white">
+                          {isEnglish ? 'Extra Session' : 'Sesión Extra'}
+                        </span>
+                        <Lock className="w-3 h-3 text-[#4A5568]" />
+                      </div>
+                      <p className="text-xs text-[#4A5568]">
+                        {isEnglish ? 'Premium feature' : 'Función Premium'}
+                      </p>
+                    </div>
+                    <div className="text-sm px-2 py-1 border border-[#1E1E3A] rounded-lg bg-[#0A0A1A] text-[#4A5568] opacity-40">
+                      --:--
+                    </div>
+                  </div>
                 </div>
                 <button
                   onClick={handleScheduleSave}

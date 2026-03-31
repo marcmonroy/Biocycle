@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle, Bell, MessageCircle } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2, Calendar, User, Heart, AlertCircle, Bell, MessageCircle, Lock } from 'lucide-react';
 import {
   CheckinTime,
   DEFAULT_CHECKIN_TIMES,
@@ -560,6 +560,26 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
                     </div>
                   );
                 })}
+                {/* 4th slot — Premium locked */}
+                <div className="flex items-center gap-3 p-3 rounded-xl border-2 border-[#1E1E3A] bg-[#0A0A1A] opacity-50 cursor-not-allowed">
+                  <div className="w-10 h-6 rounded-full bg-[#1E1E3A] flex-shrink-0 relative">
+                    <span className="absolute top-0.5 left-0.5 w-5 h-5 bg-white/40 rounded-full shadow" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-white text-sm">
+                        {isEnglish ? 'Extra Session' : 'Sesión Extra'}
+                      </span>
+                      <Lock className="w-3.5 h-3.5 text-[#4A5568]" />
+                    </div>
+                    <p className="text-xs text-[#4A5568] mt-0.5">
+                      {isEnglish ? 'Premium feature' : 'Función Premium'}
+                    </p>
+                  </div>
+                  <div className="px-2 py-1 bg-[#1A1A2E] text-[#4A5568] border border-[#1E1E3A] rounded-lg text-sm opacity-40">
+                    --:--
+                  </div>
+                </div>
               </div>
               <p className="text-xs text-[#8B95B0] text-center">
                 {isEnglish ? 'You can change these anytime in Settings' : 'Puedes cambiarlos en Ajustes'}
