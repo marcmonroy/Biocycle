@@ -1,6 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase, Profile } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend,
+} from 'recharts';
 import {
   Heart, Dumbbell, Brain, Zap, Users, Flame, Loader2, Check, Lock,
   Moon, Clock, Droplets, Coffee, Wine, Apple, FlaskConical, TrendingUp, AlertTriangle
@@ -141,6 +145,42 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
   );
 }
 
+// ── Dimension color palette for charts ─────────────────────────────────────
+const DIM_COLORS = {
+  physical:  '#F5C842', // gold
+  cognitive: '#00D4A1', // green
+  emotional: '#FF6B6B', // coral
+  stress:    '#7B61FF', // purple
+  social:    '#4ECDC4', // teal
+  anxiety:   '#FF4444', // red
+  sexual:    '#FF69B4', // pink
+};
+
+// ── Circular quality gauge ──────────────────────────────────────────────────
+function QualityGauge({ pct, isSpanish }: { pct: number; isSpanish: boolean }) {
+  const r = 36;
+  const circ = 2 * Math.PI * r;
+  const stroke = circ * (1 - pct / 100);
+  return (
+    <div className="flex flex-col items-center">
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r={r} fill="none" stroke="#1E1E3A" strokeWidth="8" />
+        <circle
+          cx="48" cy="48" r={r} fill="none"
+          stroke="#F5C842" strokeWidth="8"
+          strokeDasharray={circ}
+          strokeDashoffset={stroke}
+          strokeLinecap="round"
+          transform="rotate(-90 48 48)"
+          style={{ transition: 'stroke-dashoffset 0.6s ease' }}
+        />
+        <text x="48" y="52" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">{pct}%</text>
+      </svg>
+      <p className="text-xs text-[#8B95B0] mt-1">{isSpanish ? 'Calidad de datos' : 'Data Quality'}</p>
+    </div>
+  );
+}
+
 interface DailyTabProps {
   profile: Profile;
   phaseData: PhaseData;
@@ -149,97 +189,183 @@ interface DailyTabProps {
   isSpanish: boolean;
 }
 
-function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: DailyTabProps) {
-  const baseFacs = isSpanish ? factorsBaseEs : factorsBaseEn;
-  const sexualFac = isSpanish ? sexualFactorEs : sexualFactorEn;
-  const anxietyFac = isSpanish ? anxietyFactorEs : anxietyFactorEn;
+function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) {
+  // ── Portfolio data ──────────────────────────────────────────────────────
+  type SessionRow = {
+    session_date: string;
+    time_slot: string;
+    phase_at_session: string;
+    physical_score: number | null;
+    cognitive_score: number | null;
+    emotional_score: number | null;
+    stress_score: number | null;
+    social_score: number | null;
+    anxiety_score: number | null;
+    sexual_score: number | null;
+  };
 
-  const factors = showSexual
-    ? [...baseFacs, sexualFac, anxietyFac]
-    : [...baseFacs, anxietyFac];
-
-  const [values, setValues] = useState<Record<Factor, number>>({
-    emotional: 5,
-    physical: 5,
-    cognitive: 5,
-    stress: 5,
-    social: 5,
-    sexual: 5,
-    anxiety: 5,
-  });
-  const [notas, setNotas] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [checkingToday, setCheckingToday] = useState(true);
-  const [alreadyCheckedIn, setAlreadyCheckedIn] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
-    checkTodayCheckin();
+    (async () => {
+      setLoadingData(true);
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      const { data } = await supabase
+        .from('conversation_sessions')
+        .select('session_date,time_slot,phase_at_session,physical_score,cognitive_score,emotional_score,stress_score,social_score,anxiety_score,sexual_score')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .gte('session_date', since.toISOString().split('T')[0])
+        .order('session_date', { ascending: true });
+      setSessions((data as SessionRow[]) ?? []);
+
+      // Compute streak from all completed sessions
+      const { data: allSessions } = await supabase
+        .from('conversation_sessions')
+        .select('session_date')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .order('session_date', { ascending: false });
+
+      if (allSessions && allSessions.length > 0) {
+        const uniqueDays = [...new Set(allSessions.map((s: { session_date: string }) => s.session_date))];
+        let s = 0;
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        let cursor = new Date(today);
+        for (const day of uniqueDays) {
+          const d = new Date(day as string); d.setHours(0, 0, 0, 0);
+          const diff = Math.round((cursor.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+          if (diff === 0 || diff === 1) { s++; cursor = d; } else break;
+        }
+        setStreak(s);
+      }
+      setLoadingData(false);
+    })();
   }, [profile.id]);
 
-  const checkTodayCheckin = async () => {
-    setCheckingToday(true);
-    const today = new Date().toISOString().split('T')[0];
-
-    const { data, error } = await supabase
-      .from('checkins')
-      .select('id')
-      .eq('user_id', profile.id)
-      .eq('checkin_date', today)
-      .maybeSingle();
-
-    if (!error && data) {
-      setAlreadyCheckedIn(true);
-    }
-    setCheckingToday(false);
-  };
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError(null);
-
-    const factorsToAverage = showSexual
-      ? [values.emotional, values.physical, values.cognitive, values.stress, values.social, values.sexual]
-      : [values.emotional, values.physical, values.cognitive, values.stress, values.social];
-
-    const avgScore = factorsToAverage.reduce((a, b) => a + b, 0) / factorsToAverage.length;
-
-    try {
-      const insertData: Record<string, unknown> = {
-        user_id: profile.id,
-        checkin_date: new Date().toISOString().split('T')[0],
-        factor_emocional: values.emotional,
-        factor_fisico: values.physical,
-        factor_cognitivo: values.cognitive,
-        factor_estres: values.stress,
-        factor_social: values.social,
-        factor_ansiedad: values.anxiety,
-        calidad_score: avgScore,
-        phase_at_checkin: phaseData.phase,
-        notas: notas || null,
-      };
-
-      if (showSexual) {
-        insertData.factor_sexual = values.sexual;
+  // Build chart data — one point per day, averaged across sessions
+  const chartData = useMemo(() => {
+    const byDay: Record<string, { counts: Record<string, number>; sums: Record<string, number> }> = {};
+    for (const s of sessions) {
+      const d = s.session_date;
+      if (!byDay[d]) byDay[d] = { counts: {}, sums: {} };
+      const dims: (keyof typeof DIM_COLORS)[] = ['physical', 'cognitive', 'emotional', 'stress', 'social', 'anxiety', 'sexual'];
+      for (const dim of dims) {
+        const val = s[`${dim}_score` as keyof SessionRow] as number | null;
+        if (val !== null && val !== undefined) {
+          byDay[d].sums[dim] = (byDay[d].sums[dim] ?? 0) + val;
+          byDay[d].counts[dim] = (byDay[d].counts[dim] ?? 0) + 1;
+        }
       }
+    }
+    return Object.entries(byDay).sort(([a], [b]) => a.localeCompare(b)).map(([date, { sums, counts }]) => {
+      const point: Record<string, unknown> = { date: date.slice(5) }; // MM-DD
+      for (const dim of Object.keys(sums)) {
+        point[dim] = Math.round((sums[dim] / counts[dim]) * 10) / 10;
+      }
+      return point;
+    });
+  }, [sessions]);
 
-      const { error: insertError } = await supabase.from('checkins').insert(insertData);
+  // Data quality score: sessions completed / (days × 3 target) capped 0–100
+  const qualityPct = useMemo(() => {
+    if (sessions.length === 0) return 0;
+    const days = Math.max(1, chartData.length);
+    return Math.min(100, Math.round((sessions.length / (days * 3)) * 100));
+  }, [sessions, chartData]);
 
+  // Average scores over last 30 days
+  const avgScores = useMemo(() => {
+    const sums: Record<string, number> = {};
+    const counts: Record<string, number> = {};
+    for (const s of sessions) {
+      const dims: (keyof typeof DIM_COLORS)[] = ['physical', 'cognitive', 'emotional', 'stress', 'social', 'anxiety', 'sexual'];
+      for (const dim of dims) {
+        const val = s[`${dim}_score` as keyof SessionRow] as number | null;
+        if (val !== null && val !== undefined) {
+          sums[dim] = (sums[dim] ?? 0) + val;
+          counts[dim] = (counts[dim] ?? 0) + 1;
+        }
+      }
+    }
+    return Object.fromEntries(
+      Object.entries(sums).map(([k, v]) => [k, Math.round((v / (counts[k] ?? 1)) * 10) / 10])
+    );
+  }, [sessions]);
+
+  const dimLabels: Record<string, { en: string; es: string }> = {
+    physical:  { en: 'Energy',    es: 'Energía'    },
+    cognitive: { en: 'Cognitive', es: 'Cognitivo'  },
+    emotional: { en: 'Emotional', es: 'Emocional'  },
+    stress:    { en: 'Stress',    es: 'Estrés'     },
+    social:    { en: 'Social',    es: 'Social'     },
+    anxiety:   { en: 'Anxiety',   es: 'Ansiedad'   },
+    sexual:    { en: 'Sexual',    es: 'Sexual'     },
+  };
+
+  // ── Manual deposit state ────────────────────────────────────────────────
+  const [showManual, setShowManual] = useState(false);
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split('T')[0]);
+  const [manualSlot, setManualSlot] = useState<'morning' | 'afternoon' | 'night'>('morning');
+  const [manualValues, setManualValues] = useState<Record<string, number>>({
+    physical: 5, cognitive: 5, emotional: 5, stress: 5, social: 5, anxiety: 5, sexual: 5,
+  });
+  const [manualNotes, setManualNotes] = useState('');
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualSuccess, setManualSuccess] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+
+  const handleManualSubmit = async () => {
+    setManualLoading(true);
+    setManualError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        user_id: profile.id,
+        session_date: manualDate,
+        time_slot: manualSlot,
+        phase_at_session: phaseData.phase,
+        personality_mode: 'jules',
+        physical_score:  manualValues.physical,
+        cognitive_score: manualValues.cognitive,
+        emotional_score: manualValues.emotional,
+        stress_score:    manualValues.stress,
+        social_score:    manualValues.social,
+        anxiety_score:   manualValues.anxiety,
+        session_complete: true,
+        manual_entry: true,
+        enrichment_notes: manualNotes || null,
+      };
+      if (showSexual) payload.sexual_score = manualValues.sexual;
+
+      const { error: insertError } = await supabase.from('conversation_sessions').insert(payload);
       if (insertError) throw insertError;
-
-      setSuccess(true);
-      setTimeout(() => {
-        onComplete();
-      }, 2000);
+      setManualSuccess(true);
+      setShowManual(false);
+      // Refresh data
+      const since = new Date(); since.setDate(since.getDate() - 30);
+      const { data } = await supabase
+        .from('conversation_sessions')
+        .select('session_date,time_slot,phase_at_session,physical_score,cognitive_score,emotional_score,stress_score,social_score,anxiety_score,sexual_score')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .gte('session_date', since.toISOString().split('T')[0])
+        .order('session_date', { ascending: true });
+      setSessions((data as SessionRow[]) ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : (isSpanish ? 'Error al guardar' : 'Error saving'));
+      setManualError(err instanceof Error ? err.message : (isSpanish ? 'Error al guardar' : 'Error saving'));
     } finally {
-      setLoading(false);
+      setManualLoading(false);
     }
   };
 
-  if (checkingToday) {
+  const visibleDims = showSexual
+    ? ['physical', 'cognitive', 'emotional', 'stress', 'social', 'anxiety', 'sexual']
+    : ['physical', 'cognitive', 'emotional', 'stress', 'social', 'anxiety'];
+
+  if (loadingData) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 animate-spin text-[#7B61FF]" />
@@ -247,103 +373,244 @@ function DailyTab({ profile, phaseData, onComplete, showSexual, isSpanish }: Dai
     );
   }
 
-  if (alreadyCheckedIn) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-[#1E1E3A] rounded-full mx-auto flex items-center justify-center mb-4">
-            <Lock className="w-10 h-10 text-[#8B95B0]" />
-          </div>
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-            {isSpanish ? 'Deposito ya realizado hoy.' : 'Deposit already made today.'}
-          </h2>
-          <p className="text-[#8B95B0] mt-2">
-            {isSpanish ? 'Vuelve manana.' : 'Come back tomorrow.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center">
-          <div className="w-20 h-20 bg-[#00D4A1]/20 border border-[#00D4A1]/40 rounded-full mx-auto flex items-center justify-center mb-4">
-            <Check className="w-10 h-10 text-[#00D4A1]" />
-          </div>
-          <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-            {isSpanish ? 'Deposito recibido.' : 'Deposit received.'}
-          </h2>
-          <p className="text-[#8B95B0] mt-2">
-            {isSpanish ? 'Conocerte a ti mismo tiene valor.' : 'Knowing yourself pays.'}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {error && (
-        <div className="bg-red-950/50 border border-red-900/50 rounded-xl p-4 text-red-400 text-sm">
-          {error}
+    <div className="space-y-4 pb-4">
+
+      {/* ── SECTION A: DATA PORTFOLIO ──────────────────────────────── */}
+
+      {/* Trading Streak */}
+      <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-[#8B95B0] text-xs uppercase tracking-widest font-semibold mb-1">
+              {isSpanish ? 'Racha de trading' : 'Trading streak'}
+            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-bold" style={{ color: '#F5C842', fontFamily: 'Clash Display, system-ui, sans-serif' }}>
+                {streak}
+              </span>
+              <span className="text-[#8B95B0] text-sm">{isSpanish ? 'días' : 'days'}</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <QualityGauge pct={qualityPct} isSpanish={isSpanish} />
+          </div>
+        </div>
+        <div className="flex gap-4 mt-4 pt-4 border-t border-[#1E1E3A]">
+          <div>
+            <p className="text-[#8B95B0] text-xs">{isSpanish ? 'Sesiones totales' : 'Total sessions'}</p>
+            <p className="text-white font-bold text-lg">{sessions.length}</p>
+          </div>
+          <div>
+            <p className="text-[#8B95B0] text-xs">{isSpanish ? 'Días activos' : 'Active days'}</p>
+            <p className="text-white font-bold text-lg">{chartData.length}</p>
+          </div>
+          <div>
+            <p className="text-[#8B95B0] text-xs">{isSpanish ? 'Fase actual' : 'Current phase'}</p>
+            <p className="text-white font-bold text-sm">{phaseData.phase}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Dimension Trend Chart */}
+      <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+        <p className="text-white font-bold mb-1">
+          {isSpanish ? 'Tendencias — últimos 30 días' : '30-Day Dimension Trends'}
+        </p>
+        <p className="text-[#8B95B0] text-xs mb-4">
+          {isSpanish ? 'Promedio de tus sesiones por día' : 'Daily average across sessions'}
+        </p>
+        {chartData.length < 2 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <p className="text-[#4A5568] text-sm">
+              {isSpanish
+                ? 'Completa algunas sesiones con Jules para ver tus tendencias aquí.'
+                : 'Complete a few sessions with Jules to see your trends here.'}
+            </p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E1E3A" />
+              <XAxis dataKey="date" tick={{ fill: '#4A5568', fontSize: 10 }} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fill: '#4A5568', fontSize: 10 }} tickLine={false} />
+              <Tooltip
+                contentStyle={{ background: '#111126', border: '1px solid #1E1E3A', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#8B95B0' }}
+                itemStyle={{ color: '#fff' }}
+              />
+              <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+              {visibleDims.map(dim => (
+                <Line
+                  key={dim}
+                  type="monotone"
+                  dataKey={dim}
+                  stroke={DIM_COLORS[dim as keyof typeof DIM_COLORS]}
+                  strokeWidth={2}
+                  dot={false}
+                  name={isSpanish ? dimLabels[dim]?.es : dimLabels[dim]?.en}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Average scores grid */}
+      {Object.keys(avgScores).length > 0 && (
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
+          <p className="text-white font-bold mb-3">
+            {isSpanish ? 'Promedios del período' : '30-Day Averages'}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {visibleDims.filter(d => avgScores[d] !== undefined).map(dim => (
+              <div key={dim} className="flex items-center gap-2 p-2 rounded-lg bg-[#0A0A1A]">
+                <div
+                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                  style={{ background: DIM_COLORS[dim as keyof typeof DIM_COLORS] }}
+                />
+                <div className="min-w-0">
+                  <p className="text-[#8B95B0] text-xs truncate">
+                    {isSpanish ? dimLabels[dim]?.es : dimLabels[dim]?.en}
+                  </p>
+                  <p className="text-white font-bold text-sm">{avgScores[dim]}/10</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {factors.map(({ key, label, icon: Icon, color }) => (
-        <div key={key} className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '22', border: `1px solid ${color}44` }}>
-              <Icon className="w-5 h-5" style={{ color }} />
-            </div>
-            <div className="flex-1">
-              <p className="font-bold text-white">{label}</p>
-              <p className="text-sm text-[#8B95B0]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{values[key]}/10</p>
-            </div>
-          </div>
+      {/* ── SECTION B: EMERGENCY MANUAL DEPOSIT ───────────────────── */}
 
-          <input
-            type="range"
-            min="1"
-            max="10"
-            value={values[key]}
-            onChange={(e) => setValues({ ...values, [key]: parseInt(e.target.value) })}
-            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-            style={{
-              background: `linear-gradient(to right, ${color} 0%, ${color} ${(values[key] - 1) / 9 * 100}%, #1E1E3A ${(values[key] - 1) / 9 * 100}%, #1E1E3A 100%)`
-            }}
-          />
-          <div className="flex justify-between mt-1">
-            <span className="text-xs text-[#4A5568]">1</span>
-            <span className="text-xs text-[#4A5568]">10</span>
-          </div>
+      {manualSuccess && (
+        <div className="flex items-center gap-3 p-4 bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-xl">
+          <Check className="w-5 h-5 text-[#00D4A1] flex-shrink-0" />
+          <p className="text-[#00D4A1] text-sm">
+            {isSpanish
+              ? 'Depósito manual guardado. Nota: los datos ingresados manualmente se ponderan diferente en el matching de investigación.'
+              : 'Manual deposit logged. Note: manually entered data is weighted differently in research matching.'}
+          </p>
         </div>
-      ))}
+      )}
 
-      <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-        <label className="block font-bold text-white mb-3">
-          {isSpanish ? 'Notas (opcional)' : 'Notes (optional)'}
-        </label>
-        <textarea
-          value={notas}
-          onChange={(e) => setNotas(e.target.value)}
-          placeholder={isSpanish ? 'Como fue tu dia? Algo que quieras recordar...' : 'How was your day? Anything you want to remember...'}
-          className="w-full h-24 p-4 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl resize-none focus:ring-2 focus:ring-[#7B61FF] outline-none text-white placeholder-[#4A5568]"
-        />
-      </div>
+      {!showManual ? (
+        <button
+          onClick={() => setShowManual(true)}
+          className="w-full py-3 text-[#4A5568] text-sm border border-[#1E1E3A] rounded-xl hover:border-[#2A2A45] hover:text-[#8B95B0] transition-colors"
+        >
+          {isSpanish ? '¿Perdiste una sesión? Ingrésala manualmente' : 'Missed a session? Log it manually'}
+        </button>
+      ) : (
+        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-white font-bold">
+              {isSpanish ? 'Depósito manual' : 'Manual Deposit'}
+            </p>
+            <button
+              onClick={() => setShowManual(false)}
+              className="text-[#4A5568] hover:text-white transition-colors text-xl leading-none"
+            >
+              ×
+            </button>
+          </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={loading}
-        className="w-full py-4 bg-[#F5C842] text-[#0A0A1A] font-bold rounded-2xl hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-      >
-        {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" />
-        ) : (
-          isSpanish ? 'Depositar' : 'Deposit'
-        )}
-      </button>
+          {manualError && (
+            <div className="bg-red-950/50 border border-red-900/50 rounded-xl p-3 text-red-400 text-sm">
+              {manualError}
+            </div>
+          )}
+
+          {/* Date selector */}
+          <div>
+            <label className="block text-sm text-[#8B95B0] mb-1">
+              {isSpanish ? 'Fecha' : 'Date'}
+            </label>
+            <input
+              type="date"
+              value={manualDate}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={e => setManualDate(e.target.value)}
+              className="w-full px-3 py-2 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#7B61FF]"
+            />
+          </div>
+
+          {/* Slot selector */}
+          <div>
+            <label className="block text-sm text-[#8B95B0] mb-1">
+              {isSpanish ? 'Sesión' : 'Session'}
+            </label>
+            <div className="flex gap-2">
+              {(['morning', 'afternoon', 'night'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setManualSlot(s)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                    manualSlot === s
+                      ? 'bg-[#7B61FF] text-white'
+                      : 'bg-[#0A0A1A] text-[#8B95B0] border border-[#1E1E3A]'
+                  }`}
+                >
+                  {isSpanish
+                    ? s === 'morning' ? 'Mañana' : s === 'afternoon' ? 'Tarde' : 'Noche'
+                    : s === 'morning' ? 'Morning' : s === 'afternoon' ? 'Afternoon' : 'Night'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Dimension sliders */}
+          {visibleDims.map(dim => (
+            <div key={dim}>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm text-white font-medium">
+                  {isSpanish ? dimLabels[dim]?.es : dimLabels[dim]?.en}
+                </span>
+                <span
+                  className="text-sm font-bold"
+                  style={{ color: DIM_COLORS[dim as keyof typeof DIM_COLORS], fontFamily: 'JetBrains Mono, monospace' }}
+                >
+                  {manualValues[dim]}/10
+                </span>
+              </div>
+              <input
+                type="range" min="1" max="10"
+                value={manualValues[dim]}
+                onChange={e => setManualValues(prev => ({ ...prev, [dim]: parseInt(e.target.value) }))}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${DIM_COLORS[dim as keyof typeof DIM_COLORS]} 0%, ${DIM_COLORS[dim as keyof typeof DIM_COLORS]} ${(manualValues[dim] - 1) / 9 * 100}%, #1E1E3A ${(manualValues[dim] - 1) / 9 * 100}%, #1E1E3A 100%)`
+                }}
+              />
+            </div>
+          ))}
+
+          {/* Notes */}
+          <div>
+            <label className="block text-sm text-[#8B95B0] mb-1">
+              {isSpanish ? 'Notas (opcional)' : 'Notes (optional)'}
+            </label>
+            <textarea
+              value={manualNotes}
+              onChange={e => setManualNotes(e.target.value)}
+              rows={2}
+              placeholder={isSpanish ? 'Contexto del día...' : 'Context for the day...'}
+              className="w-full p-3 bg-[#0A0A1A] border border-[#1E1E3A] rounded-xl resize-none focus:ring-1 focus:ring-[#7B61FF] outline-none text-white placeholder-[#4A5568] text-sm"
+            />
+          </div>
+
+          <button
+            onClick={handleManualSubmit}
+            disabled={manualLoading}
+            className="w-full py-3 bg-[#7B61FF] text-white font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+          >
+            {manualLoading
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : (isSpanish ? 'Guardar depósito manual' : 'Log Manual Deposit')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

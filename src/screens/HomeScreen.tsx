@@ -901,10 +901,9 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                 <div className="space-y-2">
                   {checkinTimes.map((slot, index) => {
                     const labelMap: Record<string, { en: string; es: string }> = {
-                      morning: { en: 'Morning', es: 'Mañana' },
-                      midday:  { en: 'Midday',  es: 'Mediodía' },
-                      evening: { en: 'Evening', es: 'Tarde' },
-                      night:   { en: 'Night',   es: 'Noche' },
+                      morning:   { en: 'Morning Check-in',   es: 'Registro Matutino'   },
+                      afternoon: { en: 'Afternoon Check-in', es: 'Registro Vespertino' },
+                      night:     { en: 'Night Wrap-up',      es: 'Cierre Nocturno'     },
                     };
                     const label = isEnglish ? (labelMap[slot.label]?.en ?? slot.label) : (labelMap[slot.label]?.es ?? slot.label);
                     return (
