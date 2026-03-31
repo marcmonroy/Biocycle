@@ -3,6 +3,7 @@ import { Profile } from '../lib/supabase';
 import { PhaseData, ForecastDay } from '../utils/phaseEngine';
 import { MessageCircle, X, Send, Loader2, AlertCircle, Mic, MicOff } from 'lucide-react';
 import { callCoachAPI, getMessageCount, incrementMessageCount, getPhaseNames } from '../screens/CoachScreen';
+import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 
 interface AmbientCoachProps {
   profile: Profile;
@@ -67,13 +68,6 @@ export function AmbientCoach({
     ? Math.round((upcomingHighAnxiety.date.getTime() - new Date().getTime()) / (1000 * 60 * 60))
     : null;
 
-  // ── Preload TTS voices ───────────────────────────────────────────
-  useEffect(() => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-  }, []);
-
   // ── Speech Recognition setup ────────────────────────────────────
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -100,6 +94,7 @@ export function AmbientCoach({
           setMessages(prev => [...prev, { role: 'assistant', content: result.content }]);
           const newCount = incrementMessageCount();
           setMessageCount(newCount);
+          speakWithElevenLabs(result.content, profile.idioma, profile.picardia_mode ?? false);
         }
         setLoading(false);
       });
@@ -127,24 +122,6 @@ export function AmbientCoach({
     }
   }, [isOpen]);
 
-  const speakGreeting = (text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.92;
-    utterance.pitch = 1.0;
-    const targetLocale = isSpanish ? 'es-ES' : 'en-US';
-    const targetLang = isSpanish ? 'es' : 'en';
-    const voices = window.speechSynthesis.getVoices();
-    const voice =
-      voices.find(v => v.lang.toLowerCase() === targetLocale.toLowerCase()) ??
-      voices.find(v => v.lang.toLowerCase().startsWith(targetLang)) ??
-      null;
-    if (voice) utterance.voice = voice;
-    utterance.lang = targetLocale;
-    window.speechSynthesis.speak(utterance);
-  };
-
   const generateContextualOpener = () => {
     const isSienna = profile.picardia_mode === true;
     const name = profile.nombre || (isSpanish ? 'amigo' : 'friend');
@@ -156,7 +133,9 @@ export function AmbientCoach({
           ? `Hey ${name}. Off schedule. What is going on?`
           : `Hey ${name}. Not your scheduled time but I am always here. What is on your mind?`);
     setMessages([{ role: 'assistant', content: greeting }]);
-    setTimeout(() => speakGreeting(greeting), 300);
+    setTimeout(() => {
+      speakWithElevenLabs(greeting, profile.idioma, profile.picardia_mode ?? false);
+    }, 300);
   };
 
   const sendMessage = async () => {
@@ -178,6 +157,7 @@ export function AmbientCoach({
       setMessages((prev) => [...prev, { role: 'assistant', content: result.content }]);
       const newCount = incrementMessageCount();
       setMessageCount(newCount);
+      speakWithElevenLabs(result.content, profile.idioma, profile.picardia_mode ?? false);
     }
 
     setLoading(false);
@@ -247,7 +227,7 @@ export function AmbientCoach({
                 </p>
               </div>
               <button
-                onClick={() => setIsOpen(false)}
+                onClick={() => { cancelSpeech(); setIsOpen(false); }}
                 className="w-10 h-10 bg-[#1E1E3A] rounded-full flex items-center justify-center"
               >
                 <X className="w-5 h-5 text-[#8B95B0]" />

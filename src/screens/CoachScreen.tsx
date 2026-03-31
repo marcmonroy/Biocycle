@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
+import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X, Activity } from 'lucide-react';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 
 export type CoachSessionType = 'scheduled' | 'adhoc';
@@ -308,6 +308,27 @@ const AVATAR_STYLES = `
   .bio-avatar-idle { animation: bio-breathe 3.5s ease-in-out infinite; }
   .bio-avatar-speaking { animation: bio-speaking 0.75s ease-in-out infinite; }
   .bio-avatar-listening { animation: bio-listening 1s ease-in-out infinite; }
+
+  @keyframes bubble-idle {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,0.08); }
+    50% { transform: scale(1.05); box-shadow: 0 0 18px 8px rgba(255,255,255,0.06); }
+  }
+  @keyframes bubble-listening {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,107,107,0.5); }
+    50% { transform: scale(1.1); box-shadow: 0 0 24px 10px rgba(255,107,107,0.4); }
+  }
+  @keyframes bubble-processing {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245,200,66,0.35); }
+    50% { transform: scale(1.06); box-shadow: 0 0 20px 8px rgba(245,200,66,0.28); }
+  }
+  @keyframes bubble-speaking {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(123,97,255,0.5); }
+    40% { transform: scale(1.12); box-shadow: 0 0 28px 12px rgba(123,97,255,0.4); }
+  }
+  .voice-bubble-idle { animation: bubble-idle 3s ease-in-out infinite; }
+  .voice-bubble-listening { animation: bubble-listening 1s ease-in-out infinite; }
+  .voice-bubble-processing { animation: bubble-processing 0.8s ease-in-out infinite; }
+  .voice-bubble-speaking { animation: bubble-speaking 0.75s ease-in-out infinite; }
 `;
 
 const DNAHelixIcon = ({ size = 28 }: { size?: number }) => (
@@ -437,6 +458,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sendMessageRef = useRef<(text?: string) => void>(() => {});
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
 
   // ── Inject avatar CSS once ───────────────────────────────────────
@@ -522,8 +544,9 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0][0].transcript;
-      setInput(prev => prev + (prev ? ' ' : '') + transcript);
       setIsListening(false);
+      setBioState('idle');
+      sendMessageRef.current(transcript);
     };
 
     recognition.onerror = () => setIsListening(false);
@@ -577,11 +600,11 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   }, [messages]);
 
   // ── Send message ─────────────────────────────────────────────────
-  const sendMessage = async () => {
-    if (!input.trim() || loading || isLimitReached || greetingLoading) return;
+  const sendMessage = async (textOverride?: string) => {
+    const userMessage = textOverride ?? input.trim();
+    if (!userMessage || loading || isLimitReached || greetingLoading) return;
 
-    const userMessage = input.trim();
-    setInput('');
+    if (!textOverride) setInput('');
     setTimeout(() => inputRef.current?.focus(), 0);
     const updatedMessages = [...messages, { role: 'user' as const, content: userMessage }];
     setMessages(updatedMessages);
@@ -609,6 +632,10 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
     setLoading(false);
   };
+
+  // Keep sendMessageRef in sync so recognition.onresult always calls the latest closure
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { sendMessageRef.current = sendMessage; });
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -719,13 +746,31 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     </>
   );
 
-  const InputBar = () => (
+  // ── Voice bubble input ───────────────────────────────────────────
+  const bubbleState: 'idle' | 'listening' | 'processing' | 'speaking' =
+    isListening ? 'listening' : loading ? 'processing' : bioState === 'speaking' ? 'speaking' : 'idle';
+
+  const bubbleConfig = {
+    idle:       { bg: '#1E1E3A', border: 'rgba(255,255,255,0.08)', iconColor: '#8B95B0' },
+    listening:  { bg: '#FF6B6B', border: '#FF6B6B',               iconColor: 'white'   },
+    processing: { bg: 'rgba(245,200,66,0.12)', border: '#F5C842', iconColor: '#F5C842' },
+    speaking:   { bg: '#7B61FF', border: '#7B61FF',               iconColor: 'white'   },
+  };
+
+  const bubbleLabel = {
+    idle:       isSpanish ? 'Toca para hablar' : 'Tap to speak',
+    listening:  isSpanish ? 'Escuchando...'    : 'Listening...',
+    processing: isSpanish ? 'Procesando...'    : 'Processing...',
+    speaking:   isSpanish ? 'Hablando...'      : 'Speaking...',
+  }[bubbleState];
+
+  const VoiceBubble = () => (
     <div className="px-4 pb-4">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-[#4A5568]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
           {isSpanish
-            ? `${messageCount} de ${MONTHLY_LIMIT} mensajes usados`
-            : `${messageCount} of ${MONTHLY_LIMIT} messages used`}
+            ? `${messageCount} de ${MONTHLY_LIMIT} mensajes`
+            : `${messageCount} of ${MONTHLY_LIMIT} messages`}
         </span>
         {isLimitReached && (
           <span className="text-xs text-[#FF6B6B] font-medium">
@@ -749,13 +794,34 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         </div>
       ) : (
         <>
-          {!speechSupported && (
-            <p className="text-xs text-[#F5C842] mb-2">
-              {isSpanish
-                ? 'Entrada de voz no soportada. Por favor usa Chrome.'
-                : 'Voice input not supported. Please use Chrome.'}
-            </p>
-          )}
+          {/* Large pulsing voice bubble */}
+          <div className="flex flex-col items-center gap-2 mb-4">
+            <button
+              onClick={toggleListening}
+              disabled={loading || greetingLoading || !speechSupported || bubbleState === 'speaking'}
+              className={`voice-bubble-${bubbleState} w-20 h-20 rounded-full flex items-center justify-center transition-colors disabled:cursor-not-allowed`}
+              style={{
+                background: bubbleConfig[bubbleState].bg,
+                border: `1.5px solid ${bubbleConfig[bubbleState].border}`,
+              }}
+              aria-label={bubbleLabel}
+            >
+              {bubbleState === 'processing' ? (
+                <Loader2 className="w-7 h-7 animate-spin" style={{ color: bubbleConfig.processing.iconColor }} />
+              ) : bubbleState === 'speaking' ? (
+                <Activity className="w-7 h-7 text-white" />
+              ) : isListening ? (
+                <MicOff className="w-7 h-7 text-white" />
+              ) : (
+                <Mic className="w-7 h-7" style={{ color: bubbleConfig.idle.iconColor }} />
+              )}
+            </button>
+            <span className="text-xs font-medium" style={{ color: bubbleConfig[bubbleState].iconColor === 'white' ? '#CBD5E0' : bubbleConfig[bubbleState].iconColor }}>
+              {bubbleLabel}
+            </span>
+          </div>
+
+          {/* Small fallback text input */}
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -763,30 +829,16 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              disabled={loading || greetingLoading}
-              autoFocus
-              placeholder={greetingLoading ? (isSpanish ? 'Preparando...' : 'Preparing...') : (isSpanish ? 'Escribe tu mensaje...' : 'Type your message...')}
-              className="flex-1 px-4 py-3 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-2 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-50"
+              disabled={loading || greetingLoading || isListening}
+              placeholder={isSpanish ? 'O escribe aquí...' : 'Or type here...'}
+              className="flex-1 px-3 py-2 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-1 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-40 text-sm"
             />
             <button
-              onClick={toggleListening}
-              disabled={loading || !speechSupported || greetingLoading}
-              className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${
-                isListening ? 'bg-[#FF6B6B] animate-pulse' : 'bg-[#1E1E3A] hover:bg-[#2A2A45]'
-              } disabled:opacity-50`}
+              onClick={() => sendMessage()}
+              disabled={loading || !input.trim() || greetingLoading || isListening}
+              className="w-9 h-9 bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-40 transition-opacity flex-shrink-0"
             >
-              {isListening ? (
-                <MicOff className="w-5 h-5 text-white" />
-              ) : (
-                <Mic className="w-5 h-5 text-[#8B95B0]" />
-              )}
-            </button>
-            <button
-              onClick={sendMessage}
-              disabled={loading || !input.trim() || greetingLoading}
-              className="w-12 h-12 bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-50 transition-opacity"
-            >
-              <Send className="w-5 h-5 text-white" />
+              <Send className="w-4 h-4 text-white" />
             </button>
           </div>
         </>
@@ -829,7 +881,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
           className="pb-safe"
           style={{ background: 'rgba(13,6,24,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)' }}
         >
-          <InputBar />
+          <VoiceBubble />
         </div>
       </div>
     );
