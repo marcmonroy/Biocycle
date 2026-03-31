@@ -209,11 +209,21 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [copyToast, setCopyToast] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Normalize to exactly 3 slots regardless of what is stored in the DB
+  const normalizeCheckinTimes = (times: CheckinTime[]): CheckinTime[] => {
+    const morning   = times.find(t => t.label === 'morning')   ?? { label: 'morning',   time: '07:30', enabled: true };
+    const afternoon = times.find(t => t.label === 'afternoon') ?? { label: 'afternoon', time: '14:00', enabled: true };
+    const night     = times.find(t => t.label === 'night')     ?? { label: 'night',     time: '21:30', enabled: true };
+    return [morning, afternoon, night];
+  };
+
   // Schedule editor state
   const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(
-    profile.checkin_times && profile.checkin_times.length > 0
-      ? profile.checkin_times
-      : DEFAULT_CHECKIN_TIMES
+    normalizeCheckinTimes(
+      profile.checkin_times && profile.checkin_times.length > 0
+        ? profile.checkin_times
+        : DEFAULT_CHECKIN_TIMES
+    )
   );
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState(false);

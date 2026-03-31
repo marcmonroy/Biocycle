@@ -135,7 +135,15 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [cycleLength, setCycleLength] = useState(28);
   const [lastPeriodDate, setLastPeriodDate] = useState('');
-  const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(DEFAULT_CHECKIN_TIMES);
+  // Normalize to exactly 3 slots regardless of what is stored in the DB
+  const normalizeCheckinTimes = (times: CheckinTime[]): CheckinTime[] => {
+    const morning   = times.find(t => t.label === 'morning')   ?? { label: 'morning',   time: '07:30', enabled: true };
+    const afternoon = times.find(t => t.label === 'afternoon') ?? { label: 'afternoon', time: '14:00', enabled: true };
+    const night     = times.find(t => t.label === 'night')     ?? { label: 'night',     time: '21:30', enabled: true };
+    return [morning, afternoon, night];
+  };
+
+  const [checkinTimes, setCheckinTimes] = useState<CheckinTime[]>(normalizeCheckinTimes(DEFAULT_CHECKIN_TIMES));
 
   // Health profile fields
   const [heightCm, setHeightCm] = useState('');
