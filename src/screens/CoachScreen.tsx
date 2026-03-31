@@ -3,6 +3,7 @@ import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X, Activity } from 'lucide-react';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
+import { computeAdhocGreeting } from '../utils/greetingUtils';
 
 export type CoachSessionType = 'scheduled' | 'adhoc';
 
@@ -571,20 +572,13 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
   const isSienna = profile.picardia_mode === true;
 
-  // ── Adhoc greeting — prefer intelligent greeting from AmbientCoach ──
+  // ── Adhoc greeting — read from AmbientCoach's sessionStorage handoff ──
+  // Returns null when not present; CoachScreen will compute it async in that case.
   const adhocGreeting = sessionType === 'adhoc'
     ? (() => {
         const stored = sessionStorage.getItem('biocycle_adhoc_greeting');
-        sessionStorage.removeItem('biocycle_adhoc_greeting'); // consume once
-        if (stored) return stored;
-        // Fallback generic
-        return isSpanish
-          ? (isSienna
-              ? `Hola ${userName}. Fuera de horario. ¿Qué pasa?`
-              : `Hola ${userName}. No es tu hora programada pero siempre estoy aquí. ¿Qué tienes en mente?`)
-          : (isSienna
-              ? `Hey ${userName}. Off schedule. What is going on?`
-              : `Hey ${userName}. Not your scheduled time but I am always here. What is on your mind?`);
+        if (stored) sessionStorage.removeItem('biocycle_adhoc_greeting');
+        return stored ?? null;
       })()
     : null;
 
@@ -655,9 +649,30 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     greetingGeneratedRef.current = true;
     localStorage.removeItem('biocycle_coach_muted');
 
-    // Adhoc: greeting already in state — just speak it
+    // Adhoc: greeting already in state (passed from AmbientCoach bubble)
     if (sessionType === 'adhoc') {
-      if (adhocGreeting) setTimeout(() => speakResponse(adhocGreeting), 400);
+      if (adhocGreeting) {
+        // Check if AmbientCoach already started speaking — avoid double-play
+        const alreadySpoken = sessionStorage.getItem('biocycle_adhoc_greeting_spoken');
+        if (alreadySpoken) {
+          sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
+        } else {
+          setTimeout(() => speakResponse(adhocGreeting), 400);
+        }
+        return;
+      }
+      // No stored greeting (coach tab opened directly) — compute intelligently
+      (async () => {
+        setBioState('speaking');
+        try {
+          const greeting = await computeAdhocGreeting(profile);
+          setMessages([{ role: 'assistant', content: greeting }]);
+          setGreetingLoading(false);
+          setTimeout(() => speakResponse(greeting), 400);
+        } catch {
+          setGreetingLoading(false);
+        }
+      })();
       return;
     }
 
