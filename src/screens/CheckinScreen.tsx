@@ -593,7 +593,7 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
           <button
             onClick={handleManualSubmit}
             disabled={manualLoading}
-            className="w-full py-3 bg-[#2A2A3E] text-[#8B95B0] font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-colors hover:bg-[#333350] hover:text-white border border-[#4A5568]/40"
+            className="w-full py-3 bg-[#4A5568] text-white font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2 transition-colors hover:bg-[#5A6578]"
           >
             {manualLoading
               ? <Loader2 className="w-4 h-4 animate-spin" />
@@ -601,8 +601,8 @@ function DailyTab({ profile, phaseData, showSexual, isSpanish }: DailyTabProps) 
           </button>
           <p className="text-xs text-[#4A5568] text-center leading-relaxed">
             {isSpanish
-              ? 'Solo para sesiones de hoy que hayas perdido. Los datos ingresados manualmente se ponderan diferente en el matching de investigación.'
-              : "Only for today's missed sessions. Data is weighted differently in research matching."}
+              ? 'Solo para sesiones perdidas de hoy. Los datos manuales se ponderan diferente en investigación.'
+              : 'Today only. Manually entered data is weighted differently in research.'}
           </p>
         </div>
       )}

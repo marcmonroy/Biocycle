@@ -29,8 +29,9 @@ function padTime(h: number, m: number): string {
 
 async function computeAdhocGreeting(profile: Profile): Promise<string> {
   const today = new Date().toISOString().split('T')[0];
-  const now = new Date();
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentHour = new Date().getHours();
+  const currentMinute = new Date().getMinutes();
+  const nowMinutes = currentHour * 60 + currentMinute;
   const name = profile.nombre ?? 'friend';
   const isSpanish = profile.idioma === 'ES';
   const isSienna = profile.picardia_mode === true;
@@ -48,13 +49,13 @@ async function computeAdhocGreeting(profile: Profile): Promise<string> {
   // All three done?
   const allDone = SCHEDULED_SLOTS.every(s => completedSlots.has(s.key));
 
-  // First missed slot (time has passed, not completed)
-  const firstMissed = SCHEDULED_SLOTS.find(s => {
-    const slotMin = s.hour * 60 + s.minute;
-    return nowMinutes > slotMin && !completedSlots.has(s.key);
-  });
+  // First missed slot: currentHour strictly > slotHour AND no session recorded.
+  // This guarantees we never call a future slot missed.
+  const firstMissed = SCHEDULED_SLOTS.find(s =>
+    currentHour > s.hour && !completedSlots.has(s.key)
+  );
 
-  // Next upcoming slot within 2 hours
+  // Next upcoming slot: in the future AND within 2 hours (minute-precision)
   const nextUpcoming = SCHEDULED_SLOTS.find(s => {
     const slotMin = s.hour * 60 + s.minute;
     const diff = slotMin - nowMinutes;
@@ -68,18 +69,22 @@ async function computeAdhocGreeting(profile: Profile): Promise<string> {
         : `Hey ${name}. All deposits done. What do you need?`;
     }
     return isSpanish
-      ? `Hola ${name}. Ya completaste tus tres depósitos de hoy. ¿Hay algo en lo que pueda ayudarte?`
+      ? `Hola ${name}. Todo al día hoy. ¿En qué puedo ayudarte?`
       : `Hi ${name}. You have completed all three deposits today. Is there something on your mind?`;
   }
 
   if (firstMissed) {
+    // Use definite article "la" for Spanish slot names
+    const labelEsArticle = firstMissed.key === 'morning' ? 'la mañana'
+      : firstMissed.key === 'afternoon' ? 'la tarde'
+      : 'la noche';
     if (isSienna) {
       return isSpanish
-        ? `Hola ${name}. Te saltaste el depósito de ${firstMissed.labelEs}. ¿Lo registramos ahora?`
+        ? `Hola ${name}. No registraste el depósito de ${labelEsArticle}. ¿Lo hacemos ahora?`
         : `Hey ${name}. You skipped the ${firstMissed.labelEn} deposit. Want to catch it now?`;
     }
     return isSpanish
-      ? `Hola ${name}. Te perdiste tu depósito de ${firstMissed.labelEs}. ¿Quieres registrarlo ahora?`
+      ? `Hola ${name}. No registraste tu depósito de ${labelEsArticle}. ¿Lo hacemos ahora?`
       : `Hi ${name}. You missed your ${firstMissed.labelEn} deposit. Want to log it now?`;
   }
 
@@ -91,7 +96,7 @@ async function computeAdhocGreeting(profile: Profile): Promise<string> {
         : `Hey ${name}. Next deposit at ${timeStr}. What is going on?`;
     }
     return isSpanish
-      ? `Hola ${name}. Tu próximo depósito es a las ${timeStr}. ¿Quieres hablar de algo antes?`
+      ? `Hola ${name}. Tu próximo depósito es a las ${timeStr}. ¿Quieres hablar de algo?`
       : `Hi ${name}. Your next deposit is at ${timeStr}. Anything you want to talk about before then?`;
   }
 
@@ -102,7 +107,7 @@ async function computeAdhocGreeting(profile: Profile): Promise<string> {
       : `Hey ${name}. All caught up. What do you need?`;
   }
   return isSpanish
-    ? `Hola ${name}. Todo al día. ¿Qué tienes en mente?`
+    ? `Hola ${name}. Todo al día hoy. ¿En qué puedo ayudarte?`
     : `Hi ${name}. All caught up. What is on your mind?`;
 }
 
