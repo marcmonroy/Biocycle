@@ -1,14 +1,13 @@
 export type CheckinTime = {
-  label: 'morning' | 'midday' | 'evening' | 'night';
+  label: 'morning' | 'afternoon' | 'night';
   time: string; // "HH:MM" 24h format
   enabled: boolean;
 };
 
 export const DEFAULT_CHECKIN_TIMES: CheckinTime[] = [
-  { label: 'morning', time: '07:30', enabled: true },
-  { label: 'midday', time: '12:30', enabled: true },
-  { label: 'evening', time: '19:00', enabled: true },
-  { label: 'night', time: '21:30', enabled: true },
+  { label: 'morning',   time: '07:30', enabled: true },
+  { label: 'afternoon', time: '14:00', enabled: true },
+  { label: 'night',     time: '21:30', enabled: true },
 ];
 
 export async function requestNotificationPermission(): Promise<boolean> {

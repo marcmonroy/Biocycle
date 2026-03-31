@@ -69,18 +69,83 @@ export function getPhaseNames(isSpanish: boolean) {
   return isSpanish ? phaseNamesEs : phaseNamesEn;
 }
 
-function getTimeSlot(): string {
+type SessionSlot = 'morning' | 'afternoon' | 'night';
+
+function getTimeSlot(): SessionSlot {
   const hour = new Date().getHours();
   if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'midday';
-  if (hour >= 17 && hour < 21) return 'evening';
+  if (hour >= 12 && hour < 19) return 'afternoon';
   return 'night';
+}
+
+// ── Session summary types ──────────────────────────────────────────────────
+
+type SessionProgress = {
+  sessionId: string | null;
+  slot: SessionSlot;
+  date: string;
+  dimensions: Record<string, number | string | null>;
+  questionIdx: number;
+};
+
+// Morning dimension order (after greeting which has the biological forecast)
+const MORNING_DIMS = ['physical', 'cognitive', 'stress', 'anxiety', 'sleep', 'caffeine'] as const;
+// Afternoon dimension order
+const AFTERNOON_DIMS = ['emotional', 'social', 'sexual', 'hydration', 'symptoms'] as const;
+// Night dimension order
+const NIGHT_DIMS = ['day_rating', 'day_memory', 'alcohol'] as const;
+
+/** Extract a numeric score (1–10) from a user message, or null if not a score */
+function extractScore(msg: string): number | null {
+  const m = msg.trim().match(/^(\d+)$/);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 1 && n <= 10 ? n : null;
+}
+
+/** Summarise a completed session into a compact string for Jules' memory */
+function buildSessionSummary(
+  slot: SessionSlot,
+  phase: string,
+  cycleDay: number | null,
+  dimensions: Record<string, number | string | null>,
+): string {
+  const day = cycleDay ?? '?';
+  if (slot === 'morning') {
+    const p = (k: string) => dimensions[k] ?? '?';
+    return `Morning Day ${day} ${phase}. Scores: Physical ${p('physical')} Cognitive ${p('cognitive')} Stress ${p('stress')} Anxiety ${p('anxiety')} Sleep ${p('sleep')} Caffeine ${p('caffeine')}.`;
+  }
+  if (slot === 'afternoon') {
+    const p = (k: string) => dimensions[k] ?? '?';
+    return `Afternoon Day ${day} ${phase}. Emotional ${p('emotional')} Social ${p('social')} Sexual ${p('sexual')} Hydration ${p('hydration')}.`;
+  }
+  // night
+  return `Night Day ${day} ${phase}. Day rating ${dimensions['day_rating'] ?? '?'}/10. Memory: ${dimensions['day_memory'] ?? 'none'}. Alcohol: ${dimensions['alcohol'] ?? '?'}.`;
+}
+
+// ── Fetch last 3 session summaries ─────────────────────────────────────────
+
+async function fetchRecentSessionSummaries(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from('conversation_sessions')
+    .select('session_summary, time_slot, session_date')
+    .eq('user_id', userId)
+    .eq('session_complete', true)
+    .not('session_summary', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  if (!data || data.length === 0) return [];
+  return data.map((s: { session_summary: string }) => s.session_summary).filter(Boolean);
 }
 
 function buildSystemPrompt(
   profile: Profile,
   phaseData: PhaseData,
   recentAnxiety: number | null,
+  sessionType: CoachSessionType = 'adhoc',
+  recentSummaries: string[] = [],
+  morningSummary: string | null = null,
 ): string {
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
@@ -89,48 +154,132 @@ function buildSystemPrompt(
   const timeSlot = getTimeSlot();
   const dataQuality = recentAnxiety !== null ? 'Active tracker' : 'New user';
   const isSiennaMode = profile.picardia_mode === true;
+  const name = profile.nombre ?? 'friend';
 
+  // Append recent session history block (CHANGE 8)
+  const historyBlock = recentSummaries.length > 0
+    ? `\n\nRecent session history: ${recentSummaries.join(' | ')}`
+    : '';
+
+  // ── Scheduled morning session (CHANGE 3) ──────────────────────────
+  if (sessionType === 'scheduled' && timeSlot === 'morning') {
+    return `You are Jules. This is the morning session for ${name}.
+
+STEP 1 — GREETING AND FORECAST (do this first):
+Open with a warm good morning using their name. Then deliver today's biological forecast in 2-3 sentences — concise, fun, specific to their phase. Reference what their body will likely experience today based on phase ${phaseName} day ${cycleDay}. Make it feel like insider knowledge not a medical report. Example tone: "Your follicular phase has your brain running on extra RAM today. Creative thinking and social energy both peak before noon. Use the morning window."
+
+STEP 2 — DATA COLLECTION (after forecast):
+Then collect these dimensions one at a time conversationally:
+1. Physical energy — "How is your body feeling this morning? Give me a number 1 to 10."
+2. Cognitive clarity — "Mental clarity — sharp or foggy? 1 to 10."
+3. Stress — "Stress load right now? 1 to 10."
+4. Anxiety — "Anxiety this morning? 1 to 10."
+5. Sleep quality — "How did you sleep last night? 1 to 10."
+6. Caffeine — "How many coffees or caffeinated drinks today so far? Just a number."
+
+After each number give one sentence of biological context.
+After all 6 questions give a brief closing that references what to watch for today based on their scores.
+
+Rules: One question at a time. Never rush. Never list all questions at once. If user gives non-number redirect gently. Keep each response under 80 words.
+
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+  }
+
+  // ── Scheduled afternoon session (CHANGE 4) ────────────────────────
+  if (sessionType === 'scheduled' && timeSlot === 'afternoon') {
+    const morningRef = morningSummary
+      ? `This is their morning summary: ${morningSummary}`
+      : 'No morning session recorded today.';
+    const adultLine = profile.picardia_mode
+      ? '\n3. Sexual energy — "Sexual energy today? 1 to 10."'
+      : '';
+    return `You are Jules. This is the afternoon check-in for ${name}. They are in ${phaseName} phase.
+
+STEP 1 — BRIEF OPENER:
+One sentence check-in opener referencing something from this morning's session if available. ${morningRef} Example: "Your stress was at 7 this morning — how has the day treated you since?"
+
+STEP 2 — DATA COLLECTION:
+Collect these dimensions one at a time:
+1. Emotional state — "Emotional state right now — how are you feeling? 1 to 10."
+2. Social energy — "How social have you been today? 1 to 10."${adultLine}
+${profile.picardia_mode ? '4' : '3'}. Hydration — "Hydration today — good, average, or poor? I will convert it."
+${profile.picardia_mode ? '5' : '4'}. Physical symptoms — one phase-specific question based on ${phaseName} phase symptoms.
+
+After all questions give a brief observation about the afternoon data compared to morning.
+
+Rules: One question at a time. Keep responses under 80 words. If user gives non-number gently redirect.
+
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+  }
+
+  // ── Scheduled night session (CHANGE 5) ────────────────────────────
+  if (sessionType === 'scheduled' && timeSlot === 'night') {
+    return `You are Jules. This is the night wrap-up for ${name}.
+
+STEP 1 — DAY CLOSE:
+Warm evening opener. Reference their phase and what today meant biologically.
+
+STEP 2 — DAY RATING:
+"Before we close — rate your day overall. 1 is the worst day, 10 is the best. What number?"
+After the number: "What made it that number? Tell me in one sentence."
+
+STEP 3 — MEMORY CAPTURE:
+"Was there anything special today you want to remember? Something that made you smile, think, or feel something? Just one thing."
+Store this as their day memory.
+
+STEP 4 — ALCOHOL CHECK:
+"Last question — did you have any alcohol today? Just yes or no."
+
+STEP 5 — CLOSE THE DAY:
+Warm closing that acknowledges the day without previewing tomorrow. Focus on completing the day not starting the next one. Example: "You showed up today. That is what matters. Rest well ${name}."
+
+Rules: Keep the entire night session warm and brief. Maximum 5 exchanges. No dimension scores needed — only day rating, memory, and alcohol.
+
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+  }
+
+  // ── Adhoc / fallback prompts (Jules or Sienna) ────────────────────
   const openingGreeting = isSpanish
-    ? `Hola ${profile.nombre}, soy Jules, tu coach de BioCycle. Hoy estás en tu fase ${phaseName}. Empecemos. Estado emocional ahora mismo — dame un número del 1 al 10.`
-    : `Hi ${profile.nombre}, I am Jules, your BioCycle coach. Today you are in your ${phaseName} phase. Let us begin. Emotional state right now — give me a number 1 to 10.`;
+    ? `Hola ${name}, soy Jules, tu coach de BioCycle. Hoy estás en tu fase ${phaseName}. Empecemos. Estado emocional ahora mismo — dame un número del 1 al 10.`
+    : `Hi ${name}, I am Jules, your BioCycle coach. Today you are in your ${phaseName} phase. Let us begin. Emotional state right now — give me a number 1 to 10.`;
 
-  const julesPrompt = `You are Jules, BioCycle's biological intelligence coach. You are warm, grounded, wise, and experienced. You have done the work yourself. You speak from a place of earned knowledge, not theory. You are direct but gentle — you never say "you should." You ask questions like a doctor the user actually trusts. When you interpret numbers back, it feels like someone who has lived enough to understand biology without judgment. You make data collection feel like an act of care, not a chore.
+  const julesPrompt = `You are Jules, BioCycle's biological intelligence coach. You are warm, grounded, wise, and experienced. You speak from a place of earned knowledge, not theory. You are direct but gentle. You ask questions like a doctor the user actually trusts. You make data collection feel like an act of care, not a chore.
 
 Your job in each session:
 1. Open EXACTLY with this greeting (do not paraphrase): "${openingGreeting}"
-2. Ask each remaining dimension one at a time conversationally — NOT as a list, NOT as a form. Natural back-and-forth. Ask one question, wait for the number, then move to the next. You already asked Emotional as your opener, so continue from Physical.
-3. After receiving each number interpret it back briefly with biological context. Keep it to one sentence. Example: "Stress at 8 on day 19 makes sense — your phase peaks cortisol this week. Not you. Your cycle."
-4. After all 7 dimensions ask 1-2 enrichment follow-up questions relevant to the current phase and time of day
+2. Ask each dimension one at a time conversationally. Natural back-and-forth. Ask one question, wait for the number, then move to the next. You already asked Emotional as your opener, so continue from Physical.
+3. After receiving each number interpret it back briefly with biological context. One sentence. Example: "Stress at 8 on day 19 makes sense — your phase peaks cortisol this week. Not you. Your cycle."
+4. After all dimensions ask 1-2 enrichment follow-up questions relevant to the current phase
 5. Deliver a brief insight about what is coming in the next 24-48 hours based on their phase
 6. Close the session naturally and warmly
 
-The 7 dimensions to collect in order: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10, only if user has adult content enabled).
+Dimensions to collect: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10, only if adult content enabled).
 
 Rules:
-- Never infer scores from natural language. Always ask for the number directly.
-- If user gives a non-number response gently redirect: "Give me a number — what is it on a scale of 1 to 10?"
+- Never infer scores from natural language. Always ask for the number.
+- If user gives a non-number gently redirect: "Give me a number — what is it on a scale of 1 to 10?"
 - Keep responses under 100 words unless interpreting a complex score
 - Never use clinical language. Never pity. Never catastrophize.
 - Always ground emotional observations in biology not character
 - Respond in the user's language (${profile.idioma})
 
-User context: Name: ${profile.nombre}, Phase: ${phaseName}, Day in cycle: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}`;
 
   const siennaOpening = isSpanish
-    ? `Hola ${profile.nombre}. Soy Sienna. Hoy estás en fase ${phaseName}. Vamos al grano. Estado emocional — número del 1 al 10. Ya.`
-    : `Hey ${profile.nombre}. Sienna here. You are in your ${phaseName} phase today. Let us get into it. Emotional state — number 1 to 10. Go.`;
+    ? `Hola ${name}. Soy Sienna. Hoy estás en fase ${phaseName}. Vamos al grano. Estado emocional — número del 1 al 10. Ya.`
+    : `Hey ${name}. Sienna here. You are in your ${phaseName} phase today. Let us get into it. Emotional state — number 1 to 10. Go.`;
 
-  const siennaPrompt = `You are Sienna, BioCycle's biological intelligence coach for adults. You are bold, conspiratorial, and playful — like the friend who has no filter but always tells the truth. You are deeply comfortable with the body, desire, and everything hormones do to humans. You never moralize. You never perform wellness. You have dry humor and you use it. Your biological interpretations acknowledge the full adult experience — desire, energy, mood, sexuality — without shame, judgment, or clinical distance. You are warm but you do not sugarcoat.
+  const siennaPrompt = `You are Sienna, BioCycle's biological intelligence coach for adults. You are bold, conspiratorial, and playful — like the friend who has no filter but always tells the truth. You are deeply comfortable with the body, desire, and everything hormones do to humans. You never moralize. You have dry humor and you use it. Your biological interpretations acknowledge the full adult experience without shame or judgment.
 
 Your job in each session:
 1. Open EXACTLY with this greeting (do not paraphrase): "${siennaOpening}"
-2. Ask each remaining dimension one at a time conversationally. Natural. Direct. No forms. You already asked Emotional as your opener, so continue from Physical.
-3. After each number give one sharp biological interpretation — including sexual energy where relevant. Example: "Sexual at 8 mid-ovulation? Classic. Your estrogen peaked and your body knows exactly what it wants."
-4. After all 7 dimensions ask 1-2 enrichment questions relevant to the current phase and time of day
+2. Ask each dimension one at a time conversationally. Natural. Direct. No forms. You already asked Emotional as your opener, so continue from Physical.
+3. After each number give one sharp biological interpretation. Example: "Sexual at 8 mid-ovulation? Classic. Your estrogen peaked and your body knows exactly what it wants."
+4. After all dimensions ask 1-2 enrichment questions relevant to the current phase
 5. Deliver a bold insight about the next 24-48 hours
 6. Close warmly and directly
 
-The 7 dimensions to collect in order: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10).
+Dimensions: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10).
 
 Rules:
 - Never infer scores. Always get the number.
@@ -139,7 +288,7 @@ Rules:
 - Never shame. Never pity. Biology first always.
 - Respond in the user's language (${profile.idioma})
 
-User context: Name: ${profile.nombre}, Phase: ${phaseName}, Day in cycle: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}`;
 
   return isSiennaMode ? siennaPrompt : julesPrompt;
 }
@@ -149,9 +298,12 @@ export async function callCoachAPI(
   profile: Profile,
   phaseData: PhaseData,
   recentAnxiety: number | null,
-  conversationHistory: Message[] = []
+  conversationHistory: Message[] = [],
+  sessionType: CoachSessionType = 'adhoc',
+  recentSummaries: string[] = [],
+  morningSummary: string | null = null,
 ): Promise<{ content: string; error?: string }> {
-  const systemPrompt = buildSystemPrompt(profile, phaseData, recentAnxiety);
+  const systemPrompt = buildSystemPrompt(profile, phaseData, recentAnxiety, sessionType, recentSummaries, morningSummary);
 
   const messages = [
     ...conversationHistory.map(m => ({ role: m.role, content: m.content })),
@@ -430,6 +582,27 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
             : `Hey ${userName}. Not your scheduled time but I am always here. What is on your mind?`))
     : null;
 
+  // ── Session tracking state (CHANGE 6 & 7) ───────────────────────
+  const todayDate = new Date().toISOString().split('T')[0];
+  const currentSlot = getTimeSlot();
+  const sessionProgressKey = `biocycle_session_${profile.id}_${todayDate}_${currentSlot}`;
+
+  const [sessionProgress, setSessionProgress] = useState<SessionProgress>(() => {
+    try {
+      const stored = localStorage.getItem(sessionProgressKey);
+      if (stored) {
+        const parsed: SessionProgress = JSON.parse(stored);
+        if (parsed.date === todayDate && parsed.slot === currentSlot) return parsed;
+      }
+    } catch { /* ignore */ }
+    return { sessionId: null, slot: currentSlot, date: todayDate, dimensions: {}, questionIdx: 0 };
+  });
+  const sessionProgressRef = useRef(sessionProgress);
+  useEffect(() => { sessionProgressRef.current = sessionProgress; }, [sessionProgress]);
+
+  const [recentSummaries, setRecentSummaries] = useState<string[]>([]);
+  const [morningSummary, setMorningSummary] = useState<string | null>(null);
+
   // ── Core chat state ──────────────────────────────────────────────
   const [messages, setMessages] = useState<Message[]>(
     adhocGreeting ? [{ role: 'assistant', content: adhocGreeting }] : []
@@ -485,7 +658,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     // Scheduled: full dynamic API greeting
     setBioState('speaking');
 
-    const cacheKey = `biocycle_greeting_${profile.id}_${new Date().toDateString()}_${phaseData.phase}`;
+    const cacheKey = `biocycle_greeting_${profile.id}_${new Date().toDateString()}_${phaseData.phase}_${currentSlot}`;
     const cached = sessionStorage.getItem(cacheKey);
 
     const applyGreeting = (text: string) => {
@@ -494,20 +667,35 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       setTimeout(() => speakResponse(text), 400);
     };
 
-    if (cached) {
-      applyGreeting(cached);
-      return;
-    }
-
     (async () => {
-      // Fetch recent checkin data for personalization
-      const { data } = await supabase
-        .from('checkins')
-        .select('factor_ansiedad, factor_emocional')
-        .eq('user_id', profile.id)
-        .order('checkin_date', { ascending: false })
-        .limit(5);
+      // Fetch recent checkin data, session summaries, and morning summary in parallel
+      const [checkinResult, summaries, morningData] = await Promise.all([
+        supabase
+          .from('checkins')
+          .select('factor_ansiedad, factor_emocional')
+          .eq('user_id', profile.id)
+          .order('checkin_date', { ascending: false })
+          .limit(5),
+        fetchRecentSessionSummaries(profile.id),
+        // Fetch today's morning session summary for the afternoon opener
+        currentSlot === 'afternoon'
+          ? supabase
+              .from('conversation_sessions')
+              .select('session_summary')
+              .eq('user_id', profile.id)
+              .eq('session_date', todayDate)
+              .eq('time_slot', 'morning')
+              .eq('session_complete', true)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
 
+      setRecentSummaries(summaries);
+      if (morningData.data?.session_summary) {
+        setMorningSummary(morningData.data.session_summary);
+      }
+
+      const { data } = checkinResult;
       let anxAvg: number | null = null;
       let lastEmotionalVal: number | null = null;
 
@@ -522,8 +710,56 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
       setRecentAnxiety(anxAvg);
 
+      // ── Partial session recovery (CHANGE 6) ──────────────────────
+      const progress = sessionProgressRef.current;
+      const hasPartial = progress.questionIdx > 0 && progress.sessionId;
+      if (hasPartial) {
+        const dimList = currentSlot === 'morning' ? MORNING_DIMS
+          : currentSlot === 'afternoon' ? AFTERNOON_DIMS : NIGHT_DIMS;
+        const collected = Object.keys(progress.dimensions).length;
+        const nextDim = dimList[collected] ?? dimList[dimList.length - 1];
+        const recoveryMsg = isSpanish
+          ? `Hola ${profile.nombre}. Nos cortaron antes. Ya me habías dado ${collected} datos. Sigamos donde quedamos — ${nextDim}.`
+          : `Hey ${profile.nombre}. We got cut off earlier. You had given me ${collected} dimension${collected !== 1 ? 's' : ''} so far. Let me pick up where we left off — ${nextDim}.`;
+        applyGreeting(recoveryMsg);
+        return;
+      }
+
+      // Normal greeting flow
+      if (cached) {
+        applyGreeting(cached);
+        return;
+      }
+
       const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg);
       sessionStorage.setItem(cacheKey, greeting);
+
+      // Create a session record in the DB for tracking (CHANGE 6)
+      const { data: sessionRow } = await supabase
+        .from('conversation_sessions')
+        .insert({
+          user_id: profile.id,
+          session_date: todayDate,
+          time_slot: currentSlot,
+          phase_at_session: phaseData.phase,
+          personality_mode: profile.picardia_mode ? 'sienna' : 'jules',
+          session_complete: false,
+        })
+        .select('id')
+        .single();
+
+      if (sessionRow?.id) {
+        const newProgress: SessionProgress = {
+          sessionId: sessionRow.id,
+          slot: currentSlot,
+          date: todayDate,
+          dimensions: {},
+          questionIdx: 0,
+        };
+        setSessionProgress(newProgress);
+        localStorage.setItem(sessionProgressKey, JSON.stringify(newProgress));
+      }
+
       applyGreeting(greeting);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -599,6 +835,37 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ── Save dimension score to DB and localStorage (CHANGE 6) ────────
+  const saveDimensionScore = async (dimKey: string, value: number | string) => {
+    const progress = sessionProgressRef.current;
+    const newDimensions = { ...progress.dimensions, [dimKey]: value };
+    const newQuestionIdx = progress.questionIdx + 1;
+    const updated: SessionProgress = { ...progress, dimensions: newDimensions, questionIdx: newQuestionIdx };
+
+    setSessionProgress(updated);
+    localStorage.setItem(sessionProgressKey, JSON.stringify(updated));
+
+    if (progress.sessionId) {
+      await supabase
+        .from('conversation_sessions')
+        .update({ [dimKey + '_score']: typeof value === 'number' ? value : null })
+        .eq('id', progress.sessionId);
+    }
+
+    // Check if session is complete (CHANGE 7)
+    const dimList = currentSlot === 'morning' ? MORNING_DIMS
+      : currentSlot === 'afternoon' ? AFTERNOON_DIMS : NIGHT_DIMS;
+    if (newQuestionIdx >= dimList.length && progress.sessionId) {
+      const summary = buildSessionSummary(currentSlot, phaseData.phase, phaseData.cycleDay ?? null, newDimensions);
+      await supabase
+        .from('conversation_sessions')
+        .update({ session_complete: true, session_summary: summary })
+        .eq('id', progress.sessionId);
+      // Clear partial session from localStorage
+      localStorage.removeItem(sessionProgressKey);
+    }
+  };
+
   // ── Send message ─────────────────────────────────────────────────
   const sendMessage = async (textOverride?: string) => {
     const userMessage = textOverride ?? input.trim();
@@ -610,12 +877,36 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     setMessages(updatedMessages);
     setLoading(true);
 
+    // Track dimension scores from user messages (CHANGE 6)
+    if (sessionType === 'scheduled') {
+      const score = extractScore(userMessage);
+      const dimList = currentSlot === 'morning' ? MORNING_DIMS
+        : currentSlot === 'afternoon' ? AFTERNOON_DIMS : NIGHT_DIMS;
+      const progress = sessionProgressRef.current;
+      const idx = progress.questionIdx;
+      if (idx < dimList.length) {
+        const dimKey = dimList[idx];
+        if (score !== null && currentSlot !== 'night') {
+          saveDimensionScore(dimKey, score);
+        } else if (currentSlot === 'night') {
+          if (dimKey === 'day_rating' && score !== null) {
+            saveDimensionScore(dimKey, score);
+          } else if (dimKey === 'day_memory' || dimKey === 'alcohol') {
+            saveDimensionScore(dimKey, userMessage.trim());
+          }
+        }
+      }
+    }
+
     const result = await callCoachAPI(
       userMessage,
       profile,
       phaseData,
       recentAnxiety,
-      messages
+      messages,
+      sessionType,
+      recentSummaries,
+      morningSummary,
     );
 
     if (result.error) {

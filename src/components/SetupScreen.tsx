@@ -255,10 +255,9 @@ export function SetupScreen({ userId, onComplete }: SetupScreenProps) {
 
   // ── Schedule helpers ─────────────────────────────────────────────
   const slotLabels: Record<string, { en: string; es: string }> = {
-    morning: { en: 'Morning',  es: 'Mañana'  },
-    midday:  { en: 'Midday',   es: 'Mediodía' },
-    evening: { en: 'Evening',  es: 'Tarde'    },
-    night:   { en: 'Night',    es: 'Noche'    },
+    morning:   { en: 'Morning Check-in',   es: 'Registro Matutino'   },
+    afternoon: { en: 'Afternoon Check-in', es: 'Registro Vespertino' },
+    night:     { en: 'Night Wrap-up',      es: 'Cierre Nocturno'     },
   };
 
   const updateTime = (index: number, time: string) =>

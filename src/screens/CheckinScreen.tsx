@@ -12,7 +12,7 @@ interface CheckinScreenProps {
   onComplete: () => void;
 }
 
-type Tab = 'daily' | 'weekly' | 'studies' | 'nutrition';
+type Tab = 'daily';
 type Factor = 'emotional' | 'physical' | 'cognitive' | 'stress' | 'social' | 'sexual' | 'anxiety';
 type WakeFeeling = 'exhausted' | 'tired' | 'rested' | 'energized';
 type SugarIntake = 'low' | 'medium' | 'high';
@@ -99,10 +99,7 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
   const depositLabel = getDepositLabel(isSpanish);
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'daily', label: isSpanish ? 'Diario' : 'Daily' },
-    { key: 'weekly', label: isSpanish ? 'Semanal' : 'Weekly' },
-    { key: 'studies', label: isSpanish ? 'Estudios' : 'Studies' },
-    { key: 'nutrition', label: isSpanish ? 'Nutricion' : 'Nutrition' },
+    { key: 'daily', label: isSpanish ? 'Historial' : 'Check-in History' },
   ];
 
   return (
@@ -138,15 +135,6 @@ export function CheckinScreen({ profile, phaseData, onComplete }: CheckinScreenP
       <div className="px-5 pt-4">
         {activeTab === 'daily' && (
           <DailyTab profile={profile} phaseData={phaseData} onComplete={onComplete} showSexual={showSexual} isSpanish={isSpanish} />
-        )}
-        {activeTab === 'weekly' && (
-          <WeeklyTab profile={profile} isSpanish={isSpanish} showSexual={showSexual} />
-        )}
-        {activeTab === 'studies' && (
-          <StudiesTab isSpanish={isSpanish} />
-        )}
-        {activeTab === 'nutrition' && (
-          <NutritionTab profile={profile} isSpanish={isSpanish} showSexual={showSexual} />
         )}
       </div>
     </div>

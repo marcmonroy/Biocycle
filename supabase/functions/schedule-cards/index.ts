@@ -4,7 +4,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface CheckinTime {
-  label: "morning" | "midday" | "evening" | "night";
+  label: "morning" | "afternoon" | "night";
   time: string; // "HH:MM" 24h
   enabled: boolean;
 }
@@ -70,7 +70,7 @@ function calculatePhase(profile: Profile, now: Date): string {
 
 // ── Time slot matching ─────────────────────────────────────────────────────
 
-type TimeSlot = "morning" | "midday" | "evening" | "night";
+type TimeSlot = "morning" | "afternoon" | "night";
 
 // Dominican Republic is UTC-4 (fixed offset, no DST)
 const DR_UTC_OFFSET = -4;
@@ -81,9 +81,8 @@ function getLocalHour(now: Date): number {
 
 function getTimeSlot(now: Date): TimeSlot {
   const hour = getLocalHour(now);
-  if (hour >= 6 && hour < 11) return "morning";
-  if (hour >= 11 && hour < 15) return "midday";
-  if (hour >= 15 && hour < 20) return "evening";
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 19) return "afternoon";
   return "night";
 }
 
@@ -94,85 +93,131 @@ function slotMatchesCurrentHour(slot: CheckinTime, now: Date): boolean {
   return hh === getLocalHour(now);
 }
 
-// ── Card selection (simplified — selects from CARD_LIBRARY by phase/gender) ─
+// ── Card library with version rotation support ─────────────────────────────
 
 // Base Supabase Storage URL for library images
 const LIB_BASE =
   "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library";
 
-// Phase→card mapping (representative cards from CARD_LIBRARY)
-const PHASE_CARD_MAP: Record<
-  string,
-  { id: string; image: string; teaser_EN: string; teaser_ES: string }
-> = {
+// Card versions available per phase+slot. Versions are tried in order; first
+// one not found in recent sends wins.
+const CARD_VERSIONS = ["v1", "v2", "v3"] as const;
+
+// Base card ID patterns: {prefix}_{slot}  (version appended at selection time)
+// slot values: morning | afternoon | night
+const PHASE_SLOT_BASES: Record<string, Record<string, string>> = {
   ovulatory: {
-    id: "f_ovulatory_morning_v1",
-    image: `${LIB_BASE}/f_ovulatory_morning_v1.png`,
-    teaser_EN: "⚡ PEAK POWER\n\n\"She has entered the room.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "⚡ PODER MÁXIMO\n\n\"Ella ha entrado a la sala.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "f_ovulatory_morning",
+    afternoon: "f_ovulatory_midday",
+    night:     "f_ovulatory_night",
   },
   follicular: {
-    id: "f_follicular_morning_v1",
-    image: `${LIB_BASE}/f_follicular_morning_v1.png`,
-    teaser_EN: "🌱 ENERGY RISING\n\n\"New cycle. Clean slate. Rising energy.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "🌱 ENERGÍA EN AUMENTO\n\n\"Nuevo ciclo. Pizarrón en blanco. Energía en aumento.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "f_follicular_morning",
+    afternoon: "f_follicular_midday",
+    night:     "f_follicular_night",
   },
   luteal: {
-    id: "f_luteal_morning_v1",
-    image: `${LIB_BASE}/f_luteal_morning_v1.png`,
-    teaser_EN: "🧠 INNER CRITIC ALERT\n\n\"The critic is loud this week.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "🧠 ALERTA: CRÍTICO INTERIOR\n\n\"El crítico interior está fuerte esta semana.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "f_luteal_morning",
+    afternoon: "f_luteal_midday",
+    night:     "f_luteal_night",
   },
   menstrual: {
-    id: "f_menstrual_morning_v1",
-    image: `${LIB_BASE}/f_menstrual_morning_v1.png`,
-    teaser_EN: "🔴 REST PROTOCOL\n\n\"Rest is the strategy today.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "🔴 PROTOCOLO DE DESCANSO\n\n\"El descanso es la estrategia hoy.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "f_menstrual_morning",
+    afternoon: "f_menstrual_midday",
+    night:     "f_menstrual_night",
   },
   morning_peak: {
-    id: "m_morning_peak_morning_v1",
-    image: `${LIB_BASE}/m_morning_peak_morning_v1.png`,
-    teaser_EN: "⚡ T PEAK WINDOW\n\n\"Testosterone peaks 30 minutes after waking.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "⚡ VENTANA PICO DE T\n\n\"La testosterona llega al pico 30 minutos después de despertar.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "m_morning_peak_morning",
+    afternoon: "m_morning_peak_midday",
+    night:     "m_morning_peak_night",
   },
   tuesday_peak: {
-    id: "m_tuesday_peak_morning_v1",
-    image: `${LIB_BASE}/m_tuesday_peak_morning_v1.png`,
-    teaser_EN: "📈 WEEKLY PEAK\n\n\"Tuesday is your biological peak day.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "📈 PICO SEMANAL\n\n\"El martes es tu día pico biológico.\"\n\nDescubre tu patrón biológico en biocycle.app",
-  },
-  afternoon_dip: {
-    id: "both_afternoon_dip_midday_v1",
-    image: `${LIB_BASE}/both_afternoon_dip_midday_v1.png`,
-    teaser_EN: "😴 CIRCADIAN DIP\n\n\"The 2 PM crash is not your fault.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "😴 DIP CIRCADIANO\n\n\"El bajón de las 2 PM no es tu culpa.\"\n\nDescubre tu patrón biológico en biocycle.app",
-  },
-  evening_balanced: {
-    id: "both_evening_balanced_evening_v1",
-    image: `${LIB_BASE}/both_evening_balanced_evening_v1.png`,
-    teaser_EN: "🤝 CONNECTION WINDOW\n\n\"The evening window is for connection.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "🤝 VENTANA DE CONEXIÓN\n\n\"La ventana de la tarde es para la conexión.\"\n\nDescubre tu patrón biológico en biocycle.app",
-  },
-  night_rest: {
-    id: "both_night_rest_night_v1",
-    image: `${LIB_BASE}/both_night_rest_night_v1.png`,
-    teaser_EN: "💤 DATA BUILDING\n\n\"Sleep is when the data becomes intelligence.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "💤 CONSTRUYENDO DATOS\n\n\"El sueño es cuando los datos se convierten en inteligencia.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "m_tuesday_peak_morning",
+    afternoon: "m_tuesday_peak_midday",
+    night:     "m_tuesday_peak_night",
   },
   weekly_peak: {
-    id: "m_tuesday_peak_morning_v1",
-    image: `${LIB_BASE}/m_tuesday_peak_morning_v1.png`,
-    teaser_EN: "📈 WEEKLY PEAK\n\n\"Tuesday is your biological peak day.\"\n\nDiscover your biological pattern at biocycle.app",
-    teaser_ES: "📈 PICO SEMANAL\n\n\"El martes es tu día pico biológico.\"\n\nDescubre tu patrón biológico en biocycle.app",
+    morning:   "m_tuesday_peak_morning",
+    afternoon: "m_tuesday_peak_midday",
+    night:     "m_tuesday_peak_night",
+  },
+  afternoon_dip: {
+    morning:   "both_afternoon_dip_morning",
+    afternoon: "both_afternoon_dip_midday",
+    night:     "both_afternoon_dip_night",
+  },
+  evening_balanced: {
+    morning:   "both_evening_balanced_morning",
+    afternoon: "both_evening_balanced_midday",
+    night:     "both_evening_balanced_evening",
+  },
+  night_rest: {
+    morning:   "both_night_rest_morning",
+    afternoon: "both_night_rest_midday",
+    night:     "both_night_rest_night",
   },
 };
 
-const FALLBACK_CARD = {
-  id: "both_evening_balanced_evening_v1",
-  image: `${LIB_BASE}/both_evening_balanced_evening_v1.png`,
-  teaser_EN: "🤝 CONNECTION WINDOW\n\n\"The evening window is for connection.\"\n\nDiscover your biological pattern at biocycle.app",
-  teaser_ES: "🤝 VENTANA DE CONEXIÓN\n\n\"La ventana de la tarde es para la conexión.\"\n\nDescubre tu patrón biológico en biocycle.app",
+// Teaser text by phase (language-independent from slot)
+const PHASE_TEASERS: Record<string, { EN: string; ES: string }> = {
+  ovulatory:       { EN: "PEAK POWER — \"She has entered the room.\" Discover your biological pattern at biocycle.app", ES: "PODER MAXIMO — \"Ella ha entrado a la sala.\" Descubre tu patron biologico en biocycle.app" },
+  follicular:      { EN: "ENERGY RISING — \"New cycle. Clean slate. Rising energy.\" Discover your biological pattern at biocycle.app", ES: "ENERGIA EN AUMENTO — \"Nuevo ciclo. Pizarron en blanco. Energia en aumento.\" Descubre tu patron biologico en biocycle.app" },
+  luteal:          { EN: "INNER CRITIC ALERT — \"The critic is loud this week.\" Discover your biological pattern at biocycle.app", ES: "ALERTA CRITICO INTERIOR — \"El critico interior esta fuerte esta semana.\" Descubre tu patron biologico en biocycle.app" },
+  menstrual:       { EN: "REST PROTOCOL — \"Rest is the strategy today.\" Discover your biological pattern at biocycle.app", ES: "PROTOCOLO DE DESCANSO — \"El descanso es la estrategia hoy.\" Descubre tu patron biologico en biocycle.app" },
+  morning_peak:    { EN: "T PEAK WINDOW — \"Testosterone peaks 30 minutes after waking.\" Discover your biological pattern at biocycle.app", ES: "VENTANA PICO DE T — \"La testosterona llega al pico 30 minutos despues de despertar.\" Descubre tu patron biologico en biocycle.app" },
+  tuesday_peak:    { EN: "WEEKLY PEAK — \"Tuesday is your biological peak day.\" Discover your biological pattern at biocycle.app", ES: "PICO SEMANAL — \"El martes es tu dia pico biologico.\" Descubre tu patron biologico en biocycle.app" },
+  weekly_peak:     { EN: "WEEKLY PEAK — \"Tuesday is your biological peak day.\" Discover your biological pattern at biocycle.app", ES: "PICO SEMANAL — \"El martes es tu dia pico biologico.\" Descubre tu patron biologico en biocycle.app" },
+  afternoon_dip:   { EN: "CIRCADIAN DIP — \"The 2 PM crash is not your fault.\" Discover your biological pattern at biocycle.app", ES: "DIP CIRCADIANO — \"El bajon de las 2 PM no es tu culpa.\" Descubre tu patron biologico en biocycle.app" },
+  evening_balanced:{ EN: "CONNECTION WINDOW — \"The evening window is for connection.\" Discover your biological pattern at biocycle.app", ES: "VENTANA DE CONEXION — \"La ventana de la tarde es para la conexion.\" Descubre tu patron biologico en biocycle.app" },
+  night_rest:      { EN: "DATA BUILDING — \"Sleep is when the data becomes intelligence.\" Discover your biological pattern at biocycle.app", ES: "CONSTRUYENDO DATOS — \"El sueno es cuando los datos se convierten en inteligencia.\" Descubre tu patron biologico en biocycle.app" },
 };
+
+const FALLBACK_CARD_BASE = "both_evening_balanced_evening";
+const FALLBACK_TEASER_EN = "CONNECTION WINDOW — \"The evening window is for connection.\" Discover your biological pattern at biocycle.app";
+const FALLBACK_TEASER_ES = "VENTANA DE CONEXION — \"La ventana de la tarde es para la conexion.\" Descubre tu patron biologico en biocycle.app";
+
+/** Select the best card version for a user, rotating away from recently sent ones */
+async function selectCard(
+  supabaseClient: ReturnType<typeof createClient>,
+  userId: string,
+  phase: string,
+  slot: TimeSlot,
+): Promise<{ id: string; image: string; teaser_EN: string; teaser_ES: string }> {
+  // Look up the base card ID for this phase+slot
+  const slotBases = PHASE_SLOT_BASES[phase] ?? PHASE_SLOT_BASES["evening_balanced"];
+  const base = slotBases?.[slot] ?? FALLBACK_CARD_BASE;
+  const teasers = PHASE_TEASERS[phase] ?? { EN: FALLBACK_TEASER_EN, ES: FALLBACK_TEASER_ES };
+
+  // Query recently sent card IDs (last 14 days) to avoid repeats
+  const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentSends } = await supabaseClient
+    .from("whatsapp_sends")
+    .select("card_id")
+    .eq("user_id", userId)
+    .eq("success", true)
+    .gte("sent_at", since)
+    .order("sent_at", { ascending: false });
+
+  const recentCardIds = new Set((recentSends ?? []).map((s: { card_id: string }) => s.card_id));
+
+  // Pick first version not in recent sends, fall back to v1
+  let selectedVersion = CARD_VERSIONS[0];
+  for (const v of CARD_VERSIONS) {
+    const candidate = `${base}_${v}`;
+    if (!recentCardIds.has(candidate)) {
+      selectedVersion = v;
+      break;
+    }
+  }
+
+  const cardId = `${base}_${selectedVersion}`;
+  return {
+    id: cardId,
+    image: `${LIB_BASE}/${cardId}.png`,
+    teaser_EN: teasers.EN,
+    teaser_ES: teasers.ES,
+  };
+}
 
 // ── Main handler ───────────────────────────────────────────────────────────
 
@@ -183,7 +228,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const serviceRoleKey = Deno.env.get("SERVICE_ROLE_KEY")!;
   const sendCardUrl = `${supabaseUrl}/functions/v1/send-whatsapp-card`;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -228,18 +273,16 @@ Deno.serve(async (req: Request) => {
           return Array.isArray(parsed) && parsed.length > 0
             ? parsed
             : [
-                { label: "morning", time: "07:30", enabled: true },
-                { label: "midday",  time: "12:30", enabled: true },
-                { label: "evening", time: "19:00", enabled: true },
-                { label: "night",   time: "21:30", enabled: true },
+                { label: "morning",   time: "07:30", enabled: true },
+                { label: "afternoon", time: "14:00", enabled: true },
+                { label: "night",     time: "21:30", enabled: true },
               ];
         } catch {
           console.warn(`[schedule-cards] User ${profile.id} — failed to parse checkin_times, using defaults`);
           return [
-            { label: "morning", time: "07:30", enabled: true },
-            { label: "midday",  time: "12:30", enabled: true },
-            { label: "evening", time: "19:00", enabled: true },
-            { label: "night",   time: "21:30", enabled: true },
+            { label: "morning",   time: "07:30", enabled: true },
+            { label: "afternoon", time: "14:00", enabled: true },
+            { label: "night",     time: "21:30", enabled: true },
           ];
         }
       })();
@@ -261,13 +304,29 @@ Deno.serve(async (req: Request) => {
       console.log(`[schedule-cards] User ${profile.id} — matched slot label=${matchingSlot.label} time=${matchingSlot.time}`);
 
 
-      // 3. Determine phase and card
+      // 3. Determine phase and card (with version rotation)
       const phase = calculatePhase(profile, now);
-      const card = PHASE_CARD_MAP[phase] ?? FALLBACK_CARD;
+      const card = await selectCard(supabase, profile.id, phase, matchingSlot.label as TimeSlot);
       const isSpanish = profile.idioma === "ES";
 
-      const FALLBACK_TEASER = "Tu biología tiene algo importante que decirte hoy. 🧬";
-      const teaserText = (isSpanish ? card.teaser_ES : card.teaser_EN) || FALLBACK_TEASER;
+      const FALLBACK_TEASER = "Tu biologia tiene algo importante que decirte hoy.";
+      const rawTeaser = (isSpanish ? card.teaser_ES : card.teaser_EN) || "";
+      const teaserText = (() => {
+        let t = rawTeaser
+          // Strip emoji (Unicode ranges for emoji/symbols)
+          .replace(/[\u{1F000}-\u{1FFFF}|\u{2600}-\u{27FF}|\u{2300}-\u{23FF}|\u{1F300}-\u{1F9FF}|\u{FE00}-\u{FEFF}]/gu, "")
+          // Remove newlines and carriage returns
+          .replace(/[\n\r]/g, " ")
+          // Remove characters that could break JSON (control chars)
+          .replace(/[\x00-\x1F\x7F]/g, "")
+          // Collapse multiple spaces
+          .replace(/  +/g, " ")
+          .trim();
+        if (!t) t = FALLBACK_TEASER;
+        // Hard cap at 160 characters
+        if (t.length > 160) t = t.slice(0, 157) + "...";
+        return t;
+      })();
       const language = isSpanish ? "ES" : "EN";
 
       // Phone number passed exactly as stored — no modification
@@ -280,8 +339,9 @@ Deno.serve(async (req: Request) => {
       }
 
       console.log(
-        `[schedule-cards] Sending to user=${profile.id} phone=${phoneNumber} phase=${phase} slot=${matchingSlot.label} teaser="${teaserText.slice(0, 40)}..."`,
+        `[schedule-cards] Sending to user=${profile.id} phone=${phoneNumber} phase=${phase} slot=${matchingSlot.label}`,
       );
+      console.log(`[schedule-cards] teaserText (${teaserText.length} chars): "${teaserText}"`);
 
       // 4. Call send-whatsapp-card edge function
       console.log(`[schedule-cards] Calling send-whatsapp-card url=${sendCardUrl} authKey=SERVICE_ROLE key_prefix=${serviceRoleKey.slice(0, 8)}...`);
