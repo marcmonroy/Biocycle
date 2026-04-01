@@ -75,14 +75,69 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const [completenessPoints, setCompletenessPoints] = useState(0);
   const [depthPoints, setDepthPoints] = useState(0);
   const [showPremiumUnlocked, setShowPremiumUnlocked] = useState(false);
-  const [profileBonusPoints, setProfileBonusPoints] = useState(0);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [tradingStreak, setTradingStreak] = useState(0);
   const [showPortfolioModal, setShowPortfolioModal] = useState(false);
+  const [displayValue, setDisplayValue] = useState(0);
+  const [arcAnimated, setArcAnimated] = useState(false);
+
+  // ── Profile bonus (computed from props — needed before animation effect) ──
+  const profileBonusItems = [
+    { key: 'height_weight', label: isSpanish ? 'Altura y peso' : 'Height & weight',     points: 5,  done: !!(profile.height_cm && profile.weight_kg) },
+    { key: 'exercise',      label: isSpanish ? 'Datos de ejercicio' : 'Exercise data',   points: 5,  done: !!(profile.exercise_frequency || profile.exercise_type) },
+    { key: 'sleep',         label: isSpanish ? 'Linea base de sueño' : 'Sleep baseline', points: 8,  done: !!profile.sleep_hours },
+    { key: 'conditions',    label: isSpanish ? 'Condiciones conocidas' : 'Known conditions', points: 15, done: Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0 },
+    { key: 'medications',   label: isSpanish ? 'Medicamentos' : 'Medications',           points: 12, done: Array.isArray(profile.current_medications) && profile.current_medications.length > 0 },
+    { key: 'blood_type',    label: isSpanish ? 'Tipo de sangre' : 'Blood type',          points: 10, done: !!profile.blood_type },
+    { key: 'family_history',label: isSpanish ? 'Historia familiar' : 'Family history',   points: 5,  done: Array.isArray(profile.family_history) && profile.family_history.length > 0 },
+  ];
+  const earnedProfileBonus   = profileBonusItems.filter(i => i.done).reduce((s, i) => s + i.points, 0);
+  const maxProfileBonus      = profileBonusItems.reduce((s, i) => s + i.points, 0);
+  const totalProfilePossible = profileBonusItems.filter(i => !i.done).reduce((s, i) => s + i.points, 0);
+  const profileComplete      = earnedProfileBonus === maxProfileBonus;
+
+  // ── Portfolio value (computed from state + props) ──
+  const healthProfileDone = !!(profile.height_cm && profile.weight_kg && profile.sleep_hours && (profile.exercise_frequency || profile.exercise_type));
+  const medicalProfileDone = Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0
+    && Array.isArray(profile.current_medications) && profile.current_medications.length > 0
+    && Array.isArray(profile.family_history) && profile.family_history.length > 0;
+  const bloodTypeDone  = !!profile.blood_type;
+  const exerciseDone   = !!(profile.exercise_frequency || profile.exercise_type);
+  const daysValue      = daysSinceJoined * 0.15;
+  const qualityMultiplier = Math.max(0.01, (qualityScore + earnedProfileBonus) / 100);
+  const userAge        = profile.fecha_nacimiento ? calculateAge(profile.fecha_nacimiento) : 0;
+  let portfolioValue   = daysValue * qualityMultiplier;
+  if (healthProfileDone) portfolioValue += 5;
+  if (medicalProfileDone) portfolioValue += 8;
+  if (bloodTypeDone)  portfolioValue += 3;
+  if (exerciseDone)   portfolioValue += 2;
+  if (userAge >= 40)  portfolioValue *= 1.3;
+  portfolioValue = Math.max(1.00, portfolioValue);
+  const unlockableBonus = (healthProfileDone ? 0 : 5) + (medicalProfileDone ? 0 : 8) + (bloodTypeDone ? 0 : 3) + (exerciseDone ? 0 : 2);
 
   useEffect(() => {
     loadDashboardData();
   }, [profile.id]);
+
+  // ── Count-up + arc animation: fires once when loading completes ──
+  useEffect(() => {
+    if (loading) return;
+    setArcAnimated(false);
+    const tArc = setTimeout(() => setArcAnimated(true), 150);
+    const target = portfolioValue;
+    const startTime = performance.now();
+    const duration = 1200;
+    let raf: number;
+    const frame = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      setDisplayValue(eased * target);
+      if (t < 1) raf = requestAnimationFrame(frame);
+      else setDisplayValue(target);
+    };
+    raf = requestAnimationFrame(frame);
+    return () => { cancelAnimationFrame(raf); clearTimeout(tArc); };
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -250,25 +305,19 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   }
 
   const currentTier = getTier(totalDeposits);
-  const nextTier = getNextTier(totalDeposits);
-  const TierIcon = currentTier.icon;
+  const nextTier    = getNextTier(totalDeposits);
+  const TierIcon    = currentTier.icon;
+  const progressToNext = nextTier
+    ? ((totalDeposits - currentTier.min) / (nextTier.min - currentTier.min)) * 100
+    : 100;
 
   const handleExportData = () => {
-    const headers = [
-      'date', 'phase', 'emotional', 'physical', 'cognitive', 'stress',
-      'social', 'sexual', 'anxiety', 'quality_score', 'notes'
-    ];
+    const headers = ['date','phase','emotional','physical','cognitive','stress','social','sexual','anxiety','quality_score','notes'];
     const rows = allCheckins.map(c => [
-      c.checkin_date,
-      c.phase_at_checkin ?? '',
-      c.factor_emocional ?? '',
-      c.factor_fisico ?? '',
-      c.factor_cognitivo ?? '',
-      c.factor_estres ?? '',
-      c.factor_social ?? '',
-      c.factor_sexual ?? '',
-      c.factor_ansiedad ?? '',
-      c.calidad_score ?? '',
+      c.checkin_date, c.phase_at_checkin ?? '',
+      c.factor_emocional ?? '', c.factor_fisico ?? '', c.factor_cognitivo ?? '',
+      c.factor_estres ?? '', c.factor_social ?? '', c.factor_sexual ?? '',
+      c.factor_ansiedad ?? '', c.calidad_score ?? '',
       `"${(c.notas ?? '').replace(/"/g, '""')}"`,
     ]);
     const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -277,583 +326,443 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
     const a = document.createElement('a');
     a.href = url;
     a.download = `biocycle_data_export_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
     setExportSuccess(true);
     setTimeout(() => setExportSuccess(false), 3000);
   };
 
-  const progressToNext = nextTier
-    ? ((totalDeposits - currentTier.min) / (nextTier.min - currentTier.min)) * 100
-    : 100;
+  // ── SVG arc constants (semicircle, r=80, cx=100 cy=100) ──
+  const ARC_R = 80;
+  const ARC_HALF_CIRC = Math.PI * ARC_R; // ≈ 251.3
+  const totalQuality = qualityScore + earnedProfileBonus;
+  const arcOffset = arcAnimated
+    ? ARC_HALF_CIRC * (1 - Math.min(totalQuality, 100) / 100)
+    : ARC_HALF_CIRC;
 
-  // Profile completeness bonus points
-  const profileBonusItems = [
-    {
-      key: 'height_weight',
-      label: isSpanish ? 'Altura y peso' : 'Height & weight',
-      points: 5,
-      done: !!(profile.height_cm && profile.weight_kg),
-    },
-    {
-      key: 'exercise',
-      label: isSpanish ? 'Datos de ejercicio' : 'Exercise data',
-      points: 5,
-      done: !!(profile.exercise_frequency || profile.exercise_type),
-    },
-    {
-      key: 'sleep',
-      label: isSpanish ? 'Linea base de sueño' : 'Sleep baseline',
-      points: 8,
-      done: !!(profile.sleep_hours),
-    },
-    {
-      key: 'conditions',
-      label: isSpanish ? 'Condiciones conocidas' : 'Known conditions',
-      points: 15,
-      done: Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0,
-    },
-    {
-      key: 'medications',
-      label: isSpanish ? 'Medicamentos' : 'Medications',
-      points: 12,
-      done: Array.isArray(profile.current_medications) && profile.current_medications.length > 0,
-    },
-    {
-      key: 'blood_type',
-      label: isSpanish ? 'Tipo de sangre' : 'Blood type',
-      points: 10,
-      done: !!(profile.blood_type),
-    },
-    {
-      key: 'family_history',
-      label: isSpanish ? 'Historia familiar' : 'Family history',
-      points: 5,
-      done: Array.isArray(profile.family_history) && profile.family_history.length > 0,
-    },
-  ];
+  // Tier pill gradient map
+  const tierGradients: Record<string, string> = {
+    Semilla:     'linear-gradient(135deg,#1F2937,#374151)',
+    Raiz:        'linear-gradient(135deg,#064E3B,#059669)',
+    Crecimiento: 'linear-gradient(135deg,#1E3A5F,#2563EB)',
+    Maestria:    'linear-gradient(135deg,#2D1B69,#7C3AED)',
+    Oraculo:     'linear-gradient(135deg,#78350F,#D97706)',
+  };
+  const tierTextColors: Record<string, string> = {
+    Semilla: '#9CA3AF', Raiz: '#6EE7B7', Crecimiento: '#93C5FD',
+    Maestria: '#C4B5FD', Oraculo: '#FDE68A',
+  };
+  const tierGrad = tierGradients[currentTier.name] ?? tierGradients['Semilla'];
+  const tierText = tierTextColors[currentTier.name] ?? '#9CA3AF';
 
-  const earnedProfileBonus = profileBonusItems.filter(i => i.done).reduce((sum, i) => sum + i.points, 0);
-  const maxProfileBonus = profileBonusItems.reduce((sum, i) => sum + i.points, 0);
-  const totalProfilePossible = profileBonusItems.filter(i => !i.done).reduce((sum, i) => sum + i.points, 0);
-  const profileComplete = earnedProfileBonus === maxProfileBonus;
-
-  // ── Portfolio Value ────────────────────────────────────────────────────────
-  const healthProfileDone = !!(profile.height_cm && profile.weight_kg && profile.sleep_hours && (profile.exercise_frequency || profile.exercise_type));
-  const medicalProfileDone = Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0
-    && Array.isArray(profile.current_medications) && profile.current_medications.length > 0
-    && Array.isArray(profile.family_history) && profile.family_history.length > 0;
-  const bloodTypeDone = !!profile.blood_type;
-  const exerciseDone = !!(profile.exercise_frequency || profile.exercise_type);
-
-  const daysValue = daysSinceJoined * 0.15;
-  const qualityMultiplier = Math.max(0.01, (qualityScore + earnedProfileBonus) / 100);
-  let portfolioValue = daysValue * qualityMultiplier;
-  if (healthProfileDone) portfolioValue += 5;
-  if (medicalProfileDone) portfolioValue += 8;
-  if (bloodTypeDone) portfolioValue += 3;
-  if (exerciseDone) portfolioValue += 2;
-  const userAge = profile.fecha_nacimiento ? calculateAge(profile.fecha_nacimiento) : 0;
-  if (userAge >= 40) portfolioValue *= 1.3;
-  portfolioValue = Math.max(1.00, portfolioValue);
-
-  const unlockableBonus = (healthProfileDone ? 0 : 5) + (medicalProfileDone ? 0 : 8) + (bloodTypeDone ? 0 : 3) + (exerciseDone ? 0 : 2);
+  const divider = <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '0 24px' }} />;
 
   return (
-    <div className="min-h-screen bg-[#0A0A1A] pb-24">
-      <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-              {isSpanish ? 'Tu Cuenta de Trading' : 'Your Trading Account'}
-            </h1>
-            <p className="text-[#8B95B0] text-sm mt-1">
-              {isSpanish ? 'Tu inteligencia biologica es tu activo mas valioso.' : 'Your biological intelligence is your most valuable asset.'}
+    <div className="min-h-screen bg-[#0A0A1A] pb-28">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between px-6 pt-14 pb-2">
+        <span className="text-white font-semibold text-base">
+          {isSpanish ? 'Tu Cuenta' : 'Your Account'}
+        </span>
+        <button
+          onClick={handleExportData}
+          disabled={allCheckins.length === 0}
+          className="flex items-center gap-1.5 text-[#4A5568] text-xs disabled:opacity-30 active:text-white transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          {exportSuccess ? (isSpanish ? 'Exportado' : 'Exported') : (isSpanish ? 'Exportar' : 'Export')}
+        </button>
+      </div>
+
+      {/* ── HERO: Portfolio Value ── */}
+      <button
+        onClick={() => setShowPortfolioModal(true)}
+        className="w-full px-6 pt-8 pb-10 text-center active:opacity-70 transition-opacity"
+        style={{ WebkitTapHighlightColor: 'transparent' }}
+      >
+        <p style={{ fontSize: '0.7rem', letterSpacing: '0.12em', color: '#4A5568', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 400, textTransform: 'uppercase', marginBottom: 8 }}>
+          {isSpanish ? 'VALOR DEL PORTAFOLIO' : 'DATA PORTFOLIO VALUE'}
+        </p>
+        <p style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 700, fontSize: '3.5rem', color: '#FFD93D', lineHeight: 1, letterSpacing: '-0.02em' }}>
+          ${displayValue.toFixed(2)}
+        </p>
+        <p style={{ fontSize: '0.75rem', color: '#4A5568', fontFamily: 'Inter,system-ui,sans-serif', marginTop: 8 }}>
+          {isSpanish ? 'valor estimado de investigacion hoy' : 'estimated research value today'}
+        </p>
+      </button>
+
+      {divider}
+
+      {/* ── Trading Streak ── */}
+      <div className="px-6 py-8 flex items-center justify-between">
+        <div>
+          <p style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#4A5568', textTransform: 'uppercase', marginBottom: 6 }}>
+            Trading Streak
+          </p>
+          {tradingStreak > 0 ? (
+            <p style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 600, fontSize: '1.5rem', color: '#FFFFFF' }}>
+              🔥 {tradingStreak} <span style={{ fontSize: '0.75rem', color: '#4A5568', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 400 }}>{isSpanish ? 'días' : 'days'}</span>
             </p>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            <button
-              onClick={handleExportData}
-              disabled={allCheckins.length === 0}
-              className="flex items-center gap-1.5 px-3 py-2 bg-[#111126] border border-[#1E1E3A] text-[#8B95B0] text-xs font-semibold rounded-xl transition-colors disabled:opacity-40 flex-shrink-0"
-            >
-              <Download className="w-3.5 h-3.5" />
-              {isSpanish ? 'Exportar' : 'Export'}
-            </button>
-            {exportSuccess && (
-              <span className="text-xs text-[#00D4A1] font-medium">
-                {isSpanish ? 'Exportado.' : 'Exported.'}
-              </span>
-            )}
-          </div>
+          ) : (
+            <p style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 600, fontSize: '1.2rem', color: '#4A5568' }}>
+              — <span style={{ fontSize: '0.75rem', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 400 }}>{isSpanish ? 'Empieza hoy' : 'Start today'}</span>
+            </p>
+          )}
+        </div>
+        <div className="text-right">
+          <p style={{ fontSize: '0.7rem', color: '#4A5568', marginBottom: 4 }}>{isSpanish ? 'Depositos' : 'Deposits'}</p>
+          <p style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 600, fontSize: '1.5rem', color: '#FFFFFF' }}>{totalDeposits}</p>
         </div>
       </div>
 
-      <div className="px-5 mt-4 space-y-4">
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-6" style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-16 h-16 bg-[#F5C842]/10 border border-[#F5C842]/30 rounded-full flex items-center justify-center">
-              <TierIcon className="w-8 h-8 text-[#F5C842]" />
-            </div>
-            <div>
-              <p className="text-[#8B95B0] text-sm">
-                {isSpanish ? 'Tu nivel actual' : 'Your current tier'}
-              </p>
-              <p className="text-2xl font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-                {isSpanish ? currentTier.name : currentTier.nameEn}
-              </p>
-            </div>
-          </div>
+      {divider}
 
-          {nextTier && (
-            <div>
-              <div className="flex justify-between text-sm mb-2">
-                <span className="text-[#8B95B0]">
-                  {isSpanish ? 'Progreso al siguiente nivel' : 'Progress to next tier'}
-                </span>
-                <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  {totalDeposits}/{nextTier.min}
-                </span>
-              </div>
-              <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.min(progressToNext, 100)}%`, background: 'linear-gradient(to right, #7B61FF, #F5C842)' }}
-                />
-              </div>
-              <p className="text-sm text-[#8B95B0] mt-2">
-                {nextTier.min - totalDeposits} {isSpanish ? 'depositos para' : 'deposits to'} {isSpanish ? nextTier.name : nextTier.nameEn}
-              </p>
+      {/* ── Quality Arc ── */}
+      <div className="px-6 py-8 flex flex-col items-center">
+        <svg viewBox="0 0 200 110" width="200" height="110" overflow="visible">
+          <defs>
+            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#2D1B69" />
+              <stop offset="100%" stopColor="#FFD93D" />
+            </linearGradient>
+          </defs>
+          {/* Track */}
+          <path
+            d={`M 20 100 A ${ARC_R} ${ARC_R} 0 0 1 180 100`}
+            fill="none"
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth="8"
+            strokeLinecap="round"
+          />
+          {/* Fill */}
+          <path
+            d={`M 20 100 A ${ARC_R} ${ARC_R} 0 0 1 180 100`}
+            fill="none"
+            stroke="url(#arcGrad)"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${ARC_HALF_CIRC} ${ARC_HALF_CIRC}`}
+            strokeDashoffset={arcOffset}
+            style={{ transition: arcAnimated ? 'stroke-dashoffset 1.2s cubic-bezier(0.25,0.46,0.45,0.94)' : 'none' }}
+          />
+          {/* Center score */}
+          <text x="100" y="88" textAnchor="middle" fill="#FFFFFF"
+            style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 700, fontSize: 26 }}>
+            {totalQuality}
+          </text>
+        </svg>
+        <p style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#4A5568', textTransform: 'uppercase', marginTop: 4 }}>
+          {isSpanish ? 'Calidad de Datos' : 'Data Quality'}
+        </p>
+        {/* Quality sub-scores */}
+        <div className="flex gap-6 mt-4">
+          {[
+            { label: isSpanish ? 'Frec' : 'Freq', val: frequencyPoints, max: 40 },
+            { label: isSpanish ? 'Cons' : 'Cons', val: consistencyPoints, max: 30 },
+            { label: isSpanish ? 'Dim' : 'Dim',  val: completenessPoints, max: 20 },
+            { label: isSpanish ? 'Prof' : 'Depth', val: depthPoints, max: 10 },
+          ].map(({ label, val, max }) => (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.85rem', color: '#FFFFFF', fontWeight: 600 }}>{val}</span>
+              <span style={{ fontSize: '0.6rem', color: '#4A5568' }}>{label}/{max}</span>
+            </div>
+          ))}
+          {earnedProfileBonus > 0 && (
+            <div className="flex flex-col items-center gap-1">
+              <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.85rem', color: '#00C896', fontWeight: 600 }}>+{earnedProfileBonus}</span>
+              <span style={{ fontSize: '0.6rem', color: '#4A5568' }}>{isSpanish ? 'perfil' : 'profile'}</span>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Trading Streak */}
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#FFD93D', borderLeftWidth: 4 }}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Zap className="w-5 h-5 text-[#FFD93D]" />
-              <span className="text-sm text-[#8B95B0]">
-                {isSpanish ? 'Trading Streak' : 'Trading Streak'}
+      {divider}
+
+      {/* ── Tier Badge ── */}
+      <div className="px-6 py-8 flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-2">
+          <span
+            style={{
+              background: tierGrad,
+              color: tierText,
+              fontFamily: 'Inter,system-ui,sans-serif',
+              fontWeight: 600,
+              fontSize: '0.8rem',
+              padding: '6px 20px',
+              borderRadius: 999,
+              letterSpacing: '0.04em',
+            }}
+          >
+            {isSpanish ? currentTier.name : currentTier.nameEn}
+          </span>
+          <TierIcon style={{ width: 20, height: 20, color: tierText }} />
+        </div>
+        {nextTier && (
+          <div className="w-full max-w-xs">
+            <div className="flex justify-between mb-2">
+              <span style={{ fontSize: '0.7rem', color: '#4A5568' }}>
+                {totalDeposits} / {nextTier.min}
+              </span>
+              <span style={{ fontSize: '0.7rem', color: '#4A5568' }}>
+                {nextTier.min - totalDeposits} {isSpanish ? 'para' : 'to'} {isSpanish ? nextTier.name : nextTier.nameEn}
               </span>
             </div>
-            {tradingStreak > 0 ? (
-              <span className="text-3xl font-bold text-[#FFD93D]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {tradingStreak} {isSpanish ? 'días' : 'days'}
-              </span>
-            ) : (
-              <span className="text-sm text-[#4A5568]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {isSpanish ? 'Empieza tu racha hoy' : 'Start your streak today'}
-              </span>
-            )}
+            <div style={{ height: 3, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${Math.min(progressToNext, 100)}%`,
+                background: 'linear-gradient(to right,#7B61FF,#FFD93D)',
+                borderRadius: 99,
+                transition: 'width 1s ease',
+              }} />
+            </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Portfolio Value */}
-        <button
-          onClick={() => setShowPortfolioModal(true)}
-          className="w-full text-left bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5 active:opacity-80 transition-opacity"
-          style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}
-        >
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm text-[#8B95B0]">
-              {isSpanish ? 'Valor del Portafolio' : 'Portfolio Value'}
-            </span>
-            <ArrowUpRight className="w-4 h-4 text-[#00C896]" />
+      {divider}
+
+      {/* ── Stats row ── */}
+      <div className="px-6 py-8 grid grid-cols-3 gap-4">
+        {[
+          { label: isSpanish ? 'Dias' : 'Days',   val: daysSinceJoined },
+          { label: isSpanish ? 'Calidad' : 'Avg Q', val: avgQuality },
+          { label: isSpanish ? 'Racha' : 'Streak', val: tradingStreak },
+        ].map(({ label, val }) => (
+          <div key={label} className="flex flex-col items-center gap-1">
+            <span style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 700, fontSize: '1.6rem', color: '#FFFFFF' }}>{val}</span>
+            <span style={{ fontSize: '0.65rem', color: '#4A5568', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{label}</span>
           </div>
-          <div className="flex items-end gap-2">
-            <span className="text-4xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-              ${portfolioValue.toFixed(2)}
-            </span>
-          </div>
-          <p className="text-xs text-[#8B95B0] mt-1">
-            {isSpanish ? 'Valor estimado de investigacion' : 'Estimated research value'}
+        ))}
+      </div>
+
+      {divider}
+
+      {/* ── Profile completeness ── */}
+      <div className="px-6 py-8">
+        <div className="flex items-center justify-between mb-5">
+          <p style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#4A5568', textTransform: 'uppercase' }}>
+            {isSpanish ? 'Perfil de Salud' : 'Health Profile'}
           </p>
-        </button>
-
-        {showPremiumUnlocked && (
-          <div className="bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-6 h-6 text-[#00D4A1]" />
-              <span className="font-bold text-lg text-white">
-                {isSpanish ? 'Premium desbloqueado' : 'Premium unlocked'}
-              </span>
-            </div>
-            <p className="text-[#8B95B0] text-sm">
-              {isSpanish
-                ? 'La calidad de tus datos lo gano.'
-                : 'Your data quality earned it.'}
-            </p>
-          </div>
-        )}
-
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#7B61FF', borderLeftWidth: 4 }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Award className="w-6 h-6 text-[#7B61FF]" />
-              <span className="font-bold text-white">
-                {isSpanish ? 'Puntuacion de Calidad' : 'Quality Score'}
-              </span>
-            </div>
-            <span className="text-3xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{qualityScore + earnedProfileBonus}</span>
-          </div>
-
-          <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden mb-4">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${Math.min(qualityScore + earnedProfileBonus, 100)}%`, background: 'linear-gradient(to right, #7B61FF, #F5C842)' }}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-[#8B95B0]">{isSpanish ? 'Frecuencia (30 dias)' : 'Frequency (30 days)'}</span>
-              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{frequencyPoints}/40</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[#8B95B0]">{isSpanish ? 'Consistencia' : 'Consistency'}</span>
-              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{consistencyPoints}/30</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[#8B95B0]">{isSpanish ? 'Dimensiones' : 'Dimensions'}</span>
-              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{completenessPoints}/20</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[#8B95B0]">{isSpanish ? 'Profundidad' : 'Depth'}</span>
-              <span className="font-medium text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{depthPoints}/10</span>
-            </div>
-            {earnedProfileBonus > 0 && (
-              <div className="flex justify-between text-sm pt-1 border-t border-[#1E1E3A]">
-                <span className="text-[#00D4A1] font-medium">{isSpanish ? 'Bonus perfil de salud' : 'Health profile bonus'}</span>
-                <span className="font-bold text-[#00D4A1]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>+{earnedProfileBonus}</span>
-              </div>
-            )}
-          </div>
-
-          {totalDeposits >= 31 && totalDeposits <= 60 && (qualityScore + earnedProfileBonus) < 70 && (
-            <div className="mt-4 p-3 bg-[#F5C842]/10 border border-[#F5C842]/20 rounded-xl">
-              <p className="text-xs text-[#F5C842]">
-                {isSpanish
-                  ? `Necesitas ${70 - (qualityScore + earnedProfileBonus)} puntos mas para desbloquear Premium gratis en el nivel Crecimiento.`
-                  : `Need ${70 - (qualityScore + earnedProfileBonus)} more points to unlock free Premium at Growth tier.`}
-              </p>
-            </div>
-          )}
+          <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem', color: '#00C896' }}>
+            {earnedProfileBonus}/{maxProfileBonus}
+          </span>
         </div>
-
-        {/* Profile Completeness card */}
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#00D4A1', borderLeftWidth: 4 }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-6 h-6 text-[#00D4A1]" />
-              <span className="font-bold text-white">
-                {isSpanish ? 'Perfil de Salud' : 'Health Profile'}
-              </span>
-            </div>
-            <span className="text-lg font-bold text-[#00D4A1]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>+{earnedProfileBonus}/{maxProfileBonus}</span>
-          </div>
-          <div className="h-2 bg-[#1E1E3A] rounded-full overflow-hidden mb-4">
-            <div
-              className="h-full bg-[#00D4A1] rounded-full transition-all"
-              style={{ width: `${(earnedProfileBonus / maxProfileBonus) * 100}%` }}
-            />
-          </div>
-          <div className="space-y-2">
-            {profileBonusItems.map(item => (
-              <div key={item.key} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${item.done ? 'bg-[#00D4A1] text-[#0A0A1A]' : 'bg-[#1E1E3A] text-[#4A5568]'}`}>
-                    {item.done ? '✓' : ''}
-                  </span>
-                  <span className={item.done ? 'text-white' : 'text-[#4A5568]'}>{item.label}</span>
-                </div>
-                <span className={`font-medium ${item.done ? 'text-[#00D4A1]' : 'text-[#4A5568]'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  {item.done ? `+${item.points}` : `+${item.points} pts`}
+        {/* thin progress bar */}
+        <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{
+            height: '100%',
+            width: `${maxProfileBonus > 0 ? (earnedProfileBonus / maxProfileBonus) * 100 : 0}%`,
+            background: '#00C896',
+            borderRadius: 99,
+            transition: 'width 1s ease',
+          }} />
+        </div>
+        <div className="space-y-4">
+          {profileBonusItems.map(item => (
+            <div key={item.key} className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span style={{
+                  width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontSize: '0.6rem', flexShrink: 0,
+                  background: item.done ? '#00C896' : 'rgba(255,255,255,0.06)',
+                  color: item.done ? '#0A0A1A' : '#4A5568',
+                }}>
+                  {item.done ? '✓' : ''}
                 </span>
+                <span style={{ fontSize: '0.8rem', color: item.done ? '#FFFFFF' : '#4A5568' }}>{item.label}</span>
               </div>
-            ))}
-          </div>
+              <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.75rem', color: item.done ? '#00C896' : '#4A5568' }}>
+                +{item.points}
+              </span>
+            </div>
+          ))}
         </div>
-
-        {/* Complete your health profile CTA */}
         {!profileComplete && (
-          <div className="bg-[#111126] border border-[#7B61FF]/30 rounded-2xl p-5">
-            <div className="flex items-start gap-3 mb-3">
-              <div className="w-10 h-10 bg-[#F5C842]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-5 h-5 text-[#F5C842]" />
-              </div>
-              <div>
-                <p className="font-bold text-base text-white">
-                  {isSpanish ? 'Aumenta tu valor como dato' : 'Increase your data value'}
-                </p>
-                <p className="text-[#8B95B0] text-sm mt-1">
-                  {isSpanish
-                    ? 'Completa tu perfil de salud para aumentar tu valor como mercancia.'
-                    : 'Complete your health profile to increase your commodity value.'}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#1E1E3A]">
-              <span className="text-sm text-[#8B95B0]">
-                {isSpanish
-                  ? `${totalProfilePossible} pts disponibles`
-                  : `${totalProfilePossible} pts available`}
-              </span>
-              <button
-                onClick={() => onNavigate?.('profile-edit')}
-                className="flex items-center gap-1 bg-[#F5C842] text-[#0A0A1A] text-sm font-bold px-4 py-2 rounded-xl"
-              >
-                {isSpanish ? 'Completar perfil' : 'Complete profile'}
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-[#00D4A1]" />
-              <span className="text-xs text-[#8B95B0]">
-                {isSpanish ? 'Total depositos' : 'Total deposits'}
-              </span>
-            </div>
-            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{totalDeposits}</p>
-          </div>
-
-          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-5 h-5 text-[#F5C842]" />
-              <span className="text-xs text-[#8B95B0]">
-                {isSpanish ? 'Calidad promedio' : 'Avg quality'}
-              </span>
-            </div>
-            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{avgQuality}</p>
-          </div>
-        </div>
-
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar className="w-5 h-5 text-[#7B61FF]" />
-            <span className="text-xs text-[#8B95B0]">
-              {isSpanish ? 'Dias como Data Trader' : 'Days as Data Trader'}
+          <button
+            onClick={() => onNavigate?.('profile-edit')}
+            className="mt-6 w-full flex items-center justify-center gap-2 py-3 rounded-2xl active:opacity-70 transition-opacity"
+            style={{ background: 'rgba(255,255,255,0.04)' }}
+          >
+            <span style={{ fontSize: '0.8rem', color: '#8B95B0' }}>
+              {isSpanish
+                ? `${totalProfilePossible} pts disponibles — completar perfil`
+                : `${totalProfilePossible} pts available — complete profile`}
             </span>
-          </div>
-          <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{daysSinceJoined}</p>
-        </div>
-
-        {showSexual && (
-          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#FF6B6B', borderLeftWidth: 4 }}>
-            <div className="flex items-center gap-2 mb-2">
-              <Flame className="w-5 h-5 text-[#FF6B6B]" />
-              <span className="text-xs text-[#8B95B0]">
-                {isSpanish ? 'Datos dimension sexual' : 'Sexual dimension data'}
-              </span>
-            </div>
-            <p className="text-3xl font-bold text-white" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{sexualDeposits}</p>
-            <p className="text-xs text-[#4A5568] mt-1">
-              {isSpanish ? 'depositos' : 'deposits'}
-            </p>
-            <p className="text-xs text-[#00D4A1] mt-2 font-medium">
-              {isSpanish ? 'Dato de alto valor para investigacion' : 'High research value data point'}
-            </p>
-          </div>
+            <ChevronRight style={{ width: 14, height: 14, color: '#4A5568' }} />
+          </button>
         )}
+      </div>
 
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5" style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}>
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-5 h-5 text-[#F5C842]" />
-            <span className="text-xs text-[#8B95B0]">
-              {isSpanish ? 'Patron de ansiedad' : 'Anxiety pattern'}
-            </span>
-          </div>
-          {anxietyDeposits >= 30 && highestAnxietyPhase ? (
-            <>
-              <p className="text-sm font-medium text-white">
+      {divider}
+
+      {/* ── Anxiety insight ── */}
+      {anxietyDeposits > 0 && (
+        <>
+          <div className="px-6 py-8">
+            <p style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#4A5568', textTransform: 'uppercase', marginBottom: 12 }}>
+              {isSpanish ? 'Patron de Ansiedad' : 'Anxiety Pattern'}
+            </p>
+            {anxietyDeposits >= 30 && highestAnxietyPhase ? (
+              <p style={{ fontSize: '0.85rem', color: '#FFFFFF', lineHeight: 1.5 }}>
                 {isSpanish
                   ? `Tus ventanas de mayor ansiedad ocurren en la fase ${highestAnxietyPhase}.`
                   : `Your highest anxiety windows occur during the ${highestAnxietyPhase} phase.`}
               </p>
-              <p className="text-xs text-[#4A5568] mt-2">
-                {isSpanish
-                  ? `Basado en ${anxietyDeposits} depositos de ansiedad`
-                  : `Based on ${anxietyDeposits} anxiety deposits`}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-[#8B95B0]">
-                {isSpanish
-                  ? 'Tu patron personal de ansiedad se esta calculando. Regresa despues de 30 depositos.'
-                  : 'Your personal anxiety pattern is being calculated. Check back after 30 deposits.'}
-              </p>
-              <p className="text-xs text-[#4A5568] mt-2" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                {anxietyDeposits}/30 {isSpanish ? 'depositos' : 'deposits'}
-              </p>
-              <div className="h-1.5 bg-[#1E1E3A] rounded-full mt-2 overflow-hidden">
-                <div
-                  className="h-full bg-[#F5C842] rounded-full"
-                  style={{ width: `${Math.min((anxietyDeposits / 30) * 100, 100)}%` }}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5">
-          <h3 className="font-bold text-white mb-4" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-            {isSpanish ? 'Niveles' : 'Tiers'}
-          </h3>
-          <div className="space-y-3">
-            {tiers.map((tier) => {
-              const isCurrentTier = tier === currentTier;
-              const TIcon = tier.icon;
-              return (
-                <div
-                  key={tier.name}
-                  className={`flex items-center gap-3 p-3 rounded-xl ${
-                    isCurrentTier ? 'bg-[#7B61FF]/15 border border-[#7B61FF]/30' : 'bg-[#0A0A1A]'
-                  }`}
-                >
-                  <TIcon className={`w-5 h-5 ${isCurrentTier ? 'text-[#F5C842]' : 'text-[#4A5568]'}`} />
-                  <div className="flex-1">
-                    <p className={`font-medium ${isCurrentTier ? 'text-white' : 'text-[#8B95B0]'}`}>
-                      {isSpanish ? tier.name : tier.nameEn}
-                    </p>
-                    <p className={`text-xs ${isCurrentTier ? 'text-[#8B95B0]' : 'text-[#4A5568]'}`} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                      {tier.min}-{tier.max === Infinity ? '100+' : tier.max} {isSpanish ? 'depositos' : 'deposits'}
-                    </p>
-                  </div>
-                  {isCurrentTier && (
-                    <span className="text-xs bg-[#7B61FF]/20 text-[#7B61FF] px-2 py-1 rounded-full">
-                      {isSpanish ? 'Actual' : 'Current'}
-                    </span>
-                  )}
+            ) : (
+              <>
+                <p style={{ fontSize: '0.8rem', color: '#4A5568', marginBottom: 10 }}>
+                  {anxietyDeposits}/30 {isSpanish ? 'depositos' : 'deposits'}
+                </p>
+                <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(anxietyDeposits / 30) * 100}%`, background: '#F5C842', borderRadius: 99 }} />
                 </div>
-              );
-            })}
+              </>
+            )}
           </div>
-        </div>
+          {divider}
+        </>
+      )}
 
-        <div className="bg-[#111126] border border-[#7B61FF]/20 rounded-2xl p-5">
-          <p className="text-[#8B95B0] text-sm leading-relaxed">
-            {isSpanish
-              ? 'Eres un Data Trader. Tus patrones biologicos son tu mercancia. BioCycle es tu exchange.'
-              : 'You are a Data Trader. Your biological patterns are your commodity. BioCycle is your exchange.'}
-          </p>
-        </div>
+      {/* ── Sexual dimension (adults) ── */}
+      {showSexual && sexualDeposits > 0 && (
+        <>
+          <div className="px-6 py-8 flex items-center justify-between">
+            <div>
+              <p style={{ fontSize: '0.7rem', letterSpacing: '0.1em', color: '#4A5568', textTransform: 'uppercase', marginBottom: 6 }}>
+                {isSpanish ? 'Dimension Sexual' : 'Sexual Dimension'}
+              </p>
+              <p style={{ fontFamily: 'JetBrains Mono,monospace', fontWeight: 700, fontSize: '1.5rem', color: '#FFFFFF' }}>
+                {sexualDeposits}
+              </p>
+              <p style={{ fontSize: '0.7rem', color: '#00C896', marginTop: 4 }}>
+                {isSpanish ? 'dato de alto valor' : 'high research value'}
+              </p>
+            </div>
+            <Flame style={{ width: 24, height: 24, color: '#FF6B6B', opacity: 0.6 }} />
+          </div>
+          {divider}
+        </>
+      )}
+
+      {/* ── Premium unlocked ── */}
+      {showPremiumUnlocked && (
+        <>
+          <div className="px-6 py-6 flex items-center gap-3">
+            <CheckCircle style={{ width: 18, height: 18, color: '#00C896', flexShrink: 0 }} />
+            <p style={{ fontSize: '0.8rem', color: '#00C896' }}>
+              {isSpanish ? 'Premium desbloqueado — la calidad de tus datos lo gano.' : 'Premium unlocked — your data quality earned it.'}
+            </p>
+          </div>
+          {divider}
+        </>
+      )}
+
+      {/* ── Tagline ── */}
+      <div className="px-6 py-10">
+        <p style={{ fontSize: '0.75rem', color: '#2A2A45', lineHeight: 1.6, textAlign: 'center' }}>
+          {isSpanish
+            ? 'Eres un Data Trader. Tus patrones biologicos son tu mercancia. BioCycle es tu exchange.'
+            : 'You are a Data Trader. Your biological patterns are your commodity. BioCycle is your exchange.'}
+        </p>
       </div>
 
-      {/* Portfolio breakdown modal */}
+      {/* ── Portfolio breakdown modal ── */}
       {showPortfolioModal && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setShowPortfolioModal(false)}>
-          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
-                {isSpanish ? 'Desglose del Portafolio' : 'Portfolio Breakdown'}
-              </h2>
-              <button onClick={() => setShowPortfolioModal(false)} className="text-[#4A5568] hover:text-white">
-                <X className="w-5 h-5" />
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setShowPortfolioModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-3xl px-6 pt-6 pb-10"
+            style={{ background: '#111126' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.12)', borderRadius: 99, margin: '0 auto 20px' }} />
+
+            <div className="flex items-center justify-between mb-6">
+              <p style={{ fontSize: '1rem', fontWeight: 600, color: '#FFFFFF' }}>
+                {isSpanish ? 'Como se calcula tu valor' : 'How your value is calculated'}
+              </p>
+              <button onClick={() => setShowPortfolioModal(false)}>
+                <X style={{ width: 18, height: 18, color: '#4A5568' }} />
               </button>
             </div>
 
-            <div className="space-y-3 mb-5">
-              {/* Days data */}
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8B95B0]">
-                  {isSpanish ? `${daysSinceJoined} dias × $0.15` : `${daysSinceJoined} days × $0.15`}
+            <div className="space-y-4 mb-6">
+              {/* Days */}
+              <div className="flex justify-between items-center">
+                <span style={{ fontSize: '0.8rem', color: '#8B95B0' }}>
+                  {daysSinceJoined} {isSpanish ? 'días × $0.15' : 'days × $0.15'}
                 </span>
-                <span className="text-white font-medium" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                  ${(daysValue).toFixed(2)}
+                <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem', color: '#FFFFFF' }}>
+                  ${daysValue.toFixed(2)}
                 </span>
               </div>
-              {/* Quality multiplier */}
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-[#8B95B0]">
-                  {isSpanish ? `Multiplicador calidad (${Math.round(qualityMultiplier * 100)}%)` : `Quality multiplier (${Math.round(qualityMultiplier * 100)}%)`}
+              {/* Quality */}
+              <div className="flex justify-between items-center">
+                <span style={{ fontSize: '0.8rem', color: '#8B95B0' }}>
+                  {isSpanish ? 'Multiplicador calidad' : 'Quality multiplier'} ({Math.round(qualityMultiplier * 100)}%)
                 </span>
-                <span className="text-white font-medium" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem', color: '#FFFFFF' }}>
                   ×{qualityMultiplier.toFixed(2)}
                 </span>
               </div>
-
-              <div className="border-t border-[#1E1E3A] pt-3 space-y-2">
-                {/* Health profile */}
-                <div className="flex justify-between items-center text-sm">
-                  <span className={healthProfileDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
-                    {isSpanish ? 'Perfil de salud' : 'Health profile'} {healthProfileDone ? '✓' : '○'}
+              {/* Separator */}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+              {/* Bonuses */}
+              {[
+                { label: isSpanish ? 'Perfil de salud' : 'Health profile', done: healthProfileDone, val: '$5.00' },
+                { label: isSpanish ? 'Perfil medico' : 'Medical profile',  done: medicalProfileDone, val: '$8.00' },
+                { label: isSpanish ? 'Tipo de sangre' : 'Blood type',       done: bloodTypeDone,      val: '$3.00' },
+                { label: isSpanish ? 'Datos de ejercicio' : 'Exercise data',done: exerciseDone,       val: '$2.00' },
+              ].map(({ label, done, val }) => (
+                <div key={label} className="flex justify-between items-center">
+                  <span style={{ fontSize: '0.8rem', color: done ? '#00C896' : '#2A2A45' }}>
+                    {done ? '✓' : '○'} {label}
                   </span>
-                  <span className={healthProfileDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                    +$5.00
-                  </span>
-                </div>
-                {/* Medical profile */}
-                <div className="flex justify-between items-center text-sm">
-                  <span className={medicalProfileDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
-                    {isSpanish ? 'Perfil medico' : 'Medical profile'} {medicalProfileDone ? '✓' : '○'}
-                  </span>
-                  <span className={medicalProfileDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                    +$8.00
+                  <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem', color: done ? '#00C896' : '#2A2A45' }}>
+                    +{val}
                   </span>
                 </div>
-                {/* Blood type */}
-                <div className="flex justify-between items-center text-sm">
-                  <span className={bloodTypeDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
-                    {isSpanish ? 'Tipo de sangre' : 'Blood type'} {bloodTypeDone ? '✓' : '○'}
-                  </span>
-                  <span className={bloodTypeDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                    +$3.00
-                  </span>
+              ))}
+              {userAge >= 40 && (
+                <div className="flex justify-between items-center">
+                  <span style={{ fontSize: '0.8rem', color: '#FFD93D' }}>✓ {isSpanish ? 'Bonus 40+' : '40+ bonus'}</span>
+                  <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '0.8rem', color: '#FFD93D' }}>×1.3</span>
                 </div>
-                {/* Exercise */}
-                <div className="flex justify-between items-center text-sm">
-                  <span className={exerciseDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
-                    {isSpanish ? 'Datos de ejercicio' : 'Exercise data'} {exerciseDone ? '✓' : '○'}
-                  </span>
-                  <span className={exerciseDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                    +$2.00
-                  </span>
-                </div>
-                {/* Age bonus */}
-                {userAge >= 40 && (
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-[#F5C842]">
-                      {isSpanish ? 'Bonus 40+ (mayor valor)' : '40+ bonus (higher value)'} ✓
-                    </span>
-                    <span className="text-[#F5C842] font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-                      ×1.3
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div className="border-t border-[#1E1E3A] pt-3 flex justify-between items-center">
-                <span className="font-bold text-white">
-                  {isSpanish ? 'Valor total' : 'Total value'}
+              )}
+              {/* Total */}
+              <div style={{ height: 1, background: 'rgba(255,255,255,0.06)' }} />
+              <div className="flex justify-between items-center">
+                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#FFFFFF' }}>
+                  {isSpanish ? 'Total' : 'Total'}
                 </span>
-                <span className="text-2xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '1.4rem', fontWeight: 700, color: '#FFD93D' }}>
                   ${portfolioValue.toFixed(2)}
                 </span>
               </div>
             </div>
 
             {unlockableBonus > 0 && (
-              <div className="bg-[#F5C842]/10 border border-[#F5C842]/20 rounded-xl p-4 mb-4">
-                <p className="text-sm text-[#F5C842] font-medium">
+              <div style={{ background: 'rgba(255,217,61,0.06)', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
+                <p style={{ fontSize: '0.78rem', color: '#FFD93D', lineHeight: 1.5 }}>
                   {isSpanish
-                    ? `Completa tu perfil de salud para desbloquear +$${unlockableBonus.toFixed(2)} mas de valor`
-                    : `Complete your health profile to unlock +$${unlockableBonus.toFixed(2)} more value`}
+                    ? `Completa tu perfil de salud → desbloquear +$${unlockableBonus.toFixed(2)} mas`
+                    : `Complete your health profile → unlock +$${unlockableBonus.toFixed(2)} more`}
                 </p>
               </div>
             )}
 
             <button
               onClick={() => { setShowPortfolioModal(false); onNavigate?.('profile-edit'); }}
-              className="w-full py-3 bg-[#7B61FF] text-white font-bold rounded-xl text-sm"
+              className="w-full py-3.5 rounded-2xl font-semibold text-sm active:opacity-80 transition-opacity"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#FFFFFF' }}
             >
-              {isSpanish ? 'Aumentar mi valor' : 'Increase my value'}
+              {isSpanish ? 'Mejorar mi perfil' : 'Improve my profile'}
             </button>
           </div>
         </div>
