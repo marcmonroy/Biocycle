@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
-import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download, ShieldCheck, ChevronRight, Zap } from 'lucide-react';
+import { TrendingUp, Calendar, Loader2, Sprout, TreeDeciduous, Leaf, Crown, Sparkles, Flame, AlertTriangle, Award, CheckCircle, Download, ShieldCheck, ChevronRight, Zap, ArrowUpRight, X } from 'lucide-react';
 
 function calculateAge(birthDate: string): number {
   const birth = new Date(birthDate);
@@ -78,6 +78,7 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const [profileBonusPoints, setProfileBonusPoints] = useState(0);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [tradingStreak, setTradingStreak] = useState(0);
+  const [showPortfolioModal, setShowPortfolioModal] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -339,6 +340,27 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const totalProfilePossible = profileBonusItems.filter(i => !i.done).reduce((sum, i) => sum + i.points, 0);
   const profileComplete = earnedProfileBonus === maxProfileBonus;
 
+  // ── Portfolio Value ────────────────────────────────────────────────────────
+  const healthProfileDone = !!(profile.height_cm && profile.weight_kg && profile.sleep_hours && (profile.exercise_frequency || profile.exercise_type));
+  const medicalProfileDone = Array.isArray(profile.known_conditions) && profile.known_conditions.length > 0
+    && Array.isArray(profile.current_medications) && profile.current_medications.length > 0
+    && Array.isArray(profile.family_history) && profile.family_history.length > 0;
+  const bloodTypeDone = !!profile.blood_type;
+  const exerciseDone = !!(profile.exercise_frequency || profile.exercise_type);
+
+  const daysValue = daysSinceJoined * 0.15;
+  const qualityMultiplier = Math.max(0.01, (qualityScore + earnedProfileBonus) / 100);
+  let portfolioValue = daysValue * qualityMultiplier;
+  if (healthProfileDone) portfolioValue += 5;
+  if (medicalProfileDone) portfolioValue += 8;
+  if (bloodTypeDone) portfolioValue += 3;
+  if (exerciseDone) portfolioValue += 2;
+  const userAge = profile.fecha_nacimiento ? calculateAge(profile.fecha_nacimiento) : 0;
+  if (userAge >= 40) portfolioValue *= 1.3;
+  portfolioValue = Math.max(1.00, portfolioValue);
+
+  const unlockableBonus = (healthProfileDone ? 0 : 5) + (medicalProfileDone ? 0 : 8) + (bloodTypeDone ? 0 : 3) + (exerciseDone ? 0 : 2);
+
   return (
     <div className="min-h-screen bg-[#0A0A1A] pb-24">
       <div className="bg-[#0A0A1A] border-b border-[#1E1E3A] px-5 pt-12 pb-6">
@@ -428,6 +450,28 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
             )}
           </div>
         </div>
+
+        {/* Portfolio Value */}
+        <button
+          onClick={() => setShowPortfolioModal(true)}
+          className="w-full text-left bg-[#111126] border border-[#1E1E3A] rounded-2xl p-5 active:opacity-80 transition-opacity"
+          style={{ borderLeftColor: '#F5C842', borderLeftWidth: 4 }}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-sm text-[#8B95B0]">
+              {isSpanish ? 'Valor del Portafolio' : 'Portfolio Value'}
+            </span>
+            <ArrowUpRight className="w-4 h-4 text-[#00C896]" />
+          </div>
+          <div className="flex items-end gap-2">
+            <span className="text-4xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              ${portfolioValue.toFixed(2)}
+            </span>
+          </div>
+          <p className="text-xs text-[#8B95B0] mt-1">
+            {isSpanish ? 'Valor estimado de investigacion' : 'Estimated research value'}
+          </p>
+        </button>
 
         {showPremiumUnlocked && (
           <div className="bg-[#00D4A1]/10 border border-[#00D4A1]/30 rounded-2xl p-5">
@@ -701,6 +745,119 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           </p>
         </div>
       </div>
+
+      {/* Portfolio breakdown modal */}
+      {showPortfolioModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end justify-center p-4" onClick={() => setShowPortfolioModal(false)}>
+          <div className="bg-[#111126] border border-[#1E1E3A] rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-white" style={{ fontFamily: 'Clash Display, system-ui, sans-serif' }}>
+                {isSpanish ? 'Desglose del Portafolio' : 'Portfolio Breakdown'}
+              </h2>
+              <button onClick={() => setShowPortfolioModal(false)} className="text-[#4A5568] hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 mb-5">
+              {/* Days data */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[#8B95B0]">
+                  {isSpanish ? `${daysSinceJoined} dias × $0.15` : `${daysSinceJoined} days × $0.15`}
+                </span>
+                <span className="text-white font-medium" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  ${(daysValue).toFixed(2)}
+                </span>
+              </div>
+              {/* Quality multiplier */}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[#8B95B0]">
+                  {isSpanish ? `Multiplicador calidad (${Math.round(qualityMultiplier * 100)}%)` : `Quality multiplier (${Math.round(qualityMultiplier * 100)}%)`}
+                </span>
+                <span className="text-white font-medium" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  ×{qualityMultiplier.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="border-t border-[#1E1E3A] pt-3 space-y-2">
+                {/* Health profile */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className={healthProfileDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
+                    {isSpanish ? 'Perfil de salud' : 'Health profile'} {healthProfileDone ? '✓' : '○'}
+                  </span>
+                  <span className={healthProfileDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    +$5.00
+                  </span>
+                </div>
+                {/* Medical profile */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className={medicalProfileDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
+                    {isSpanish ? 'Perfil medico' : 'Medical profile'} {medicalProfileDone ? '✓' : '○'}
+                  </span>
+                  <span className={medicalProfileDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    +$8.00
+                  </span>
+                </div>
+                {/* Blood type */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className={bloodTypeDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
+                    {isSpanish ? 'Tipo de sangre' : 'Blood type'} {bloodTypeDone ? '✓' : '○'}
+                  </span>
+                  <span className={bloodTypeDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    +$3.00
+                  </span>
+                </div>
+                {/* Exercise */}
+                <div className="flex justify-between items-center text-sm">
+                  <span className={exerciseDone ? 'text-[#00C896]' : 'text-[#4A5568]'}>
+                    {isSpanish ? 'Datos de ejercicio' : 'Exercise data'} {exerciseDone ? '✓' : '○'}
+                  </span>
+                  <span className={exerciseDone ? 'text-[#00C896] font-bold' : 'text-[#4A5568]'} style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    +$2.00
+                  </span>
+                </div>
+                {/* Age bonus */}
+                {userAge >= 40 && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-[#F5C842]">
+                      {isSpanish ? 'Bonus 40+ (mayor valor)' : '40+ bonus (higher value)'} ✓
+                    </span>
+                    <span className="text-[#F5C842] font-bold" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                      ×1.3
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-[#1E1E3A] pt-3 flex justify-between items-center">
+                <span className="font-bold text-white">
+                  {isSpanish ? 'Valor total' : 'Total value'}
+                </span>
+                <span className="text-2xl font-bold text-[#F5C842]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  ${portfolioValue.toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {unlockableBonus > 0 && (
+              <div className="bg-[#F5C842]/10 border border-[#F5C842]/20 rounded-xl p-4 mb-4">
+                <p className="text-sm text-[#F5C842] font-medium">
+                  {isSpanish
+                    ? `Completa tu perfil de salud para desbloquear +$${unlockableBonus.toFixed(2)} mas de valor`
+                    : `Complete your health profile to unlock +$${unlockableBonus.toFixed(2)} more value`}
+                </p>
+              </div>
+            )}
+
+            <button
+              onClick={() => { setShowPortfolioModal(false); onNavigate?.('profile-edit'); }}
+              className="w-full py-3 bg-[#7B61FF] text-white font-bold rounded-xl text-sm"
+            >
+              {isSpanish ? 'Aumentar mi valor' : 'Increase my value'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

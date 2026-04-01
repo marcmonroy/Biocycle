@@ -4,14 +4,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface CheckinTime {
-  label: "morning" | "afternoon" | "night";
-  time: string; // "HH:MM" 24h
+  label: string;  // canonical: "morning" | "afternoon" | "night"
+  time: string;   // "HH:MM" 24h
   enabled: boolean;
 }
 
 interface Profile {
   id: string;
   genero: string | null;
+  fecha_nacimiento: string | null;
   idioma: string;
   cycle_length: number;
   last_period_date: string | null;
@@ -86,12 +87,7 @@ function getTimeSlot(now: Date): TimeSlot {
   return "night";
 }
 
-/** Returns true if the slot's scheduled HH:MM matches the current local hour */
-function slotMatchesCurrentHour(slot: CheckinTime, now: Date): boolean {
-  if (!slot.enabled) return false;
-  const [hh] = slot.time.split(":").map(Number);
-  return hh === getLocalHour(now);
-}
+// slotMatchesCurrentHour removed — replaced by catch-up window logic in main handler
 
 // ── Card library with version rotation support ─────────────────────────────
 
@@ -219,6 +215,92 @@ async function selectCard(
   };
 }
 
+// ── Simple card selector (gender × age × slot × picardia_mode) ────────────
+
+interface SimpleCard {
+  id: string;
+  image: string;
+  teaser: string;
+}
+
+const SIMPLE_CARDS: Record<string, Record<TimeSlot, SimpleCard>> = {
+  female: {
+    morning:   { id: "simple_female_morning",   image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/160.png", teaser: "Tu fase hormonal tiene algo que decirte esta manana." },
+    afternoon: { id: "simple_female_afternoon", image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/330.png", teaser: "Tu energia de la tarde tiene su propia historia." },
+    night:     { id: "simple_female_night",     image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/380.png", teaser: "Tu cuerpo necesita descanso esta noche." },
+  },
+  female_40plus: {
+    morning:   { id: "simple_female_40plus_morning",   image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/340.png", teaser: "Tu transicion hormonal habla esta manana." },
+    afternoon: { id: "simple_female_40plus_afternoon", image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/350.png", teaser: "Tu energia tiene su propia logica esta tarde." },
+    night:     { id: "simple_female_40plus_night",     image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/360.png", teaser: "Tu noche merece un cierre especial." },
+  },
+  male: {
+    morning:   { id: "simple_male_morning",   image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/401.png", teaser: "Tu testosterona matutina tiene planes hoy." },
+    afternoon: { id: "simple_male_afternoon", image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/371.png", teaser: "Tu cortisol de la tarde tiene algo que decir." },
+    night:     { id: "simple_male_night",     image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/381.png", teaser: "Tu ciclo nocturno comienza ahora." },
+  },
+  male_40plus: {
+    morning:   { id: "simple_male_40plus_morning",   image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/361.png", teaser: "Tu testosterona madura tiene su propio ritmo." },
+    afternoon: { id: "simple_male_40plus_afternoon", image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/371.png", teaser: "Tu energia se recalibra con experiencia esta tarde." },
+    night:     { id: "simple_male_40plus_night",     image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/381.png", teaser: "Tu noche despues de los 40 tiene su propia sabiduria." },
+  },
+};
+
+const SIMPLE_DEFAULT: SimpleCard = {
+  id: "simple_default",
+  image: "https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/706.png",
+  teaser: "Tu biologia tiene algo importante que decirte hoy.",
+};
+
+function calculateAge(fechaNacimiento: string | null): number | null {
+  if (!fechaNacimiento) return null;
+  const birth = new Date(fechaNacimiento);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function normalizeGender(genero: string | null): "male" | "female" | null {
+  if (!genero) return null;
+  const g = genero.trim().toLowerCase();
+  if (["masculino", "male", "m"].includes(g)) return "male";
+  if (["femenino", "female", "f"].includes(g)) return "female";
+  return null;
+}
+
+function pickSimpleCard(
+  genero: string | null,
+  fechaNacimiento: string | null,
+  slot: string,
+  _picardiaMode: boolean,
+): SimpleCard {
+  // Normalize legacy slot values to the 3-slot model
+  const normalizedSlot: TimeSlot =
+    slot === "midday"  ? "afternoon" :
+    slot === "evening" ? "night"     :
+    slot as TimeSlot;
+
+  const gender = normalizeGender(genero);
+  const age = calculateAge(fechaNacimiento);
+  const is40plus = age !== null && age >= 40;
+
+  const tableKey =
+    gender === "female" && is40plus ? "female_40plus" :
+    gender === "female"             ? "female"        :
+    gender === "male"   && is40plus ? "male_40plus"   :
+    gender === "male"               ? "male"          : null;
+
+  console.log(
+    `[pickSimpleCard] genero="${genero}" age=${age ?? "unknown"} slot="${slot}"->normalizedSlot="${normalizedSlot}" tableKey=${tableKey ?? "default"}`,
+  );
+
+  if (tableKey) return SIMPLE_CARDS[tableKey][normalizedSlot];
+  return SIMPLE_DEFAULT;
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -245,7 +327,7 @@ Deno.serve(async (req: Request) => {
   const { data: profiles, error: profilesError } = await supabase
     .from("profiles")
     .select(
-      "id, genero, idioma, cycle_length, last_period_date, picardia_mode, whatsapp_phone, whatsapp_enabled, checkin_times",
+      "id, genero, fecha_nacimiento, idioma, cycle_length, last_period_date, picardia_mode, whatsapp_phone, whatsapp_enabled, checkin_times",
     )
     .eq("whatsapp_enabled", true)
     .not("whatsapp_phone", "is", null);
@@ -259,165 +341,198 @@ Deno.serve(async (req: Request) => {
   }
 
   const eligible: Profile[] = profiles ?? [];
+  console.log('Profiles found:', profiles?.length, 'Error:', profilesError?.message);
   console.log(`[schedule-cards] Found ${eligible.length} WhatsApp-enabled profiles`);
 
   const results: { userId: string; status: string; detail?: string }[] = [];
 
   for (const profile of eligible) {
     try {
-      // 2. Parse checkin_times — handles both pre-parsed object and raw JSON string
+      console.log('Processing user:', profile.id, 'phone:', profile.whatsapp_phone, 'checkinTimes raw:', JSON.stringify(profile.checkin_times));
+      // 2. Parse checkin_times — handles both pre-parsed object and raw JSON string,
+      //    and both {label:"morning"} and {slot:"morning"} field naming conventions.
+      //    Legacy labels are normalized: midday→afternoon, evening→night.
+      const LABEL_DEFAULTS: CheckinTime[] = [
+        { label: "morning",   time: "07:30", enabled: true },
+        { label: "afternoon", time: "14:00", enabled: true },
+        { label: "night",     time: "21:30", enabled: true },
+      ];
+      function normalizeLegacyLabel(raw: string): string {
+        if (raw === "midday")  return "afternoon";
+        if (raw === "evening") return "night";
+        return raw;
+      }
       const rawTimes = profile.checkin_times;
       const checkinTimes: CheckinTime[] = (() => {
         try {
-          const parsed = typeof rawTimes === "string" ? JSON.parse(rawTimes) : rawTimes;
-          return Array.isArray(parsed) && parsed.length > 0
-            ? parsed
-            : [
-                { label: "morning",   time: "07:30", enabled: true },
-                { label: "afternoon", time: "14:00", enabled: true },
-                { label: "night",     time: "21:30", enabled: true },
-              ];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const parsed: any[] = typeof rawTimes === "string" ? JSON.parse(rawTimes) : rawTimes;
+          if (!Array.isArray(parsed) || parsed.length === 0) return LABEL_DEFAULTS;
+          return parsed.map((s) => ({
+            label:   normalizeLegacyLabel(String(s.label ?? s.slot ?? "morning")),
+            time:    String(s.time ?? "07:30"),
+            enabled: s.enabled !== false, // default true if missing
+          }));
         } catch {
           console.warn(`[schedule-cards] User ${profile.id} — failed to parse checkin_times, using defaults`);
-          return [
-            { label: "morning",   time: "07:30", enabled: true },
-            { label: "afternoon", time: "14:00", enabled: true },
-            { label: "night",     time: "21:30", enabled: true },
-          ];
+          return LABEL_DEFAULTS;
         }
       })();
 
+      // Compute DR local time in total minutes for catch-up window arithmetic
+      const localMinute = (now.getUTCMinutes());
+      const localTotalMinutes = localHour * 60 + localMinute;
+
+      // Compute today's date string in DR local time (UTC-4)
+      const drNow = new Date(now.getTime() + DR_UTC_OFFSET * 60 * 60 * 1000);
+      const todayDR = drNow.toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+      console.log('Parsed checkinTimes:', JSON.stringify(checkinTimes), 'localTotalMinutes:', localTotalMinutes);
       console.log(
-        `[schedule-cards] User ${profile.id} checkinTimes=${JSON.stringify(checkinTimes)} localHour=${localHour}`,
+        `[schedule-cards] User ${profile.id} checkinTimes=${JSON.stringify(checkinTimes)} localHour=${localHour} localMinute=${localMinute} todayDR=${todayDR}`,
       );
 
-      const matchingSlot = checkinTimes.find((slot) => {
+      // 3. Query whatsapp_sends for slots already sent today for this user
+      const { data: sentRows, error: sentError } = await supabase
+        .from("whatsapp_sends")
+        .select("time_slot")
+        .eq("user_id", profile.id)
+        .eq("status", "sent")
+        .gte("created_at", `${todayDR}T00:00:00+00:00`)
+        .lt("created_at", `${todayDR}T23:59:59+00:00`);
+
+      const sentSlots = new Set<string>((sentRows ?? []).map((r: { time_slot: string }) => r.time_slot));
+      console.log('Sent slots today:', Array.from(sentSlots), 'Error:', sentError?.message);
+      console.log(`[schedule-cards] User ${profile.id} — sentSlots today: [${[...sentSlots].join(", ")}]`);
+
+      // 4. Find pending slots: enabled + scheduled hour passed + within 3-hour catch-up window + not already sent
+      const CATCHUP_WINDOW_MINUTES = 300; // 5 hours
+      const pendingSlots = checkinTimes.filter((slot) => {
         if (!slot.enabled) return false;
-        const slotHour = parseInt(slot.time.split(":")[0], 10);
-        return slotHour === localHour;
+        if (sentSlots.has(slot.label)) return false;
+        const [slotHourStr, slotMinuteStr] = slot.time.split(":");
+        const slotTotalMinutes = parseInt(slotHourStr, 10) * 60 + parseInt(slotMinuteStr, 10);
+        const elapsed = localTotalMinutes - slotTotalMinutes;
+        // Slot must have started (elapsed >= 0) and be within the 3-hour catch-up window
+        return elapsed >= 0 && elapsed <= CATCHUP_WINDOW_MINUTES;
       });
 
-      if (!matchingSlot) {
-        console.log(`[schedule-cards] User ${profile.id} — no slot matches localHour=${localHour}, skipping`);
+      console.log('Pending slots:', JSON.stringify(pendingSlots));
+      if (pendingSlots.length === 0) {
+        console.log(`[schedule-cards] User ${profile.id} — no pending slots, skipping`);
         continue;
       }
-      console.log(`[schedule-cards] User ${profile.id} — matched slot label=${matchingSlot.label} time=${matchingSlot.time}`);
+      console.log(`[schedule-cards] User ${profile.id} — pendingSlots: [${pendingSlots.map(s => s.label).join(", ")}]`);
 
-
-      // 3. Determine phase and card (with version rotation)
-      const phase = calculatePhase(profile, now);
-      const card = await selectCard(supabase, profile.id, phase, matchingSlot.label as TimeSlot);
-      const isSpanish = profile.idioma === "ES";
-
-      const FALLBACK_TEASER = "Tu biologia tiene algo importante que decirte hoy.";
-      const rawTeaser = (isSpanish ? card.teaser_ES : card.teaser_EN) || "";
-      const teaserText = (() => {
-        let t = rawTeaser
-          // Strip emoji (Unicode ranges for emoji/symbols)
-          .replace(/[\u{1F000}-\u{1FFFF}|\u{2600}-\u{27FF}|\u{2300}-\u{23FF}|\u{1F300}-\u{1F9FF}|\u{FE00}-\u{FEFF}]/gu, "")
-          // Remove newlines and carriage returns
-          .replace(/[\n\r]/g, " ")
-          // Remove characters that could break JSON (control chars)
-          .replace(/[\x00-\x1F\x7F]/g, "")
-          // Collapse multiple spaces
-          .replace(/  +/g, " ")
-          .trim();
-        if (!t) t = FALLBACK_TEASER;
-        // Hard cap at 160 characters
-        if (t.length > 160) t = t.slice(0, 157) + "...";
-        return t;
-      })();
-      const language = isSpanish ? "ES" : "EN";
-
-      // Phone number passed exactly as stored — no modification
+      // Phone number validation — strip leading +, require 10–13 digits
       const phoneNumber = profile.whatsapp_phone;
-
       if (!phoneNumber) {
         console.warn(`[schedule-cards] User ${profile.id} — whatsapp_phone is empty, skipping`);
         results.push({ userId: profile.id, status: "skipped", detail: "no phone number" });
         continue;
       }
+      const digitsOnly = phoneNumber.replace(/^\+/, "").replace(/\D/g, "");
+      if (digitsOnly.length < 10 || digitsOnly.length > 13) {
+        console.warn(`[schedule-cards] User ${profile.id} — invalid phone "${phoneNumber}" (${digitsOnly.length} digits), skipping`);
+        results.push({ userId: profile.id, status: "skipped", detail: `invalid phone: ${digitsOnly.length} digits` });
+        continue;
+      }
 
-      console.log(
-        `[schedule-cards] Sending to user=${profile.id} phone=${phoneNumber} phase=${phase} slot=${matchingSlot.label}`,
-      );
-      console.log(`[schedule-cards] teaserText (${teaserText.length} chars): "${teaserText}"`);
+      // 5. Send a card for each pending slot
+      for (const pendingSlot of pendingSlots) {
+        // Select card based on gender × age × slot × picardia_mode
+        console.log(`[schedule-cards] User ${profile.id} slot=${pendingSlot.label} — genero="${profile.genero}" fecha_nacimiento="${profile.fecha_nacimiento}"`);
+        const card = pickSimpleCard(profile.genero, profile.fecha_nacimiento, pendingSlot.label, profile.picardia_mode);
+        const rawTeaser = card.teaser;
+        const teaserText = (() => {
+          let t = rawTeaser
+            .replace(/[\u{1F000}-\u{1FFFF}|\u{2600}-\u{27FF}|\u{2300}-\u{23FF}|\u{1F300}-\u{1F9FF}|\u{FE00}-\u{FEFF}]/gu, "")
+            .replace(/[\n\r]/g, " ")
+            .replace(/[\x00-\x1F\x7F]/g, "")
+            .replace(/  +/g, " ")
+            .trim();
+          if (!t) t = SIMPLE_DEFAULT.teaser;
+          if (t.length > 160) t = t.slice(0, 157) + "...";
+          return t;
+        })();
+        const language = profile.idioma === "ES" ? "ES" : "EN";
 
-      // 4. Call send-whatsapp-card edge function
-      console.log(`[schedule-cards] Calling send-whatsapp-card url=${sendCardUrl} authKey=SERVICE_ROLE key_prefix=${serviceRoleKey.slice(0, 8)}...`);
-      let twilio_sid: string | null = null;
-      let success = false;
-      let error_message: string | null = null;
-      let httpStatus: number | null = null;
+        console.log(`[schedule-cards] Sending to user=${profile.id} phone=${phoneNumber} card=${card.id} slot=${pendingSlot.label}`);
+        console.log(`[schedule-cards] teaserText (${teaserText.length} chars): "${teaserText}"`);
 
-      try {
-        const sendRes = await fetch(sendCardUrl, {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + serviceRoleKey,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: profile.id,
-            cardId: card.id,
-            teaserText,
-            phoneNumber,
-            language,
-            timeSlot: matchingSlot.label,
-          }),
-        });
-
-        httpStatus = sendRes.status;
-        let sendData: Record<string, unknown>;
+        console.log(`[schedule-cards] Calling send-whatsapp-card url=${sendCardUrl} authKey=SERVICE_ROLE key_prefix=${serviceRoleKey.slice(0, 8)}...`);
+        let twilio_sid: string | null = null;
+        let success = false;
+        let error_message: string | null = null;
+        let httpStatus: number | null = null;
 
         try {
-          sendData = await sendRes.json();
-        } catch {
-          throw new Error(`Non-JSON response from send-whatsapp-card (HTTP ${httpStatus})`);
+          const sendRes = await fetch(sendCardUrl, {
+            method: "POST",
+            headers: {
+              Authorization: "Bearer " + serviceRoleKey,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              userId: profile.id,
+              cardId: card.id,
+              teaserText,
+              phoneNumber,
+              language,
+              timeSlot: pendingSlot.label,
+            }),
+          });
+
+          httpStatus = sendRes.status;
+          let sendData: Record<string, unknown>;
+          try {
+            sendData = await sendRes.json();
+          } catch {
+            throw new Error(`Non-JSON response from send-whatsapp-card (HTTP ${httpStatus})`);
+          }
+
+          console.log(`[schedule-cards] send-whatsapp-card response HTTP=${httpStatus}:`, JSON.stringify(sendData));
+
+          if (sendData.success && sendData.sid) {
+            twilio_sid = sendData.sid as string;
+            success = true;
+            console.log(`[schedule-cards] ✓ Sent to user=${profile.id} slot=${pendingSlot.label} sid=${twilio_sid}`);
+          } else {
+            const errDetail = sendData.error
+              ? (typeof sendData.error === "object" ? JSON.stringify(sendData.error) : String(sendData.error))
+              : sendData.message
+              ? String(sendData.message)
+              : `HTTP ${httpStatus} — no sid returned`;
+            error_message = errDetail;
+            console.error(`[schedule-cards] ✗ Failed for user=${profile.id} slot=${pendingSlot.label}: ${error_message}`);
+          }
+        } catch (sendErr) {
+          error_message = sendErr instanceof Error ? sendErr.message : "Fetch failed";
+          console.error(`[schedule-cards] ✗ Fetch error for user=${profile.id} slot=${pendingSlot.label}: ${error_message}`);
         }
 
-        console.log(`[schedule-cards] send-whatsapp-card response HTTP=${httpStatus}:`, JSON.stringify(sendData));
-
-        if (sendData.success && sendData.sid) {
-          twilio_sid = sendData.sid as string;
-          success = true;
-          console.log(`[schedule-cards] ✓ Sent to user=${profile.id} sid=${twilio_sid}`);
-        } else {
-          const errDetail = sendData.error
-            ? (typeof sendData.error === "object"
-                ? JSON.stringify(sendData.error)
-                : String(sendData.error))
-            : sendData.message
-            ? String(sendData.message)
-            : `HTTP ${httpStatus} — no sid returned`;
-          error_message = errDetail;
-          console.error(`[schedule-cards] ✗ Failed for user=${profile.id}: ${error_message}`);
+        // Log to whatsapp_sends with time_slot
+        const { error: insertErr } = await supabase.from("whatsapp_sends").insert({
+          user_id: profile.id,
+          card_id: card.id,
+          phone_number: phoneNumber,
+          teaser_text: teaserText,
+          image_url: card.image,
+          twilio_sid,
+          success,
+          error_message,
+          time_slot: pendingSlot.label,
+        });
+        if (insertErr) {
+          console.warn(`[schedule-cards] Failed to insert whatsapp_sends for user=${profile.id} slot=${pendingSlot.label}: ${insertErr.message}`);
         }
-      } catch (sendErr) {
-        error_message = sendErr instanceof Error ? sendErr.message : "Fetch failed";
-        console.error(`[schedule-cards] ✗ Fetch error for user=${profile.id}: ${error_message}`);
-      }
 
-      // 5. Log to whatsapp_sends
-      const { error: insertErr } = await supabase.from("whatsapp_sends").insert({
-        user_id: profile.id,
-        card_id: card.id,
-        phone_number: phoneNumber,
-        teaser_text: teaserText,
-        image_url: card.image,
-        twilio_sid,
-        success,
-        error_message,
-      });
-      if (insertErr) {
-        console.warn(`[schedule-cards] Failed to insert whatsapp_sends for user=${profile.id}: ${insertErr.message}`);
+        results.push({
+          userId: profile.id,
+          status: success ? "sent" : "failed",
+          detail: success ? twilio_sid ?? undefined : error_message ?? undefined,
+        });
       }
-
-      results.push({
-        userId: profile.id,
-        status: success ? "sent" : "failed",
-        detail: success ? twilio_sid ?? undefined : error_message ?? undefined,
-      });
     } catch (userErr) {
       // Gracefully handle per-user errors without stopping others
       const msg = userErr instanceof Error ? userErr.message : "Unknown error";
