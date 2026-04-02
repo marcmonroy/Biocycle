@@ -4,6 +4,7 @@ import { PhaseData } from '../utils/phaseEngine';
 import { getTodayStats } from '../utils/statsUtils';
 import { Settings, Share2, X, LogOut, Loader2, AlertTriangle, Bell, Save, Trash2, Download, MessageCircle, Lock } from 'lucide-react';
 import { CheckinTime, DEFAULT_CHECKIN_TIMES, scheduleNotifications } from '../utils/notifications';
+import { getCardForUser } from '../data/cardLibrary';
 
 interface HomeScreenProps {
   profile: Profile;
@@ -11,19 +12,6 @@ interface HomeScreenProps {
   onNavigate: (screen: 'forecast' | 'checkin' | 'coach' | 'dashboard') => void;
   onProfileUpdate: () => void;
 }
-
-const phaseImages: Record<string, string> = {
-  ovulatory: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_01_ovulatory_peak.jpg',
-  luteal: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_02_luteal_pms.jpg',
-  follicular: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_03_follicular_rise.jpg',
-  menstrual: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_04_menstrual_rest.jpg',
-  morning_peak: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_06_morning_testosterone.jpg',
-  weekly_peak: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_07_tuesday_peak.jpg',
-  afternoon_dip: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_08_afternoon_dip.jpg',
-  evening_balanced: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_08_afternoon_dip.jpg',
-  night_rest: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_09_evening_rest.jpg',
-  cortisol: 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_10_cortisol_tornado.jpg',
-};
 
 type PhaseContentItem = {
   headline: string;
@@ -238,6 +226,9 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const [exportingData, setExportingData] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  // Card library state
+  const [recentCardIds, setRecentCardIds] = useState<string[]>([]);
+
   // Trading streak
   const [tradingStreak, setTradingStreak] = useState(0);
 
@@ -267,6 +258,22 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
     })();
   }, [profile.id]);
 
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from('whatsapp_sends')
+        .select('card_id')
+        .eq('user_id', profile.id)
+        .not('card_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      if (data) {
+        const ids = data.map((r: { card_id: string }) => r.card_id).filter(Boolean);
+        setRecentCardIds(ids);
+      }
+    })();
+  }, [profile.id]);
+
   // WhatsApp state
   const [whatsappEnabled, setWhatsappEnabled] = useState(profile.whatsapp_enabled ?? false);
   const [whatsappPhone, setWhatsappPhone] = useState(profile.whatsapp_phone ?? '');
@@ -286,17 +293,25 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const anxietyScore = todayStats.anxiety;
   const anxietyLevel = anxietyScore >= 70 ? 'high' : anxietyScore >= 40 ? 'elevated' : 'low';
 
-  const content = phaseContent[todayStats.phase] || phaseContent.follicular;
-  const imageUrl = phaseImages[todayStats.phase] || phaseImages.follicular;
   const phaseLabel = phaseLabels[todayStats.phase] || phaseLabels.follicular;
   const emoji = bannerEmojis[todayStats.phase] || '';
 
   const userName = profile.nombre || 'User';
   const replaceNamePlaceholder = (text: string) => text.replace(/\[name\]/gi, userName);
 
-  const headline = replaceNamePlaceholder(isEnglish ? content.headlineEn : content.headline);
-  const body = isEnglish ? content.bodyEn : content.body;
-  const banner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
+  const currentHour = new Date().getHours();
+  const timeSlot = currentHour >= 5 && currentHour < 11 ? 'morning' : currentHour >= 11 && currentHour < 17 ? 'midday' : currentHour >= 17 && currentHour < 21 ? 'evening' : 'night';
+  const activeCard = selectedCard || getCardForUser(profile, todayStats.phase, timeSlot as 'morning' | 'midday' | 'evening' | 'night', recentCardIds);
+  const imageUrl = activeCard?.image || 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_03_follicular_rise.jpg';
+
+  const content = phaseContent[todayStats.phase] || phaseContent.follicular;
+  const fallbackHeadline = replaceNamePlaceholder(isEnglish ? content.headlineEn : content.headline);
+  const fallbackBody = isEnglish ? content.bodyEn : content.body;
+  const fallbackBanner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
+
+  const headline = activeCard ? (isEnglish ? activeCard.headline_EN : activeCard.headline_ES) || fallbackHeadline : fallbackHeadline;
+  const body = activeCard ? (isEnglish ? activeCard.copy_EN : activeCard.copy_ES) || fallbackBody : fallbackBody;
+  const banner = activeCard ? (isEnglish ? activeCard.banner_EN : activeCard.banner_ES) || fallbackBanner : fallbackBanner;
 
   const baseMetrics = [
     { label: isEnglish ? 'Energy' : 'Energia', value: todayStats.energy, color: '#F5C842' },
