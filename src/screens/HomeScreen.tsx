@@ -654,11 +654,9 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
       </div>
 
       <div className="px-5">
-        <div
-          ref={cardRef}
-          className="rounded-3xl overflow-hidden shadow-xl"
-        >
-          {/* Image — clean, no text overlay */}
+        <div ref={cardRef} className="rounded-3xl overflow-hidden shadow-xl">
+
+          {/* 1. IMAGE with headline overlaid at bottom */}
           <div className="relative" style={{ aspectRatio: '4/5' }}>
             <img
               src={imageUrl}
@@ -666,14 +664,20 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               className="absolute inset-0 w-full h-full object-cover"
             />
 
-            {/* Phase badge — only overlay element */}
+            {/* Bottom gradient — transparent top to dark bottom */}
+            <div
+              className="absolute inset-0"
+              style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(10,10,26,0.92) 100%)' }}
+            />
+
+            {/* Phase badge — top-left only */}
             <div className="absolute top-4 left-4">
               <span className="px-4 py-1.5 bg-[#2D1B69] text-white text-sm font-semibold rounded-full">
                 {isEnglish ? phaseLabel.en : phaseLabel.es}
               </span>
             </div>
 
-            {/* Share button */}
+            {/* Share button — top-right */}
             <button
               onClick={handleShare}
               disabled={sharing}
@@ -686,7 +690,7 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               )}
             </button>
 
-            {/* Anxiety badge */}
+            {/* Anxiety badge — below phase badge */}
             <button
               onClick={() => setShowAnxietyModal(true)}
               className={`absolute top-16 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
@@ -705,22 +709,35 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
                   : isEnglish ? 'Anxiety: Low' : 'Ansiedad: Baja'}
               </span>
             </button>
-          </div>
 
-          {/* Text below image */}
-          <div className="bg-[#111126] px-5 pt-4 pb-5">
-            <h2 className="text-xl font-bold text-white mb-2 leading-snug">
-              {headline}
-            </h2>
-            <p className="text-white/75 text-sm leading-relaxed mb-4">
-              {body}
-            </p>
-            <div className="border-t border-white/10 pt-3 text-center">
-              <span className="text-[#FFD93D] font-semibold italic text-sm">
-                {banner}
-              </span>
+            {/* Headline overlaid at bottom of image over gradient */}
+            <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
+              <h2 className="text-2xl font-bold text-white leading-snug">
+                {headline}
+              </h2>
             </div>
           </div>
+
+          {/* 2. PHASE TAB — full-width strip below image */}
+          <div className="bg-[#1A1A2E] px-5 py-3 flex items-center gap-2">
+            <span className="text-base">{emoji}</span>
+            <span className="text-white text-sm font-medium">
+              {isEnglish ? phaseLabel.en : phaseLabel.es}
+            </span>
+          </div>
+
+          {/* 3. COPY TEXT below phase tab */}
+          <div className="bg-[#0F0F20] px-5 pt-4 pb-5">
+            <p className="text-slate-400 text-sm leading-relaxed">
+              {body}
+            </p>
+            {banner && (
+              <p className="text-[#FFD93D] font-semibold italic text-sm mt-4">
+                {banner}
+              </p>
+            )}
+          </div>
+
         </div>
       </div>
 
