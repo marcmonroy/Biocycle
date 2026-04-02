@@ -725,11 +725,6 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
             <p className="text-slate-400 text-sm leading-relaxed">
               {body}
             </p>
-            {banner && (
-              <p className="text-[#FFD93D] font-semibold italic text-sm mt-4">
-                {banner}
-              </p>
-            )}
           </div>
 
         </div>
