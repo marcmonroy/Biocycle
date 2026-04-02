@@ -43,8 +43,51 @@ export interface LibraryCard {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function img(filename: string): string {
-  return `https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/${filename}.png`;
+const BASE_URL = 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/';
+
+const CARD_IMAGE_MAP: Record<string, string> = {
+  // Female — ovulatory
+  'f_ovulatory_morning_v1':             '160',
+  'f_ovulatory_midday_v1':              '161',
+  'f_ovulatory_night_v1_picardia':      '180',
+  // Female — follicular
+  'f_follicular_morning_v1':            '330',
+  'f_follicular_midday_v1':             '331',
+  // Female — luteal
+  'f_luteal_morning_v1':                '350',
+  'f_luteal_evening_v1':                '360',
+  // Female — late luteal
+  'f_late_luteal_evening_v1':           '341',
+  // Female — menstrual
+  'f_menstrual_morning_v1':             '370',
+  'f_menstrual_night_v1':              '380',
+  // Female — perimenopause
+  'f_perimenopause_morning_v1':         '340',
+  'f_perimenopause_night_v1':           '380',
+  // Male — morning peak
+  'm_morning_peak_morning_v1':          '401',
+  'm_morning_peak_morning_v1_picardia': '720',
+  // Male — tuesday peak
+  'm_tuesday_peak_morning_v1':          '706',
+  // Male — andropause
+  'm_andropause_morning_v1':            '361',
+  // Both — afternoon dip
+  'both_afternoon_dip_midday_v1':       '714',
+  'both_afternoon_dip_midday_v2':       '714',
+  // Both — evening balanced
+  'both_evening_balanced_evening_v1':   '707',
+  // Both — night rest
+  'both_night_rest_night_v1':           '381',
+  // Both — special states
+  'both_cortisol_high_morning_v1':      '132',
+  'both_anxiety_high_evening_v1':       '351',
+  'both_recovery_morning_v1':           '715',
+  'both_trading_milestone_morning_v1':  '706',
+};
+
+function img(cardId: string): string {
+  const file = CARD_IMAGE_MAP[cardId] ?? '706';
+  return `${BASE_URL}${file}.png`;
 }
 
 // ── Card Library ───────────────────────────────────────────────────────────
