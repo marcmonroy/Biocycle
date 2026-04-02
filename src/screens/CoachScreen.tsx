@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
-import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X, Activity } from 'lucide-react';
+import { Send, Loader2, AlertCircle, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { computeAdhocGreeting } from '../utils/greetingUtils';
 import { QuantumDNA, QuantumState } from '../components/QuantumDNA';
@@ -1071,103 +1071,55 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   // ── Map interaction state to QuantumDNA state ────────────────────
   const quantumState: QuantumState = loading ? 'thinking' : isListening ? 'listening' : bioState === 'speaking' ? 'speaking' : 'idle';
 
-  // ── Voice bubble input ───────────────────────────────────────────
-  const bubbleState: 'idle' | 'listening' | 'processing' | 'speaking' =
-    isListening ? 'listening' : loading ? 'processing' : bioState === 'speaking' ? 'speaking' : 'idle';
+  const dnaLabel = {
+    idle:      isSpanish ? 'Toca para hablar' : 'Tap to speak',
+    listening: isSpanish ? 'Escuchando...'    : 'Listening...',
+    speaking:  isSpanish ? 'Hablando...'      : 'Speaking...',
+    thinking:  isSpanish ? 'Pensando...'      : 'Thinking...',
+  }[quantumState];
 
-  const bubbleConfig = {
-    idle:       { bg: '#1E1E3A', border: 'rgba(255,255,255,0.08)', iconColor: '#8B95B0' },
-    listening:  { bg: '#FF6B6B', border: '#FF6B6B',               iconColor: 'white'   },
-    processing: { bg: 'rgba(245,200,66,0.12)', border: '#F5C842', iconColor: '#F5C842' },
-    speaking:   { bg: '#7B61FF', border: '#7B61FF',               iconColor: 'white'   },
-  };
+  const dnaLabelColor = {
+    idle:      '#4A5568',
+    listening: '#FF6B6B',
+    speaking:  '#FFD93D',
+    thinking:  '#00C896',
+  }[quantumState];
 
-  const bubbleLabel = {
-    idle:       isSpanish ? 'Toca para hablar' : 'Tap to speak',
-    listening:  isSpanish ? 'Escuchando...'    : 'Listening...',
-    processing: isSpanish ? 'Procesando...'    : 'Processing...',
-    speaking:   isSpanish ? 'Hablando...'      : 'Speaking...',
-  }[bubbleState];
-
-  const VoiceBubble = () => (
-    <div className="px-4 pb-4">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-[#4A5568]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
-          {isSpanish
-            ? `${messageCount} de ${MONTHLY_LIMIT} mensajes`
-            : `${messageCount} of ${MONTHLY_LIMIT} messages`}
-        </span>
-        {isLimitReached && (
-          <span className="text-xs text-[#FF6B6B] font-medium">
-            {isSpanish ? 'Limite alcanzado' : 'Limit reached'}
-          </span>
-        )}
-      </div>
-
+  // ── Minimal fallback input bar ────────────────────────────────────
+  const InputBar = () => (
+    <div className="px-5 pb-4 pt-2">
       {isLimitReached ? (
-        <div className="bg-[#FF6B6B]/10 border border-[#FF6B6B]/20 rounded-xl p-4 text-center">
-          <p className="text-[#FF6B6B] text-sm font-medium mb-1">
-            {isSpanish
-              ? 'Has alcanzado tu limite mensual'
-              : 'You have reached your monthly limit'}
-          </p>
-          <p className="text-[#8B95B0] text-xs">
-            {isSpanish
-              ? 'Actualiza tu plan para mensajes ilimitados'
-              : 'Upgrade your plan for unlimited messages'}
+        <div className="bg-[#FF6B6B]/10 border border-[#FF6B6B]/20 rounded-xl p-3 text-center">
+          <p className="text-[#FF6B6B] text-xs font-medium">
+            {isSpanish ? 'Limite mensual alcanzado' : 'Monthly limit reached'}
           </p>
         </div>
       ) : (
-        <>
-          {/* Large pulsing voice bubble */}
-          <div className="flex flex-col items-center gap-2 mb-4">
-            <button
-              onClick={toggleListening}
-              disabled={loading || greetingLoading || !speechSupported || bubbleState === 'speaking'}
-              className={`voice-bubble-${bubbleState} w-20 h-20 rounded-full flex items-center justify-center transition-colors disabled:cursor-not-allowed`}
-              style={{
-                background: bubbleConfig[bubbleState].bg,
-                border: `1.5px solid ${bubbleConfig[bubbleState].border}`,
-              }}
-              aria-label={bubbleLabel}
-            >
-              {bubbleState === 'processing' ? (
-                <Loader2 className="w-7 h-7 animate-spin" style={{ color: bubbleConfig.processing.iconColor }} />
-              ) : bubbleState === 'speaking' ? (
-                <Activity className="w-7 h-7 text-white" />
-              ) : isListening ? (
-                <MicOff className="w-7 h-7 text-white" />
-              ) : (
-                <Mic className="w-7 h-7" style={{ color: bubbleConfig.idle.iconColor }} />
-              )}
-            </button>
-            <span className="text-xs font-medium" style={{ color: bubbleConfig[bubbleState].iconColor === 'white' ? '#CBD5E0' : bubbleConfig[bubbleState].iconColor }}>
-              {bubbleLabel}
-            </span>
-          </div>
-
-          {/* Small fallback text input */}
-          <div className="flex items-center gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              disabled={loading || greetingLoading || isListening}
-              placeholder={isSpanish ? 'O escribe aquí...' : 'Or type here...'}
-              className="flex-1 px-3 py-2 bg-[#111126] border border-[#1E1E3A] rounded-xl text-white placeholder-[#4A5568] focus:ring-1 focus:ring-[#7B61FF] focus:border-transparent outline-none disabled:opacity-40 text-sm"
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={loading || !input.trim() || greetingLoading || isListening}
-              className="w-9 h-9 bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-40 transition-opacity flex-shrink-0"
-            >
-              <Send className="w-4 h-4 text-white" />
-            </button>
-          </div>
-        </>
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            disabled={loading || greetingLoading || isListening}
+            placeholder={isSpanish ? 'o escribe aquí...' : 'or type here...'}
+            className="flex-1 px-3 py-1.5 bg-[#0d0d1f] border border-[#1E1E3A] rounded-xl text-white placeholder-[#2A2A45] focus:ring-1 focus:ring-[#7B61FF]/50 focus:border-transparent outline-none disabled:opacity-30 text-xs"
+          />
+          <button
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim() || greetingLoading || isListening}
+            className="w-8 h-8 bg-[#FF6B6B]/70 hover:bg-[#FF6B6B] rounded-xl flex items-center justify-center disabled:opacity-30 transition-all flex-shrink-0"
+          >
+            <Send className="w-3.5 h-3.5 text-white" />
+          </button>
+        </div>
       )}
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-[10px] text-[#2A2A45]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+          {messageCount}/{MONTHLY_LIMIT}
+        </span>
+      </div>
     </div>
   );
 
@@ -1191,9 +1143,20 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
           </button>
         </div>
 
-        {/* Avatar */}
-        <div className="flex justify-center py-6">
-          <QuantumDNA size={160} state={quantumState} />
+        {/* Tappable DNA */}
+        <div className="flex flex-col items-center py-4">
+          <button
+            onClick={toggleListening}
+            disabled={loading || greetingLoading || !speechSupported || bioState === 'speaking'}
+            className="rounded-full overflow-hidden disabled:cursor-not-allowed"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            aria-label={dnaLabel}
+          >
+            <QuantumDNA size={160} state={quantumState} />
+          </button>
+          <span className="text-xs mt-2 font-medium" style={{ color: dnaLabelColor, transition: 'color 0.3s' }}>
+            {dnaLabel}
+          </span>
         </div>
 
         {/* Messages */}
@@ -1201,12 +1164,12 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
           <MessageList />
         </div>
 
-        {/* Input */}
+        {/* Minimal fallback input */}
         <div
           className="pb-safe"
           style={{ background: 'rgba(13,6,24,0.95)', borderTop: '1px solid rgba(255,255,255,0.08)' }}
         >
-          <VoiceBubble />
+          <InputBar />
         </div>
       </div>
     );
@@ -1251,9 +1214,20 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         </div>
       </div>
 
-      {/* Bio Avatar */}
-      <div className="flex justify-center py-5 bg-[#0A0A1A]">
-        <QuantumDNA size={120} state={quantumState} />
+      {/* Tappable DNA */}
+      <div className="flex flex-col items-center pt-5 pb-2 bg-[#0A0A1A]">
+        <button
+          onClick={toggleListening}
+          disabled={loading || greetingLoading || !speechSupported || bioState === 'speaking'}
+          className="rounded-full overflow-hidden disabled:cursor-not-allowed transition-opacity disabled:opacity-80"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          aria-label={dnaLabel}
+        >
+          <QuantumDNA size={120} state={quantumState} />
+        </button>
+        <span className="text-xs mt-2 font-medium" style={{ color: dnaLabelColor, transition: 'color 0.3s' }}>
+          {dnaLabel}
+        </span>
       </div>
 
       {/* Messages */}
@@ -1261,8 +1235,8 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         <MessageList />
       </div>
 
-      {/* Input */}
-      <VoiceBubble />
+      {/* Minimal fallback input */}
+      <InputBar />
     </div>
   );
 }

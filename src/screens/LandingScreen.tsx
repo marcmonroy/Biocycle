@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { ArrowRight, Mail, Loader2, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { QuantumDNA } from '../components/QuantumDNA';
+import { QuantumDNA, QuantumState } from '../components/QuantumDNA';
+
+const JULES_GREETED_KEY = 'jules_greeted';
+const JULES_VOICE_ES = 'GU72V6Yk5oxNHCpv7yxQ';
+const JULES_VOICE_EN = 'gJx1vCzNCD1EQHT212Ls';
+const JULES_TEXT_ES = 'La auto-observación sin juicio es la forma más elevada de inteligencia. Bienvenida a BioCycle.';
+const JULES_TEXT_EN = 'Self-observation without judgment is the highest form of intelligence. Welcome to BioCycle.';
 
 function calcPortfolio(gender: string, age: string, freq: string) {
   let b30 = 12, b90 = 47, b365 = 210;
@@ -27,6 +33,50 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('none');
+  const [julesState, setJulesState] = useState<QuantumState>('idle');
+  const greetingFiredRef = useRef(false);
+
+  useEffect(() => {
+    if (localStorage.getItem(JULES_GREETED_KEY)) return;
+
+    const handleFirstInteraction = async () => {
+      if (greetingFiredRef.current) return;
+      greetingFiredRef.current = true;
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+
+      const isEsLang = navigator.language.startsWith('es');
+      const voiceId = isEsLang ? JULES_VOICE_ES : JULES_VOICE_EN;
+      const text = isEsLang ? JULES_TEXT_ES : JULES_TEXT_EN;
+
+      localStorage.setItem(JULES_GREETED_KEY, '1');
+      setJulesState('speaking');
+
+      try {
+        const res = await fetch('/.netlify/functions/elevenlabs-tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voiceId }),
+        });
+        if (!res.ok) throw new Error('tts_failed');
+        const { audio } = await res.json();
+        const audioEl = new Audio(`data:audio/mpeg;base64,${audio}`);
+        audioEl.onended = () => setJulesState('idle');
+        audioEl.onerror = () => setJulesState('idle');
+        await audioEl.play();
+      } catch {
+        setJulesState('idle');
+      }
+    };
+
+    document.addEventListener('click', handleFirstInteraction);
+    document.addEventListener('touchstart', handleFirstInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleFirstInteraction);
+      document.removeEventListener('touchstart', handleFirstInteraction);
+    };
+  }, []);
 
   // Portfolio calculator state
   const [calcGender, setCalcGender] = useState('f');
@@ -87,7 +137,7 @@ export function LandingScreen({ onAuthSuccess }: LandingScreenProps) {
 
         {/* DNA SVG */}
         <div style={{ position: 'relative', marginBottom: '1.5rem', zIndex: 1, textAlign: 'center' }}>
-          <QuantumDNA size={280} state="idle" />
+          <QuantumDNA size={280} state={julesState} />
           <div style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: '.68rem', letterSpacing: '.28em', color: 'rgba(255,217,61,.6)', textTransform: 'uppercase', marginTop: '.6rem' }}>Jules · {t('Biological intelligence', 'Inteligencia biológica')}</div>
           <div style={{ fontSize: '.72rem', color: 'rgba(240,240,248,.3)', marginTop: '.25rem', letterSpacing: '.05em' }}>{t('Quantum singularity · Always with you', 'Singularidad cuántica · Siempre contigo')}</div>
         </div>
