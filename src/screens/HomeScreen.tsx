@@ -496,63 +496,42 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
         img.src = imageUrl;
       });
 
+      // 1. Card image fills entire canvas
       ctx.drawImage(img, 0, 0, cardWidth, cardHeight);
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, cardWidth, cardHeight);
+      // 2. Dark gradient over bottom 35%
+      const gradientTop = cardHeight * 0.65;
+      const gradient = ctx.createLinearGradient(0, gradientTop, 0, cardHeight);
+      gradient.addColorStop(0, 'rgba(10,10,26,0)');
+      gradient.addColorStop(1, 'rgba(10,10,26,0.92)');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, gradientTop, cardWidth, cardHeight - gradientTop);
 
-      ctx.fillStyle = '#2D1B69';
-      ctx.beginPath();
-      ctx.roundRect(16, 16, 100, 28, 14);
-      ctx.fill();
-
+      // 3. Headline only — word-wrapped, white bold, bottom of canvas
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 12px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(isEnglish ? phaseLabel.en : phaseLabel.es, 66, 34);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 24px system-ui';
+      ctx.font = 'bold 22px system-ui';
       ctx.textAlign = 'left';
-      const headlineWords = headline.split(' ');
-      let headlineLine = '';
-      let headlineY = cardHeight - 180;
-      for (const word of headlineWords) {
-        const testLine = headlineLine + word + ' ';
-        if (ctx.measureText(testLine).width > cardWidth - 40) {
-          ctx.fillText(headlineLine, 20, headlineY);
-          headlineLine = word + ' ';
-          headlineY += 28;
+      const maxWidth = cardWidth - 40;
+      const lineHeight = 28;
+      const words = headline.split(' ');
+      const lines: string[] = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? current + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && current) {
+          lines.push(current);
+          current = word;
         } else {
-          headlineLine = testLine;
+          current = test;
         }
       }
-      ctx.fillText(headlineLine, 20, headlineY);
-
-      ctx.font = '14px system-ui';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      const bodyWords = body.split(' ');
-      let bodyLine = '';
-      let bodyY = headlineY + 30;
-      for (const word of bodyWords) {
-        const testLine = bodyLine + word + ' ';
-        if (ctx.measureText(testLine).width > cardWidth - 40) {
-          ctx.fillText(bodyLine, 20, bodyY);
-          bodyLine = word + ' ';
-          bodyY += 20;
-        } else {
-          bodyLine = testLine;
-        }
+      if (current) lines.push(current);
+      const textBlockHeight = lines.length * lineHeight;
+      let textY = cardHeight - 24 - textBlockHeight + lineHeight;
+      for (const line of lines) {
+        ctx.fillText(line, 20, textY);
+        textY += lineHeight;
       }
-      ctx.fillText(bodyLine, 20, bodyY);
-
-      ctx.fillStyle = 'rgba(45, 27, 105, 0.9)';
-      ctx.fillRect(0, cardHeight - 50, cardWidth, 50);
-
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 14px system-ui';
-      ctx.textAlign = 'center';
-      ctx.fillText(banner, cardWidth / 2, cardHeight - 20);
 
       canvas.toBlob(async (blob) => {
         if (!blob) {
