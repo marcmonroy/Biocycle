@@ -308,9 +308,9 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   try {
     const currentHour = new Date().getHours();
     const timeSlot: 'morning' | 'midday' | 'evening' | 'night' =
-      currentHour >= 5 && currentHour < 11 ? 'morning' :
-      currentHour >= 11 && currentHour < 17 ? 'midday' :
-      currentHour >= 17 && currentHour < 21 ? 'evening' : 'night';
+      currentHour >= 5  && currentHour <= 11 ? 'morning' :
+      currentHour >= 12 && currentHour <= 14 ? 'midday'  :
+      currentHour >= 15 && currentHour <= 20 ? 'evening' : 'night';
     selectedCard = getCardForUser(profile, todayStats.phase, timeSlot, recentCardIds);
   } catch { /* fall through to defaults */ }
 
@@ -656,68 +656,67 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
       <div className="px-5">
         <div
           ref={cardRef}
-          className="relative rounded-3xl overflow-hidden shadow-xl"
-          style={{ aspectRatio: '4/5' }}
+          className="rounded-3xl overflow-hidden shadow-xl"
         >
-          <img
-            src={imageUrl}
-            alt={phaseLabel.es}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black/40" />
+          {/* Image — clean, no text overlay */}
+          <div className="relative" style={{ aspectRatio: '4/5' }}>
+            <img
+              src={imageUrl}
+              alt={phaseLabel.es}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
 
-          <div className="absolute top-4 left-4">
-            <span className="px-4 py-1.5 bg-[#2D1B69] text-white text-sm font-semibold rounded-full">
-              {isEnglish ? phaseLabel.en : phaseLabel.es}
-            </span>
+            {/* Phase badge — only overlay element */}
+            <div className="absolute top-4 left-4">
+              <span className="px-4 py-1.5 bg-[#2D1B69] text-white text-sm font-semibold rounded-full">
+                {isEnglish ? phaseLabel.en : phaseLabel.es}
+              </span>
+            </div>
+
+            {/* Share button */}
+            <button
+              onClick={handleShare}
+              disabled={sharing}
+              className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              {sharing ? (
+                <Loader2 className="w-5 h-5 text-white animate-spin" />
+              ) : (
+                <Share2 className="w-5 h-5 text-white" />
+              )}
+            </button>
+
+            {/* Anxiety badge */}
+            <button
+              onClick={() => setShowAnxietyModal(true)}
+              className={`absolute top-16 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
+                anxietyLevel === 'high'
+                  ? 'bg-[#FF4444]/90 text-white'
+                  : anxietyLevel === 'elevated'
+                  ? 'bg-[#FFB347]/90 text-white'
+                  : 'bg-emerald-500/90 text-white'
+              }`}
+            >
+              <span className="text-xs font-medium">
+                {anxietyLevel === 'high'
+                  ? isEnglish ? 'Vulnerability Window' : 'Ventana de Vulnerabilidad'
+                  : anxietyLevel === 'elevated'
+                  ? isEnglish ? 'Sensitivity: Elevated' : 'Sensibilidad: Elevada'
+                  : isEnglish ? 'Anxiety: Low' : 'Ansiedad: Baja'}
+              </span>
+            </button>
           </div>
 
-          <button
-            onClick={handleShare}
-            disabled={sharing}
-            className="absolute top-4 right-4 w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-          >
-            {sharing ? (
-              <Loader2 className="w-5 h-5 text-white animate-spin" />
-            ) : (
-              <Share2 className="w-5 h-5 text-white" />
-            )}
-          </button>
-
-          <button
-            onClick={() => setShowAnxietyModal(true)}
-            className={`absolute top-16 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
-              anxietyLevel === 'high'
-                ? 'bg-[#FF4444]/90 text-white'
-                : anxietyLevel === 'elevated'
-                ? 'bg-[#FFB347]/90 text-white'
-                : 'bg-emerald-500/90 text-white'
-            }`}
-          >
-            <span className="text-xs font-medium">
-              {anxietyLevel === 'high'
-                ? isEnglish
-                  ? 'Vulnerability Window'
-                  : 'Ventana de Vulnerabilidad'
-                : anxietyLevel === 'elevated'
-                ? isEnglish
-                  ? 'Sensitivity: Elevated'
-                  : 'Sensibilidad: Elevada'
-                : isEnglish
-                ? 'Anxiety: Low'
-                : 'Ansiedad: Baja'}
-            </span>
-          </button>
-
-          <div className="absolute bottom-0 left-0 right-0 p-5">
-            <h2 className="text-2xl font-bold text-white mb-2">
+          {/* Text below image */}
+          <div className="bg-[#111126] px-5 pt-4 pb-5">
+            <h2 className="text-xl font-bold text-white mb-2 leading-snug">
               {headline}
             </h2>
-            <p className="text-white/90 text-sm leading-relaxed mb-4">
+            <p className="text-white/75 text-sm leading-relaxed mb-4">
               {body}
             </p>
-            <div className="bg-[#2D1B69]/80 backdrop-blur-sm rounded-xl py-3 px-4 text-center">
-              <span className="text-white font-semibold">
+            <div className="border-t border-white/10 pt-3 text-center">
+              <span className="text-[#FFD93D] font-semibold italic text-sm">
                 {banner}
               </span>
             </div>
