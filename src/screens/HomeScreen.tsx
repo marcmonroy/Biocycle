@@ -299,19 +299,25 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
   const userName = profile.nombre || 'User';
   const replaceNamePlaceholder = (text: string) => text.replace(/\[name\]/gi, userName);
 
-  const currentHour = new Date().getHours();
-  const timeSlot = currentHour >= 5 && currentHour < 11 ? 'morning' : currentHour >= 11 && currentHour < 17 ? 'midday' : currentHour >= 17 && currentHour < 21 ? 'evening' : 'night';
-  const activeCard = selectedCard || getCardForUser(profile, todayStats.phase, timeSlot as 'morning' | 'midday' | 'evening' | 'night', recentCardIds);
-  const imageUrl = activeCard?.image || 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/cards/card_03_follicular_rise.jpg';
-
   const content = phaseContent[todayStats.phase] || phaseContent.follicular;
   const fallbackHeadline = replaceNamePlaceholder(isEnglish ? content.headlineEn : content.headline);
   const fallbackBody = isEnglish ? content.bodyEn : content.body;
   const fallbackBanner = replaceNamePlaceholder(isEnglish ? content.bannerEn : content.banner) + ' ' + emoji;
 
-  const headline = activeCard ? (isEnglish ? activeCard.headline_EN : activeCard.headline_ES) || fallbackHeadline : fallbackHeadline;
-  const body = activeCard ? (isEnglish ? activeCard.copy_EN : activeCard.copy_ES) || fallbackBody : fallbackBody;
-  const banner = activeCard ? (isEnglish ? activeCard.banner_EN : activeCard.banner_ES) || fallbackBanner : fallbackBanner;
+  let selectedCard = null;
+  try {
+    const currentHour = new Date().getHours();
+    const timeSlot: 'morning' | 'midday' | 'evening' | 'night' =
+      currentHour >= 5 && currentHour < 11 ? 'morning' :
+      currentHour >= 11 && currentHour < 17 ? 'midday' :
+      currentHour >= 17 && currentHour < 21 ? 'evening' : 'night';
+    selectedCard = getCardForUser(profile, todayStats.phase, timeSlot, recentCardIds);
+  } catch { /* fall through to defaults */ }
+
+  const imageUrl = selectedCard?.image ?? 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/706.png';
+  const headline = (profile?.idioma === 'ES' ? selectedCard?.headline_ES : selectedCard?.headline_EN) ?? fallbackHeadline;
+  const body = (profile?.idioma === 'ES' ? selectedCard?.copy_ES : selectedCard?.copy_EN) ?? fallbackBody;
+  const banner = (profile?.idioma === 'ES' ? selectedCard?.banner_ES : selectedCard?.banner_EN) ?? fallbackBanner;
 
   const baseMetrics = [
     { label: isEnglish ? 'Energy' : 'Energia', value: todayStats.energy, color: '#F5C842' },
