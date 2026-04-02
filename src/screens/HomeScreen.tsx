@@ -187,6 +187,24 @@ const anxietyExplanations: Record<string, { es: string; en: string }> = {
   },
 };
 
+const PHASE_TAB_LABEL: Record<string, string> = {
+  morning_peak:     'Morning Peak ⚡',
+  tuesday_peak:     'Weekly Peak 💪',
+  afternoon_dip:    'Afternoon Dip 🔋',
+  evening_balanced: 'Evening Balance 🌅',
+  night_rest:       'Night Rest 🌙',
+  ovulatory:        'Ovulatory Peak 🌹',
+  follicular:       'Follicular Phase 💡',
+  luteal:           'Luteal Phase 🌊',
+  late_luteal:      'Late Luteal 🌧️',
+  menstrual:        'Menstrual Phase 🔄',
+  perimenopause:    'Hormonal Transition 🦋',
+  andropause:       'Recalibration Phase 🎯',
+  cortisol_high:    'High Cortisol ⚠️',
+  anxiety_high:     'Anxiety Window 🧠',
+  recovery:         'Recovery 💚',
+};
+
 export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showAnxietyModal, setShowAnxietyModal] = useState(false);
@@ -695,11 +713,10 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
             </div>
           </div>
 
-          {/* 2. PHASE TAB — full-width strip below image */}
-          <div className="bg-[#1A1A2E] px-5 py-3 flex items-center gap-2">
-            <span className="text-base">{emoji}</span>
+          {/* 2. PHASE TAB — single clean label below image */}
+          <div className="bg-[#1A1A2E] py-3 flex items-center justify-center">
             <span className="text-white text-sm font-medium">
-              {isEnglish ? phaseLabel.en : phaseLabel.es}
+              {PHASE_TAB_LABEL[todayStats.phase] ?? `${isEnglish ? phaseLabel.en : phaseLabel.es} ${emoji}`}
             </span>
           </div>
 
