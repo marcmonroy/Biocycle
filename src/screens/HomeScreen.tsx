@@ -507,12 +507,17 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
       ctx.fillStyle = gradient;
       ctx.fillRect(0, gradientTop, cardWidth, cardHeight - gradientTop);
 
-      // 3. Headline only — word-wrapped, white bold, bottom of canvas
+      // 3. Headline only — word-wrapped, Clash Display bold, bottom of canvas
+      try {
+        const clashFont = new FontFace('Clash Display', 'url(https://api.fontshare.com/v2/css?f[]=clash-display@700&display=swap)');
+        await clashFont.load();
+        document.fonts.add(clashFont);
+      } catch { /* fall back to system-ui if font fails to load */ }
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 22px system-ui';
+      ctx.font = 'bold 32px "Clash Display", system-ui, sans-serif';
       ctx.textAlign = 'left';
       const maxWidth = cardWidth - 40;
-      const lineHeight = 28;
+      const lineHeight = 38;
       const words = headline.split(' ');
       const lines: string[] = [];
       let current = '';
@@ -542,8 +547,8 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
         const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
 
         const shareText = isEnglish
-          ? `${headline}\n\nKnow yourself before it happens. 👉 https://biocycle.app`
-          : `${headline}\n\nConócete antes de que suceda. 👉 https://biocycle.app`;
+          ? 'Know yourself before it happens. 👉 https://biocycle.app'
+          : 'Conócete antes de que suceda. 👉 https://biocycle.app';
 
         if (navigator.share && navigator.canShare({ files: [file] })) {
           try {
