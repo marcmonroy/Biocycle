@@ -670,13 +670,6 @@ export function HomeScreen({ profile, phaseData, onProfileUpdate }: HomeScreenPr
               style={{ background: 'linear-gradient(to bottom, transparent 55%, rgba(10,10,26,0.92) 100%)' }}
             />
 
-            {/* Phase badge — top-left only */}
-            <div className="absolute top-4 left-4">
-              <span className="px-4 py-1.5 bg-[#2D1B69] text-white text-sm font-semibold rounded-full">
-                {isEnglish ? phaseLabel.en : phaseLabel.es}
-              </span>
-            </div>
-
             {/* Share button — top-right */}
             <button
               onClick={handleShare}
