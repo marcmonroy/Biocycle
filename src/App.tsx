@@ -15,9 +15,9 @@ import { PrivacyScreen } from './screens/PrivacyScreen';
 import { TermsScreen } from './screens/TermsScreen';
 import { ProfileEditScreen } from './screens/ProfileEditScreen';
 import { AmbientCoach } from './components/AmbientCoach';
+import { QuantumDNA } from './components/QuantumDNA';
 import { calculatePhase, getForecast } from './utils/phaseEngine';
 import { Session } from '@supabase/supabase-js';
-import { Loader2 } from 'lucide-react';
 
 type AppState = 'loading' | 'landing' | 'setup' | 'home' | 'admin' | 'research' | 'trading-floor' | 'privacy' | 'terms';
 
@@ -185,13 +185,11 @@ function App() {
 
   if (appState === 'loading') {
     return (
-      <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-center gap-6">
-        <img
-          src="https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/assets/Biocycle_med.png"
-          alt="BioCycle"
-          className="w-[200px] h-auto object-contain"
-        />
-        <Loader2 className="w-6 h-6 animate-spin text-[#F5C842]" />
+      <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-center gap-4">
+        <QuantumDNA size={180} state="idle" />
+        <p style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: '.72rem', letterSpacing: '.28em', color: 'rgba(255,217,61,.5)', textTransform: 'uppercase' }}>
+          BIOCYCLE
+        </p>
       </div>
     );
   }

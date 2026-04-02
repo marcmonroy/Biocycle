@@ -4,6 +4,7 @@ import { PhaseData } from '../utils/phaseEngine';
 import { Send, Loader2, AlertCircle, Mic, MicOff, Volume2, VolumeX, Maximize2, X, Activity } from 'lucide-react';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { computeAdhocGreeting } from '../utils/greetingUtils';
+import { QuantumDNA, QuantumState } from '../components/QuantumDNA';
 
 export type CoachSessionType = 'scheduled' | 'adhoc';
 
@@ -1067,6 +1068,9 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     </>
   );
 
+  // ── Map interaction state to QuantumDNA state ────────────────────
+  const quantumState: QuantumState = loading ? 'thinking' : isListening ? 'listening' : bioState === 'speaking' ? 'speaking' : 'idle';
+
   // ── Voice bubble input ───────────────────────────────────────────
   const bubbleState: 'idle' | 'listening' | 'processing' | 'speaking' =
     isListening ? 'listening' : loading ? 'processing' : bioState === 'speaking' ? 'speaking' : 'idle';
@@ -1189,7 +1193,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
         {/* Avatar */}
         <div className="flex justify-center py-6">
-          <BioAvatar state={bioState} size={160} />
+          <QuantumDNA size={160} state={quantumState} />
         </div>
 
         {/* Messages */}
@@ -1249,7 +1253,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
       {/* Bio Avatar */}
       <div className="flex justify-center py-5 bg-[#0A0A1A]">
-        <BioAvatar state={bioState} size={80} />
+        <QuantumDNA size={120} state={quantumState} />
       </div>
 
       {/* Messages */}

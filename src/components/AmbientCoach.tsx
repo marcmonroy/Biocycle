@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Profile } from '../lib/supabase';
 import { PhaseData, ForecastDay } from '../utils/phaseEngine';
-import { MessageCircle, Loader2 } from 'lucide-react';
 import { computeAdhocGreeting } from '../utils/greetingUtils';
 import { speakWithElevenLabs } from '../services/voiceService';
+import { QuantumDNA } from './QuantumDNA';
 
 interface AmbientCoachProps {
   profile: Profile;
@@ -50,12 +50,11 @@ export function AmbientCoach({
     <button
       onClick={handleTap}
       disabled={loading}
-      className="fixed bottom-28 right-4 w-14 h-14 rounded-full bg-[#2D1B69] shadow-lg flex items-center justify-center z-40 hover:scale-105 transition-all disabled:opacity-70"
+      className="fixed bottom-28 right-4 z-40 rounded-full overflow-hidden hover:scale-105 transition-transform disabled:opacity-70"
+      style={{ width: 64, height: 64, padding: 0, background: 'none', border: 'none', cursor: 'pointer', boxShadow: '0 4px 24px rgba(0,0,0,0.5)' }}
       aria-label="Open coach"
     >
-      {loading
-        ? <Loader2 className="w-5 h-5 text-white animate-spin" />
-        : <MessageCircle className="w-6 h-6 text-white" />}
+      <QuantumDNA size={64} state={loading ? 'thinking' : 'idle'} />
     </button>
   );
 }
