@@ -174,6 +174,10 @@ function buildSystemPrompt(
   const phaseNames = getPhaseNames(isSpanish);
   const phaseName = phaseNames[phaseData.phase] || phaseData.phase;
   const cycleDay = phaseData.cycleDay ? String(phaseData.cycleDay) : 'N/A';
+  const currentHour = new Date().getHours();
+  const derivedSlot: SessionSlot = currentHour >= 5 && currentHour < 12 ? 'morning'
+    : currentHour >= 12 && currentHour < 17 ? 'afternoon'
+    : 'night';
   const timeSlot = getTimeSlot();
   const dataQuality = recentAnxiety !== null ? 'Active tracker' : 'New user';
   const isSiennaMode = profile.picardia_mode === true;
@@ -204,7 +208,7 @@ You are in COMPANION MODE. You know this person's patterns well. You can make co
     : '';
 
   // ── Scheduled morning session (CHANGE 3) ──────────────────────────
-  if (sessionType === 'scheduled' && timeSlot === 'morning') {
+  if (sessionType === 'scheduled' && derivedSlot === 'morning') {
     const morningStep1 = daysOfData < 30
       ? `STEP 1 — OPENING (no forecast yet):
 Open with a warm good morning using their name. Tell them you are just getting to know their biology and every session teaches you something new. Do NOT deliver a forecast — you do not have enough data yet. Instead say something like: 'We are just getting started. The more you share with me the more I will understand your patterns. Let's begin.' Keep it warm and encouraging. Maximum 2 sentences.`
@@ -240,7 +244,7 @@ User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${
   }
 
   // ── Scheduled afternoon session (CHANGE 4) ────────────────────────
-  if (sessionType === 'scheduled' && timeSlot === 'afternoon') {
+  if (sessionType === 'scheduled' && derivedSlot === 'afternoon') {
     const morningRef = morningSummary
       ? `This is their morning summary: ${morningSummary}`
       : 'No morning session recorded today.';
@@ -274,7 +278,7 @@ User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${
   }
 
   // ── Scheduled night session (CHANGE 5) ────────────────────────────
-  if (sessionType === 'scheduled' && timeSlot === 'night') {
+  if (sessionType === 'scheduled' && derivedSlot === 'night') {
     const nightStep1 = daysOfData < 30
       ? `STEP 1 — EVENING OPENER:
 Warm evening opener using their name. Ask how they are feeling tonight. Do NOT reference their phase or make biological predictions — you are still learning their patterns.`
@@ -316,7 +320,9 @@ Your job in each session:
 2. Ask each dimension one at a time conversationally. Natural back-and-forth. Ask one question, wait for the number, then move to the next. You already asked Emotional as your opener, so continue from Physical.
 3. After receiving each number interpret it back briefly with biological context. One sentence. Example: "Stress at 8 on day 19 makes sense — your phase peaks cortisol this week. Not you. Your cycle."
 4. After all dimensions ask 1-2 enrichment follow-up questions relevant to the current phase
-5. Deliver a brief insight about what is coming in the next 24-48 hours based on their phase
+5. ${daysOfData < 30
+  ? `CLOSE: Thank them warmly for sharing. Tell them every session teaches you something new about them. Encourage them to come back tomorrow. Do NOT reference phase predictions or biological forecasts.`
+  : `INSIGHT: Deliver one brief insight about the next 24-48 hours based on their phase ${phaseName}. Keep it specific and grounded in their scores today.`}
 6. Close the session naturally and warmly
 
 Dimensions to collect: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10, only if adult content enabled).
@@ -342,7 +348,9 @@ Your job in each session:
 2. Ask each dimension one at a time conversationally. Natural. Direct. No forms. You already asked Emotional as your opener, so continue from Physical.
 3. After each number give one sharp biological interpretation. Example: "Sexual at 8 mid-ovulation? Classic. Your estrogen peaked and your body knows exactly what it wants."
 4. After all dimensions ask 1-2 enrichment questions relevant to the current phase
-5. Deliver a bold insight about the next 24-48 hours
+5. ${daysOfData < 30
+  ? `CLOSE: Tell them straight — you are still learning their patterns. Every session gives you more to work with. Come back tomorrow. Skip the forecast — you do not have enough data yet.`
+  : `INSIGHT: Deliver one bold insight about the next 24-48 hours based on their phase ${phaseName} and today's scores. Make it specific, not generic.`}
 6. Close warmly and directly
 
 Dimensions: Emotional (1-10), Physical (1-10), Cognitive (1-10), Stress (1-10), Social (1-10), Anxiety (1-10), Sexual (1-10).
@@ -370,6 +378,7 @@ export async function callCoachAPI(
   morningSummary: string | null = null,
   daysOfData: number = 0,
 ): Promise<{ content: string; error?: string }> {
+  console.log('buildSystemPrompt called with daysOfData:', daysOfData, 'sessionType:', sessionType);
   const systemPrompt = buildSystemPrompt(profile, phaseData, recentAnxiety, sessionType, recentSummaries, morningSummary, daysOfData);
 
   // Anthropic API requires messages to start with a user turn.

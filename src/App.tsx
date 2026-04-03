@@ -103,8 +103,10 @@ function App() {
     if (data) {
       setProfile(data);
       setAppState('home');
-      const pending = sessionStorage.getItem('biocycle_pending_scheduled');
-      if (pending) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isScheduledFromURL = urlParams.get('session') === 'scheduled';
+      const isScheduledFromStorage = sessionStorage.getItem('biocycle_pending_scheduled') === '1';
+      if (isScheduledFromURL || isScheduledFromStorage) {
         sessionStorage.removeItem('biocycle_pending_scheduled');
         setCoachSessionType('scheduled');
         setCurrentScreen('coach');
