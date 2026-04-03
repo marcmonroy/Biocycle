@@ -820,9 +820,6 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     // Scheduled: full dynamic API greeting
     setBioState('speaking');
 
-    const cacheKey = `biocycle_greeting_${profile.id}_${new Date().toDateString()}_${phaseData.phase}_${currentSlot}`;
-    const cached = sessionStorage.getItem(cacheKey);
-
     const applyGreeting = (text: string) => {
       setMessages([{ role: 'assistant', content: text }]);
       setGreetingLoading(false);
@@ -896,13 +893,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       }
 
       // Normal greeting flow
-      if (cached) {
-        applyGreeting(cached);
-        return;
-      }
-
       const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg, countResult.count ?? 0);
-      sessionStorage.setItem(cacheKey, greeting);
 
       // Create a session record in the DB for tracking (CHANGE 6)
       const { data: sessionRow } = await supabase
