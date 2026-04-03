@@ -676,10 +676,37 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const pendingIntervention = useRef<string | null>(null);
   const autoListenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingRef = useRef(false);
+  const startAutoListenRef = useRef<() => void>(() => {});
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
 
   // ── Keep loadingRef in sync ──────────────────────────────────────
   useEffect(() => { loadingRef.current = loading; }, [loading]);
+
+  // ── Keep startAutoListenRef in sync — always creates a fresh SpeechRecognition
+  //    instance to avoid InvalidStateError on reuse across multiple exchanges ──
+  useEffect(() => {
+    startAutoListenRef.current = () => {
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognitionAPI || loadingRef.current) return;
+      try {
+        const rec = new SpeechRecognitionAPI();
+        rec.continuous = false;
+        rec.interimResults = false;
+        rec.lang = isSpanish ? 'es-ES' : 'en-US';
+        rec.onresult = (event: SpeechRecognitionEvent) => {
+          const transcript = event.results[0][0].transcript;
+          setIsListening(false);
+          setBioState('idle');
+          sendMessageRef.current(transcript);
+        };
+        rec.onerror = () => setIsListening(false);
+        rec.onend = () => setIsListening(false);
+        recognitionRef.current = rec;
+        rec.start();
+        setIsListening(true);
+      } catch { /* unavailable or already active */ }
+    };
+  });
 
   // ── Inject avatar CSS once ───────────────────────────────────────
   useEffect(() => {
@@ -884,15 +911,11 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         onStart: () => setBioState('speaking'),
         onEnd:   () => {
           setBioState('idle');
-          // Auto-enter listening state after 1.5s pause
+          // Auto-enter listening after 1.5s — always create a fresh instance
+          // to avoid InvalidStateError across multiple conversation exchanges
           if (autoListenTimerRef.current) clearTimeout(autoListenTimerRef.current);
           autoListenTimerRef.current = setTimeout(() => {
-            if (!loadingRef.current && recognitionRef.current) {
-              try {
-                recognitionRef.current.start();
-                setIsListening(true);
-              } catch { /* recognition already active or unavailable */ }
-            }
+            startAutoListenRef.current();
           }, 1500);
         },
       });
@@ -1275,8 +1298,8 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         </div>
 
         {/* Tappable DNA */}
-        <div className="flex flex-col items-center py-4" style={{ background: '#12122A', position: 'relative' }}>
-          {/* Radial glow behind DNA */}
+        <div className="flex flex-col items-center py-4" style={{ background: '#1A1A3E', position: 'relative' }}>
+          {/* Outer radial glow */}
           <div
             className={isListening ? 'dna-pulse-listen' : 'dna-pulse-idle'}
             style={{
@@ -1287,7 +1310,21 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               width: 280,
               height: 280,
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(255,217,61,0.08) 0%, transparent 70%)',
+              background: 'radial-gradient(circle, rgba(255,217,61,0.18) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
+          {/* Inner glow */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -58%)',
+              width: 180,
+              height: 180,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,107,107,0.12) 0%, transparent 70%)',
               pointerEvents: 'none',
             }}
           />
@@ -1302,7 +1339,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
           </button>
           <span
             className="text-xs mt-2 font-medium"
-            style={{ color: dnaLabelColor, transition: 'color 0.3s, opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
+            style={{ color: 'white', transition: 'opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
           >
             {dnaLabel}
           </span>
@@ -1364,8 +1401,8 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       </div>
 
       {/* Tappable DNA */}
-      <div className="flex flex-col items-center pt-5 pb-2" style={{ background: '#12122A', position: 'relative' }}>
-        {/* Radial glow behind DNA */}
+      <div className="flex flex-col items-center pt-5 pb-2" style={{ background: '#1A1A3E', position: 'relative' }}>
+        {/* Outer radial glow */}
         <div
           className={isListening ? 'dna-pulse-listen' : 'dna-pulse-idle'}
           style={{
@@ -1376,7 +1413,21 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
             width: 280,
             height: 280,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,217,61,0.08) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(255,217,61,0.18) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
+        {/* Inner glow */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -58%)',
+            width: 180,
+            height: 180,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,107,107,0.12) 0%, transparent 70%)',
             pointerEvents: 'none',
           }}
         />
@@ -1391,7 +1442,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         </button>
         <span
           className="text-xs mt-2 font-medium"
-          style={{ color: dnaLabelColor, transition: 'color 0.3s, opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
+          style={{ color: 'white', transition: 'opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
         >
           {dnaLabel}
         </span>

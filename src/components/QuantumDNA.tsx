@@ -39,7 +39,7 @@ const QDNA_STYLES = `
 
 // Wave colors per state: [gold-wave, coral-wave, green-wave]
 const WAVE_COLORS: Record<QuantumState, [string, string, string]> = {
-  idle:      ['rgba(255,217,61,.65)', 'rgba(255,107,107,.55)', 'rgba(0,200,150,.45)'],
+  idle:      ['rgba(255,217,61,.85)', 'rgba(255,107,107,.75)', 'rgba(0,200,150,.6)'],
   listening: ['rgba(255,107,107,.8)', 'rgba(255,107,107,.65)', 'rgba(255,107,107,.5)'],
   speaking:  ['rgba(255,217,61,.85)', 'rgba(255,217,61,.65)', 'rgba(255,217,61,.45)'],
   thinking:  ['rgba(0,200,150,.7)',   'rgba(0,200,150,.55)',  'rgba(0,200,150,.4)'],
