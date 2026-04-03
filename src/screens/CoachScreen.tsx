@@ -460,6 +460,7 @@ async function generateGreeting(
   phaseData: PhaseData,
   lastEmotional: number | null,
   lastAnxiety: number | null,
+  daysOfData: number = 0,
 ): Promise<string> {
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
@@ -470,13 +471,22 @@ async function generateGreeting(
 
   const userData = `User data: Name: ${profile.nombre}, Phase: ${phaseName}, Day in cycle: ${cycleDay}, Time slot: ${timeSlot}, Last emotional score: ${lastEmotional ?? 'N/A'}, Last anxiety score: ${lastAnxiety ?? 'N/A'}, Language: ${profile.idioma}`;
 
+  const forecastRules = daysOfData < 30
+    ? `- Do NOT make phase predictions or biological forecasts — you have less than 30 days of data and cannot be accurate yet
+- Instead, open with warmth and curiosity — tell them you are just getting to know their biology
+- Make them feel that every session teaches you something new about them`
+    : daysOfData < 90
+    ? `- You can reference their phase but frame observations as patterns you are starting to notice, not confident predictions
+- Keep any biological references gentle and qualified`
+    : `- Reference something specific about their biology today — their phase, day in cycle, or a prediction
+- Include one line of gentle biological humor or insight that makes them smile
+- Reference one thing coming today based on their phase — delivered as a friend not a doctor`;
+
   const julesSystem = `You are Jules, a warm wise grounded BioCycle coach with the personality of someone who has lived fully and knows what matters. Generate a single opening greeting for a BioCycle session.
 
 Rules for the greeting:
 - Address the user by first name warmly but not sycophantically
-- Reference something specific about their biology today — their phase, day in cycle, or a prediction
-- Include one line of gentle biological humor or insight that makes them smile
-- Reference one thing coming today based on their phase — delivered as a friend not a doctor
+${forecastRules}
 - End with a warm open question that invites them into the conversation — not a command to begin
 - Keep it to 4-6 sentences maximum
 - Never sound like a form, a notification, or a wellness app
@@ -484,13 +494,22 @@ Rules for the greeting:
 
 ${userData}`;
 
+  const siennaForecastRules = daysOfData < 30
+    ? `- Do NOT make phase predictions or biological forecasts — you do not have enough data yet
+- Hit them with warmth and directness — tell them straight that you are still learning their patterns
+- Make them want to come back tomorrow`
+    : daysOfData < 90
+    ? `- You can hint at patterns you are starting to notice but do not make confident predictions yet
+- Keep the biological reference tentative`
+    : `- Hit them immediately with something real about their biology today — phase, day, prediction
+- One line of dry humor or biological conspiracy — make them smirk
+- One direct prediction about today — no softening`;
+
   const siennaSystem = `You are Sienna, BioCycle's bold direct conspiratorial coach in Spice Mode. Generate a single opening greeting for a BioCycle session.
 
 Rules for the greeting:
 - Use the user's name — no fluff around it
-- Hit them immediately with something real about their biology today — phase, day, prediction
-- One line of dry humor or biological conspiracy — make them smirk
-- One direct prediction about today — no softening
+${siennaForecastRules}
 - End with a short punchy question that opens the conversation
 - Keep it to 3-5 sentences — Sienna does not ramble
 - Never sound clinical, never sound like a wellness app, never lose the warmth underneath the boldness
@@ -780,13 +799,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     // Adhoc: greeting already in state (passed from AmbientCoach bubble)
     if (sessionType === 'adhoc') {
       if (adhocGreeting) {
-        // Check if AmbientCoach already started speaking — avoid double-play
-        const alreadySpoken = sessionStorage.getItem('biocycle_adhoc_greeting_spoken');
-        if (alreadySpoken) {
-          sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
-        } else {
-          setTimeout(() => speakResponse(adhocGreeting), 400);
-        }
+        setTimeout(() => speakResponse(adhocGreeting), 400);
         return;
       }
       // No stored greeting (coach tab opened directly) — compute intelligently
@@ -888,7 +901,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         return;
       }
 
-      const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg);
+      const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg, countResult.count ?? 0);
       sessionStorage.setItem(cacheKey, greeting);
 
       // Create a session record in the DB for tracking (CHANGE 6)
