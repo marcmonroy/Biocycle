@@ -799,7 +799,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     // Adhoc: greeting already in state (passed from AmbientCoach bubble)
     if (sessionType === 'adhoc') {
       if (adhocGreeting) {
-        setTimeout(() => speakResponse(adhocGreeting), 400);
+        // Greeting already spoken by AmbientCoach bubble — do not speak again
         return;
       }
       // No stored greeting (coach tab opened directly) — compute intelligently
