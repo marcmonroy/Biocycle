@@ -5,6 +5,7 @@ import { Send, Loader2, AlertCircle, Volume2, VolumeX, Maximize2, X } from 'luci
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { computeAdhocGreeting } from '../utils/greetingUtils';
 import { QuantumDNA, QuantumState } from '../components/QuantumDNA';
+import { calculateSessionIntegrity, SessionData } from '../utils/integrityEngine';
 
 export type CoachSessionType = 'scheduled' | 'adhoc';
 
@@ -642,6 +643,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sendMessageRef = useRef<(text?: string) => void>(() => {});
+  const pendingIntervention = useRef<string | null>(null);
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
 
   // ── Inject avatar CSS once ───────────────────────────────────────
@@ -894,6 +896,73 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         .eq('id', progress.sessionId);
       // Clear partial session from localStorage
       localStorage.removeItem(sessionProgressKey);
+
+      // ── Integrity intervention check ────────────────────────────
+      try {
+        const { data: historyCheckins } = await supabase
+          .from('checkins')
+          .select('*')
+          .eq('user_id', profile.id)
+          .order('checkin_date', { ascending: true })
+          .limit(60);
+
+        if (historyCheckins && historyCheckins.length >= 5) {
+          const currentSession: SessionData = {
+            id: progress.sessionId!,
+            user_id: profile.id,
+            checkin_date: todayDate,
+            factor_emocional: typeof newDimensions.emotional === 'number' ? newDimensions.emotional : null,
+            factor_fisico:    typeof newDimensions.physical  === 'number' ? newDimensions.physical  : null,
+            factor_cognitivo: typeof newDimensions.cognitive === 'number' ? newDimensions.cognitive : null,
+            factor_estres:    typeof newDimensions.stress    === 'number' ? newDimensions.stress    : null,
+            factor_social:    typeof newDimensions.social    === 'number' ? newDimensions.social    : null,
+            factor_sexual:    typeof newDimensions.sexual    === 'number' ? newDimensions.sexual    : null,
+            factor_ansiedad:  typeof newDimensions.anxiety   === 'number' ? newDimensions.anxiety   : null,
+            phase_at_checkin: phaseData.phase,
+          };
+
+          const { flags } = calculateSessionIntegrity(historyCheckins as SessionData[], currentSession);
+          const hasFlatLine             = flags.includes('FLAT_LINE');
+          const hasImpossibleConsistency = flags.includes('IMPOSSIBLE_CONSISTENCY');
+
+          if (hasFlatLine || hasImpossibleConsistency) {
+            if (isSienna) {
+              pendingIntervention.current = isSpanish
+                ? 'Sin rodeos — llevas un tiempo dándome los mismos números. O la vida está genuinamente así de plana ahora mismo, o estás en piloto automático conmigo. ¿Cuál es?'
+                : 'Real talk — you have been giving me the same numbers for a while. Either life is genuinely that flat right now or you are on autopilot with me. Which is it?';
+            } else if (hasFlatLine) {
+              pendingIntervention.current = isSpanish
+                ? 'Oye — he notado que últimamente me estás dando números muy parecidos en todo. Está bien si así te has sentido de verdad. Pero quiero asegurarme de entenderte bien. ¿Todo ha estado tan consistente, o ha habido algo diferente que quizás no se reflejó en los números?'
+                : 'Hey — I noticed you have been giving me similar numbers across the board lately. That is totally fine if that is genuinely how you have been feeling. But I want to make sure I am really understanding you. Is everything actually feeling that consistent, or has something felt different that maybe did not show up in the numbers?';
+            } else {
+              // IMPOSSIBLE_CONSISTENCY — find the specific flat dimension
+              const dimMap = [
+                { field: 'factor_emocional', name_en: 'emotional',  name_es: 'emocional' },
+                { field: 'factor_fisico',    name_en: 'physical',   name_es: 'físico'    },
+                { field: 'factor_cognitivo', name_en: 'cognitive',  name_es: 'cognitivo' },
+                { field: 'factor_estres',    name_en: 'stress',     name_es: 'estrés'    },
+                { field: 'factor_social',    name_en: 'social',     name_es: 'social'    },
+                { field: 'factor_ansiedad',  name_en: 'anxiety',    name_es: 'ansiedad'  },
+              ] as const;
+
+              let flatDim = isSpanish ? 'un indicador' : 'one dimension';
+              for (const d of dimMap) {
+                const vals = historyCheckins
+                  .map((c: Checkin) => (c as Record<string, unknown>)[d.field])
+                  .filter((v: unknown) => v !== null && v !== undefined);
+                if (vals.length >= 10 && vals.every((v: unknown) => v === vals[0])) {
+                  flatDim = isSpanish ? d.name_es : d.name_en;
+                  break;
+                }
+              }
+
+              pendingIntervention.current = isSpanish
+                ? `Quiero chequearte algo. Tu puntaje de ${flatDim} ha estado exactamente igual por un tiempo. Los cuerpos rara vez se quedan completamente quietos — incluso los buenos días tienen matices. ¿Te cuesta notar las diferencias, o de verdad se siente así de plano?`
+                : `I want to check in with you about something. Your ${flatDim} score has been exactly the same for a while now. Bodies rarely stay perfectly still — even good days have texture. Are you finding it hard to notice the differences, or does it genuinely feel that flat?`;
+            }
+          }
+        }
+      } catch { /* ignore integrity check errors — never block the session */ }
     }
   };
 
@@ -950,6 +1019,16 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       const newCount = incrementMessageCount();
       setMessageCount(newCount);
       speakResponse(result.content);
+
+      // Inject integrity intervention after Jules' closing, with natural pacing
+      const intervention = pendingIntervention.current;
+      if (intervention) {
+        pendingIntervention.current = null;
+        setTimeout(() => {
+          setMessages(prev => [...prev, { role: 'assistant', content: intervention }]);
+          speakResponse(intervention);
+        }, 1800);
+      }
     }
 
     setLoading(false);
