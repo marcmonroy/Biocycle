@@ -80,6 +80,8 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
   const [showPortfolioModal, setShowPortfolioModal] = useState(false);
   const [displayValue, setDisplayValue] = useState(0);
   const [arcAnimated, setArcAnimated] = useState(false);
+  const [avgIntegrity, setAvgIntegrity] = useState<number | null>(null);
+  const [showIntegrityInfo, setShowIntegrityInfo] = useState(false);
 
   // ── Profile bonus (computed from props — needed before animation effect) ──
   const profileBonusItems = [
@@ -275,6 +277,22 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
         }
       }
       setTradingStreak(streak);
+
+      // Integrity score — average of last 30 scored sessions
+      const { data: integritySessions } = await supabase
+        .from('conversation_sessions')
+        .select('integrity_score')
+        .eq('user_id', profile.id)
+        .not('integrity_score', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      if (integritySessions && integritySessions.length > 0) {
+        const avg = integritySessions.reduce(
+          (sum: number, s: { integrity_score: number }) => sum + s.integrity_score, 0
+        ) / integritySessions.length;
+        setAvgIntegrity(Math.round(avg));
+      }
 
       const { data: profileData } = await supabase
         .from('profiles')
@@ -476,6 +494,48 @@ export function DashboardScreen({ profile, onNavigate }: DashboardScreenProps) {
           )}
         </div>
       </div>
+
+      {divider}
+
+      {/* ── Data Integrity ── */}
+      <div className="px-6 py-5 flex items-center justify-between">
+        <p style={{ fontSize: '0.75rem', color: '#4A5568', fontFamily: 'Inter,system-ui,sans-serif', fontWeight: 400 }}>
+          {isSpanish ? 'Integridad de Datos' : 'Data Integrity'}
+        </p>
+        <div className="flex items-center gap-3">
+          {avgIntegrity === null ? (
+            <span style={{ fontSize: '0.85rem', color: '#4A5568', fontFamily: 'Inter,system-ui,sans-serif' }}>
+              {isSpanish ? 'Calculando...' : 'Building...'}
+            </span>
+          ) : (
+            <span style={{
+              fontFamily: 'JetBrains Mono,monospace',
+              fontWeight: 600,
+              fontSize: '1.1rem',
+              color: avgIntegrity >= 80 ? '#00C896' : avgIntegrity >= 60 ? '#FFD93D' : '#FF6B6B',
+            }}>
+              {avgIntegrity}
+            </span>
+          )}
+          <button
+            onClick={() => setShowIntegrityInfo(v => !v)}
+            style={{ fontSize: '1rem', color: '#4A5568', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            aria-label="Integrity info"
+          >
+            ⓘ
+          </button>
+        </div>
+      </div>
+
+      {showIntegrityInfo && (
+        <div className="mx-6 mb-4 px-4 py-3 rounded-xl" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <p style={{ fontSize: '0.78rem', color: '#8B95B0', lineHeight: 1.5 }}>
+            {isSpanish
+              ? 'Tu puntaje de integridad refleja la autenticidad de tus respuestas. Los datos de alta integridad tienen mayor valor en investigación.'
+              : 'Your integrity score reflects the authenticity of your session responses. High integrity data commands premium research value.'}
+          </p>
+        </div>
+      )}
 
       {divider}
 
