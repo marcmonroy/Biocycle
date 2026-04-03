@@ -168,6 +168,7 @@ function buildSystemPrompt(
   sessionType: CoachSessionType = 'adhoc',
   recentSummaries: string[] = [],
   morningSummary: string | null = null,
+  daysOfData: number = 0,
 ): string {
   const isSpanish = profile.idioma === 'ES';
   const phaseNames = getPhaseNames(isSpanish);
@@ -177,6 +178,16 @@ function buildSystemPrompt(
   const dataQuality = recentAnxiety !== null ? 'Active tracker' : 'New user';
   const isSiennaMode = profile.picardia_mode === true;
   const name = profile.nombre ?? 'friend';
+
+  // ── Coaching mode based on data depth ────────────────────────────
+  const coachingMode = daysOfData < 30
+    ? `\n\nCOACHING MODE — LEARNING (${daysOfData} days of data):
+You are in LEARNING MODE. You have less than 30 days of data for this user. DO NOT make predictions or read back biological forecasts — you do not have enough data to be accurate yet. Your only goal is to make the user feel understood, curious about their patterns, and excited to come back tomorrow. After collecting each dimension score give one sentence of warm acknowledgment — not analysis. Close the session by telling the user something like: "Every session you complete teaches me something new about you. The more consistent you are the more accurate I become." Never say things like "based on your phase" or "your biology predicts" — you do not know yet. Be warm, curious, and encouraging.`
+    : daysOfData < 90
+    ? `\n\nCOACHING MODE — CALIBRATION (${daysOfData} days of data):
+You are in CALIBRATION MODE. You have some data but patterns are still forming. You can make gentle observations like "I have noticed your energy tends to be lower on days like this" but frame them as observations not predictions. Encourage consistency — remind the user their patterns become clearer with every session.`
+    : `\n\nCOACHING MODE — COMPANION (${daysOfData} days of data):
+You are in COMPANION MODE. You know this person's patterns well. You can make confident predictions and reference their specific history. Be their trusted biological companion — speak with earned authority about what their body does and why.`;
 
   // Date awareness — prepended to every prompt so the model never confuses past/future
   const dateStr = new Date().toLocaleDateString(
@@ -213,7 +224,7 @@ After all 6 questions give a brief closing that references what to watch for tod
 
 Rules: One question at a time. Never rush. Never list all questions at once. If user gives non-number redirect gently. Keep each response under 80 words.
 
-User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}${coachingMode}`;
   }
 
   // ── Scheduled afternoon session (CHANGE 4) ────────────────────────
@@ -240,7 +251,7 @@ After all questions give a brief observation about the afternoon data compared t
 
 Rules: One question at a time. Keep responses under 80 words. If user gives non-number gently redirect.
 
-User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}${coachingMode}`;
   }
 
   // ── Scheduled night session (CHANGE 5) ────────────────────────────
@@ -266,7 +277,7 @@ Warm closing that acknowledges the day without previewing tomorrow. Focus on com
 
 Rules: Keep the entire night session warm and brief. Maximum 5 exchanges. No dimension scores needed — only day rating, memory, and alcohol.
 
-User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}${historyBlock}${coachingMode}`;
   }
 
   // ── Adhoc / fallback prompts (Jules or Sienna) ────────────────────
@@ -294,7 +305,7 @@ Rules:
 - Always ground emotional observations in biology not character
 - Respond in the user's language (${profile.idioma})
 
-User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}${coachingMode}`;
 
   const siennaOpening = isSpanish
     ? `Hola ${name}. Soy Sienna. Hoy estás en fase ${phaseName}. Vamos al grano. Estado emocional — número del 1 al 10. Ya.`
@@ -319,7 +330,7 @@ Rules:
 - Never shame. Never pity. Biology first always.
 - Respond in the user's language (${profile.idioma})
 
-User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}`;
+User context: Name: ${name}, Phase: ${phaseName}, Day: ${cycleDay}, Language: ${profile.idioma}, Time slot: ${timeSlot}, Data quality: ${dataQuality}${historyBlock}${coachingMode}`;
 
   return dateLine + (isSiennaMode ? siennaPrompt : julesPrompt);
 }
@@ -333,11 +344,20 @@ export async function callCoachAPI(
   sessionType: CoachSessionType = 'adhoc',
   recentSummaries: string[] = [],
   morningSummary: string | null = null,
+  daysOfData: number = 0,
 ): Promise<{ content: string; error?: string }> {
-  const systemPrompt = buildSystemPrompt(profile, phaseData, recentAnxiety, sessionType, recentSummaries, morningSummary);
+  const systemPrompt = buildSystemPrompt(profile, phaseData, recentAnxiety, sessionType, recentSummaries, morningSummary, daysOfData);
+
+  // Anthropic API requires messages to start with a user turn.
+  // The opening greeting is an assistant message — skip it and any other leading
+  // assistant messages so the history array always begins with a user message.
+  const firstUserIdx = conversationHistory.findIndex(m => m.role === 'user');
+  const historyForAPI = firstUserIdx >= 0
+    ? conversationHistory.slice(firstUserIdx)
+    : [];
 
   const messages = [
-    ...conversationHistory.map(m => ({ role: m.role, content: m.content })),
+    ...historyForAPI.map(m => ({ role: m.role, content: m.content })),
     { role: 'user' as const, content: userMessage }
   ];
 
@@ -352,7 +372,7 @@ export async function callCoachAPI(
         max_tokens: 1000,
         system: systemPrompt,
         messages,
-        picardia_mode: profile.picardia_mode ?? false,
+        days_of_data: daysOfData,
       }),
     });
 
@@ -653,6 +673,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const [loading, setLoading] = useState(false);
   const [messageCount, setMessageCount] = useState(getMessageCount());
   const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
+  const [daysOfData, setDaysOfData] = useState(0);
   const greetingGeneratedRef = useRef(false);
 
   // ── Speech input state ───────────────────────────────────────────
@@ -763,8 +784,8 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     };
 
     (async () => {
-      // Fetch recent checkin data, session summaries, and morning summary in parallel
-      const [checkinResult, summaries, morningData] = await Promise.all([
+      // Fetch recent checkin data, session summaries, morning summary, and total day count in parallel
+      const [checkinResult, summaries, morningData, countResult] = await Promise.all([
         supabase
           .from('checkins')
           .select('factor_ansiedad, factor_emocional')
@@ -783,11 +804,19 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               .eq('session_complete', true)
               .maybeSingle()
           : Promise.resolve({ data: null }),
+        // Count total checkin days for coaching mode selection
+        supabase
+          .from('checkins')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', profile.id),
       ]);
 
       setRecentSummaries(summaries);
       if (morningData.data?.session_summary) {
         setMorningSummary(morningData.data.session_summary);
+      }
+      if (countResult.count != null) {
+        setDaysOfData(countResult.count);
       }
 
       const { data } = checkinResult;
@@ -1077,6 +1106,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       sessionType,
       recentSummaries,
       morningSummary,
+      daysOfData,
     );
 
     if (result.error) {
