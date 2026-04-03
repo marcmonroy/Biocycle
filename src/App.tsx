@@ -35,6 +35,8 @@ function App() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('session') === 'scheduled') {
       sessionStorage.setItem('biocycle_pending_scheduled', '1');
+      sessionStorage.removeItem('biocycle_adhoc_greeting');
+      sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
       window.history.replaceState({}, '', window.location.pathname);
     }
 
