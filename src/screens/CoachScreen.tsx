@@ -586,12 +586,12 @@ const AVATAR_STYLES = `
   .voice-bubble-speaking { animation: bubble-speaking 0.75s ease-in-out infinite; }
 
   @keyframes dna-glow-idle {
-    0%, 100% { transform: scale(1);    opacity: 0.5; }
-    50%       { transform: scale(1.15); opacity: 0.9; }
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 0.9; }
   }
   @keyframes dna-glow-listen {
-    0%, 100% { transform: scale(1);   opacity: 0.7; }
-    50%      { transform: scale(1.2); opacity: 1;   }
+    0%, 100% { opacity: 0.7; }
+    50%      { opacity: 1;   }
   }
   .dna-pulse-idle    { animation: dna-glow-idle   3.5s ease-in-out infinite; }
   .dna-pulse-listen  { animation: dna-glow-listen 1s   ease-in-out infinite; }
@@ -1382,7 +1382,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               position: 'absolute',
               top: '50%',
               left: '50%',
-              transform: 'translate(-50%, -58%)',
+              transform: 'translate(-50%, -50%)',
               width: 280,
               height: 280,
               borderRadius: '50%',
@@ -1396,7 +1396,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               position: 'absolute',
               top: '50%',
               left: '50%',
-              transform: 'translate(-50%, -58%)',
+              transform: 'translate(-50%, -50%)',
               width: 180,
               height: 180,
               borderRadius: '50%',
@@ -1485,7 +1485,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
             position: 'absolute',
             top: '50%',
             left: '50%',
-            transform: 'translate(-50%, -58%)',
+            transform: 'translate(-50%, -50%)',
             width: 280,
             height: 280,
             borderRadius: '50%',
@@ -1499,7 +1499,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
             position: 'absolute',
             top: '50%',
             left: '50%',
-            transform: 'translate(-50%, -58%)',
+            transform: 'translate(-50%, -50%)',
             width: 180,
             height: 180,
             borderRadius: '50%',
