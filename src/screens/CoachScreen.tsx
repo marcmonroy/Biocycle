@@ -98,12 +98,31 @@ const AFTERNOON_DIMS = ['emotional', 'social', 'sexual', 'hydration', 'symptoms'
 // Night dimension order
 const NIGHT_DIMS = ['day_rating', 'day_memory', 'alcohol'] as const;
 
-/** Extract a numeric score (1–10) from a user message, or null if not a score */
+/** Word-to-digit map for natural speech (EN + ES) */
+const SPOKEN_NUMBERS: Record<string, number> = {
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
+  uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+  seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10,
+};
+
+/** Extract a numeric score (1–10) from any user message — spoken or typed. */
 function extractScore(msg: string): number | null {
-  const m = msg.trim().match(/^(\d+)$/);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return n >= 1 && n <= 10 ? n : null;
+  const cleaned = msg.trim().toLowerCase();
+
+  // Digit anywhere in the message: "7", "7.", "I'd say 7", "about a 7 out of 10"
+  const digitMatch = cleaned.match(/\b(10|[1-9])\b/);
+  if (digitMatch) {
+    const n = parseInt(digitMatch[1], 10);
+    if (n >= 1 && n <= 10) return n;
+  }
+
+  // Written-out word: "seven", "siete", etc.
+  for (const [word, num] of Object.entries(SPOKEN_NUMBERS)) {
+    if (new RegExp(`\\b${word}\\b`).test(cleaned)) return num;
+  }
+
+  return null;
 }
 
 /** Summarise a completed session into a compact string for Jules' memory */
@@ -493,6 +512,17 @@ const AVATAR_STYLES = `
   .voice-bubble-listening { animation: bubble-listening 1s ease-in-out infinite; }
   .voice-bubble-processing { animation: bubble-processing 0.8s ease-in-out infinite; }
   .voice-bubble-speaking { animation: bubble-speaking 0.75s ease-in-out infinite; }
+
+  @keyframes dna-glow-idle {
+    0%, 100% { transform: scale(1);    opacity: 0.5; }
+    50%       { transform: scale(1.15); opacity: 0.9; }
+  }
+  @keyframes dna-glow-listen {
+    0%, 100% { transform: scale(1);   opacity: 0.7; }
+    50%      { transform: scale(1.2); opacity: 1;   }
+  }
+  .dna-pulse-idle    { animation: dna-glow-idle   3.5s ease-in-out infinite; }
+  .dna-pulse-listen  { animation: dna-glow-listen 1s   ease-in-out infinite; }
 `;
 
 const DNAHelixIcon = ({ size = 28 }: { size?: number }) => (
@@ -644,7 +674,12 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const inputRef = useRef<HTMLInputElement>(null);
   const sendMessageRef = useRef<(text?: string) => void>(() => {});
   const pendingIntervention = useRef<string | null>(null);
+  const autoListenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadingRef = useRef(false);
   const isLimitReached = messageCount >= MONTHLY_LIMIT;
+
+  // ── Keep loadingRef in sync ──────────────────────────────────────
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
 
   // ── Inject avatar CSS once ───────────────────────────────────────
   useEffect(() => {
@@ -847,7 +882,19 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       setBioState('speaking');
       speakWithElevenLabs(text, profile.idioma, profile.picardia_mode ?? false, {
         onStart: () => setBioState('speaking'),
-        onEnd:   () => setBioState('idle'),
+        onEnd:   () => {
+          setBioState('idle');
+          // Auto-enter listening state after 1.5s pause
+          if (autoListenTimerRef.current) clearTimeout(autoListenTimerRef.current);
+          autoListenTimerRef.current = setTimeout(() => {
+            if (!loadingRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+                setIsListening(true);
+              } catch { /* recognition already active or unavailable */ }
+            }
+          }, 1500);
+        },
       });
     },
     [isMuted, profile.idioma, profile.picardia_mode]
@@ -1047,6 +1094,11 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
   const toggleListening = () => {
     if (!speechSupported) return;
+    // Cancel any pending auto-listen timer when user taps manually
+    if (autoListenTimerRef.current) {
+      clearTimeout(autoListenTimerRef.current);
+      autoListenTimerRef.current = null;
+    }
     if (isListening) {
       recognitionRef.current?.stop();
       setIsListening(false);
@@ -1223,17 +1275,35 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
         </div>
 
         {/* Tappable DNA */}
-        <div className="flex flex-col items-center py-4">
+        <div className="flex flex-col items-center py-4" style={{ background: '#12122A', position: 'relative' }}>
+          {/* Radial glow behind DNA */}
+          <div
+            className={isListening ? 'dna-pulse-listen' : 'dna-pulse-idle'}
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -58%)',
+              width: 280,
+              height: 280,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(255,217,61,0.08) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }}
+          />
           <button
             onClick={toggleListening}
             disabled={loading || greetingLoading || !speechSupported || bioState === 'speaking'}
-            className="rounded-full overflow-hidden disabled:cursor-not-allowed"
-            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            className="rounded-full disabled:cursor-not-allowed"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: 240, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
             aria-label={dnaLabel}
           >
-            <QuantumDNA size={160} state={quantumState} />
+            <QuantumDNA size={180} state={quantumState} />
           </button>
-          <span className="text-xs mt-2 font-medium" style={{ color: dnaLabelColor, transition: 'color 0.3s' }}>
+          <span
+            className="text-xs mt-2 font-medium"
+            style={{ color: dnaLabelColor, transition: 'color 0.3s, opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
+          >
             {dnaLabel}
           </span>
         </div>
@@ -1294,17 +1364,35 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       </div>
 
       {/* Tappable DNA */}
-      <div className="flex flex-col items-center pt-5 pb-2 bg-[#0A0A1A]">
+      <div className="flex flex-col items-center pt-5 pb-2" style={{ background: '#12122A', position: 'relative' }}>
+        {/* Radial glow behind DNA */}
+        <div
+          className={isListening ? 'dna-pulse-listen' : 'dna-pulse-idle'}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -58%)',
+            width: 280,
+            height: 280,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(255,217,61,0.08) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }}
+        />
         <button
           onClick={toggleListening}
           disabled={loading || greetingLoading || !speechSupported || bioState === 'speaking'}
-          className="rounded-full overflow-hidden disabled:cursor-not-allowed transition-opacity disabled:opacity-80"
-          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          className="rounded-full disabled:cursor-not-allowed transition-opacity disabled:opacity-80"
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: 240, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
           aria-label={dnaLabel}
         >
-          <QuantumDNA size={120} state={quantumState} />
+          <QuantumDNA size={220} state={quantumState} />
         </button>
-        <span className="text-xs mt-2 font-medium" style={{ color: dnaLabelColor, transition: 'color 0.3s' }}>
+        <span
+          className="text-xs mt-2 font-medium"
+          style={{ color: dnaLabelColor, transition: 'color 0.3s, opacity 0.4s', opacity: bioState === 'speaking' ? 0 : 1 }}
+        >
           {dnaLabel}
         </span>
       </div>
