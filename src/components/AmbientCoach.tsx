@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Profile } from '../lib/supabase';
 import { PhaseData, ForecastDay } from '../utils/phaseEngine';
 import { computeAdhocGreeting } from '../utils/greetingUtils';
-import { speakWithElevenLabs } from '../services/voiceService';
+import { cancelSpeech } from '../services/voiceService';
 import { QuantumDNA } from './QuantumDNA';
 
 interface AmbientCoachProps {
@@ -25,19 +25,21 @@ export function AmbientCoach({
 }: AmbientCoachProps) {
   const [loading, setLoading] = useState(false);
 
-  // Hide when already on the coach screen
-  if (currentScreen === 'coach') return null;
+  // When the coach screen is active: cancel any in-progress speech and render nothing.
+  if (currentScreen === 'coach') {
+    cancelSpeech();
+    return null;
+  }
 
   const handleTap = async () => {
     if (loading) return;
     setLoading(true);
     try {
       const greeting = await computeAdhocGreeting(profile);
+      // Store greeting for CoachScreen to display and speak.
+      // Do NOT start speaking here — CoachScreen owns the voice for its session.
       sessionStorage.setItem('biocycle_adhoc_greeting', greeting);
-      // Start speaking immediately so audio begins during navigation animation.
-      // CoachScreen checks this flag and skips re-speaking.
-      sessionStorage.setItem('biocycle_adhoc_greeting_spoken', 'true');
-      speakWithElevenLabs(greeting, profile.idioma, profile.picardia_mode ?? false);
+      sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
     } catch {
       sessionStorage.removeItem('biocycle_adhoc_greeting');
       sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');

@@ -837,9 +837,9 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
               .eq('session_complete', true)
               .maybeSingle()
           : Promise.resolve({ data: null }),
-        // Count total checkin days for coaching mode selection
+        // Count completed coach sessions to determine coaching mode
         supabase
-          .from('checkins')
+          .from('conversation_sessions')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', profile.id),
       ]);
