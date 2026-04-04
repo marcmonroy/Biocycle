@@ -88,6 +88,7 @@ function buildPrompt(
   phaseData: PhaseData,
   sessionType: CoachSessionType,
   daysOfData: number,
+  collectedDimensions: Record<string, number> = {},
 ): string {
   const name = profile.nombre || 'friend';
   const isES = profile.idioma === 'ES';
@@ -162,12 +163,19 @@ ${safety}`;
       ? 'Reglas: UNA pregunta a la vez. Nunca listes todas las preguntas. Nunca suenes como un formulario. Mantén cada respuesta en menos de 2 oraciones. Acepta números hablados con naturalidad.'
       : 'Rules: ONE question at a time. Never list all questions. Never sound like a form. Keep each response under 2 sentences. Accept spoken numbers naturally.';
 
+    const alreadyCollected = Object.keys(collectedDimensions).length > 0
+      ? (isES
+        ? `Ya recopilado en esta sesión: ${JSON.stringify(collectedDimensions)}\nNo preguntes por dimensiones que ya fueron recopiladas. Continúa desde donde se quedó.`
+        : `Already collected in this session: ${JSON.stringify(collectedDimensions)}\nDo not ask for dimensions that are already collected. Continue from where you left off.`)
+      : '';
+
     if (isES) {
       return `Eres ${coach}, coach de BioCycle. Personalidad: ${personality}.
 Esta es una sesión de ${slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche'} con ${name}. Tienen ${daysOfData} días de datos.
 ${dataContext}
 Recoge estas dimensiones UNA A LA VEZ en conversación natural. Haz una pregunta, espera el número, reconoce calurosamente en una oración, luego haz la siguiente:
 ${dimensions}
+${alreadyCollected}
 ${closeInstruction}
 ${rules}
 ${startInstruction}
@@ -178,6 +186,7 @@ This is a ${slot} session with ${name}. They have ${daysOfData} days of data.
 ${dataContext}
 Collect these dimensions ONE AT A TIME in natural conversation. Ask one question, wait for the number, acknowledge warmly in one sentence, then ask the next:
 ${dimensions}
+${alreadyCollected}
 ${closeInstruction}
 ${rules}
 ${startInstruction}
@@ -238,6 +247,7 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
   const daysLoadedRef = useRef(false);
   const startedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const dimensionScoresRef = useRef<Record<string, number>>({});
 
   const isES = profile.idioma === 'ES';
 
@@ -271,11 +281,17 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
     try {
       const recognition = new SpeechRecognitionAPI();
       recognition.lang = isES ? 'es-ES' : 'en-US';
-      recognition.continuous = false;
-      recognition.interimResults = false;
+      recognition.continuous = true;
+      recognition.interimResults = true;
       recognition.onresult = (e: SpeechRecognitionEvent) => {
-        const text = e.results[0][0].transcript;
-        if (text.trim()) sendMessage(text.trim());
+        const result = e.results[e.results.length - 1];
+        if (result.isFinal) {
+          const text = result[0].transcript;
+          if (text.trim()) {
+            recognition.stop();
+            sendMessage(text.trim());
+          }
+        }
       };
       recognition.onerror = () => { setBioState('idle'); setIsListening(false); };
       recognition.onend = () => setIsListening(false);
@@ -288,7 +304,7 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
   };
 
   // ── sendMessage ──────────────────────────────────────────────────
-  const sendMessage = async (userText: string) => {
+  const sendMessage = async (userText: string, daysOverride?: number) => {
     if (loadingRef.current) return;
     setLoading(true);
     setBioState('thinking');
@@ -300,8 +316,35 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
 
     if (!isStartTrigger) setMessages(newMessages);
 
+    // ── Dimension score extraction from user input ────────────────
+    if (!isStartTrigger) {
+      const numberMatch = userText.match(/\b([1-9]|10)\b/);
+      if (numberMatch) {
+        const score = parseInt(numberMatch[1]);
+        const lastAssistantMsg = messages.filter(m => m.role === 'assistant').slice(-1)[0]?.content || '';
+        const msgLower = lastAssistantMsg.toLowerCase();
+        if (msgLower.includes('physical') || msgLower.includes('energy') || msgLower.includes('energía') || msgLower.includes('física')) {
+          dimensionScoresRef.current.physical = score;
+        } else if (msgLower.includes('cognitive') || msgLower.includes('cognitiv') || msgLower.includes('mental') || msgLower.includes('clarity') || msgLower.includes('claridad')) {
+          dimensionScoresRef.current.cognitive = score;
+        } else if (msgLower.includes('stress') || msgLower.includes('estrés')) {
+          dimensionScoresRef.current.stress = score;
+        } else if (msgLower.includes('anxiety') || msgLower.includes('ansiedad')) {
+          dimensionScoresRef.current.anxiety = score;
+        } else if (msgLower.includes('emotional') || msgLower.includes('emocional')) {
+          dimensionScoresRef.current.emotional = score;
+        } else if (msgLower.includes('social')) {
+          dimensionScoresRef.current.social = score;
+        } else if (msgLower.includes('sleep') || msgLower.includes('sueño') || msgLower.includes('dormir')) {
+          dimensionScoresRef.current.sleep = score;
+        } else if (msgLower.includes('sexual') || msgLower.includes('libido')) {
+          dimensionScoresRef.current.sexual = score;
+        }
+      }
+    }
+
     try {
-      const prompt = buildPrompt(profile, phaseData, sessionType, daysOfData);
+      const prompt = buildPrompt(profile, phaseData, sessionType, daysOverride ?? daysOfData, dimensionScoresRef.current);
       const response = await callAPI(newMessages, prompt);
 
       if (!response) throw new Error('empty');
@@ -318,10 +361,26 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
         logSafetyEvent(profile.id, userText, response);
       }
 
-      // ── Session complete detection ──────────────────────────────
+      // ── Session complete detection + score save ─────────────────
       const lower = response.toLowerCase();
       if (lower.includes('session complete') || lower.includes('sesión completa') || lower.includes('sesion completa')) {
         setSessionComplete(true);
+        const scores = dimensionScoresRef.current;
+        await supabase.from('conversation_sessions').insert({
+          user_id: profile.id,
+          session_date: new Date().toISOString().split('T')[0],
+          time_slot: new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'night',
+          session_complete: true,
+          factor_fisico: scores.physical || null,
+          factor_cognitivo: scores.cognitive || null,
+          factor_estres: scores.stress || null,
+          factor_ansiedad: scores.anxiety || null,
+          factor_emocional: scores.emotional || null,
+          factor_social: scores.social || null,
+          factor_sueno: scores.sleep || null,
+          factor_sexual: scores.sexual || null,
+          created_at: new Date().toISOString(),
+        });
       }
 
       speak(response);
@@ -347,11 +406,11 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
       const days = count ?? 0;
       setDaysOfData(days);
 
-      // Fire greeting after state settles
+      // Fire greeting after state settles — pass days directly to avoid stale state
       setTimeout(() => {
         if (!startedRef.current) {
           startedRef.current = true;
-          sendMessage('__START__');
+          sendMessage('__START__', days);
         }
       }, 100);
     })();
