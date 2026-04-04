@@ -5,7 +5,8 @@ import { BottomNav, Screen } from './components/BottomNav';
 import { HomeScreen } from './screens/HomeScreen';
 import { ForecastScreen } from './screens/ForecastScreen';
 import { CheckinScreen } from './screens/CheckinScreen';
-import { CoachScreen, CoachSessionType } from './screens/CoachScreen';
+import { CoachSessionType } from './screens/CoachScreen';
+import { CoachScreenV2 } from './screens/CoachScreenV2';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { AdminScreen } from './screens/AdminScreen';
 import { ResearchScreen } from './screens/ResearchScreen';
@@ -258,7 +259,7 @@ function App() {
           />
         )}
         {currentScreen === 'coach' && (
-          <CoachScreen profile={profile} phaseData={phaseData} sessionType={coachSessionType} />
+          <CoachScreenV2 profile={profile} phaseData={phaseData} sessionType={coachSessionType} onBack={() => handleNavigate('home')} />
         )}
         {currentScreen === 'dashboard' && (
           <DashboardScreen profile={profile} onNavigate={setCurrentScreen} />
