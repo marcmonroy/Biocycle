@@ -19,6 +19,13 @@ import { QuantumDNA } from './components/QuantumDNA';
 import { calculatePhase, getForecast } from './utils/phaseEngine';
 import { Session } from '@supabase/supabase-js';
 
+// Clear adhoc greeting immediately if this is a scheduled session URL
+const _urlCheck = new URLSearchParams(window.location.search);
+if (_urlCheck.get('session') === 'scheduled') {
+  sessionStorage.removeItem('biocycle_adhoc_greeting');
+  sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
+}
+
 type AppState = 'loading' | 'landing' | 'setup' | 'home' | 'admin' | 'research' | 'trading-floor' | 'privacy' | 'terms';
 
 function App() {
