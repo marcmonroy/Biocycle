@@ -241,6 +241,8 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
   const [sessionComplete, setSessionComplete] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [showNumberPad, setShowNumberPad] = useState(false);
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
   const loadingRef = useRef(false);
   const isListeningRef = useRef(false);
@@ -248,12 +250,14 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
   const startedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dimensionScoresRef = useRef<Record<string, number>>({});
+  const showNumberPadRef = useRef(false);
 
   const isES = profile.idioma === 'ES';
 
   // ── Keep refs in sync ────────────────────────────────────────────
   useEffect(() => { loadingRef.current = loading; }, [loading]);
   useEffect(() => { isListeningRef.current = isListening; }, [isListening]);
+  useEffect(() => { showNumberPadRef.current = showNumberPad; }, [showNumberPad]);
 
   // ── Scroll to bottom ─────────────────────────────────────────────
   useEffect(() => {
@@ -268,7 +272,9 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
     speakWithElevenLabs(text, profile.idioma, profile.picardia_mode ?? false, {
       onEnd: () => {
         setBioState('idle');
-        setTimeout(() => startListening(), 1500);
+        if (!showNumberPadRef.current) {
+          setTimeout(() => startListening(), 1500);
+        }
       },
     });
   };
@@ -306,6 +312,7 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
   // ── sendMessage ──────────────────────────────────────────────────
   const sendMessage = async (userText: string, daysOverride?: number) => {
     if (loadingRef.current) return;
+    setShowNumberPad(false);
     setLoading(true);
     setBioState('thinking');
 
@@ -359,6 +366,15 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
       // ── Safety event logging ────────────────────────────────────
       if (hasCrisisContent(userText) || hasCrisisContent(response)) {
         logSafetyEvent(profile.id, userText, response);
+      }
+
+      // ── Number pad detection ────────────────────────────────────
+      const isNumberQuestion = response.match(/1.*10|del 1 al 10|from 1 to 10|give me a number|dame un número|escala del|scale of/i);
+      if (isNumberQuestion && !sessionComplete) {
+        setShowNumberPad(true);
+        setPendingQuestion(response);
+      } else {
+        setShowNumberPad(false);
       }
 
       // ── Session complete detection + score save ─────────────────
@@ -416,6 +432,48 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── NumberPad component ──────────────────────────────────────────
+  const NumberPad = () => (
+    <div
+      aria-label={pendingQuestion ?? undefined}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(5, 1fr)',
+        gap: '8px',
+        padding: '16px',
+        maxWidth: '320px',
+        margin: '0 auto',
+      }}
+    >
+      {[1,2,3,4,5,6,7,8,9,10].map(n => (
+        <button
+          key={n}
+          onClick={() => {
+            setShowNumberPad(false);
+            sendMessage(String(n));
+          }}
+          style={{
+            background: 'rgba(255,217,61,0.1)',
+            border: '1px solid rgba(255,217,61,0.3)',
+            borderRadius: '12px',
+            color: '#FFD93D',
+            fontSize: n === 10 ? '1rem' : '1.2rem',
+            fontFamily: 'JetBrains Mono, monospace',
+            fontWeight: 600,
+            padding: '16px 8px',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+            gridColumn: n === 10 ? 'span 5' : 'span 1',
+          }}
+          onMouseOver={e => (e.currentTarget.style.background = 'rgba(255,217,61,0.25)')}
+          onMouseOut={e => (e.currentTarget.style.background = 'rgba(255,217,61,0.1)')}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
 
   // ── UI ───────────────────────────────────────────────────────────
   const stateLabel = bioState === 'listening'
@@ -477,6 +535,9 @@ export function CoachScreenV2({ profile, phaseData, sessionType, onBack }: Coach
           {stateLabel}
         </p>
       </div>
+
+      {/* Number pad — shown when Jules asks for a 1-10 score */}
+      {showNumberPad && <NumberPad />}
 
       {/* Message list — last 3 messages */}
       <div style={{ width: '100%', maxWidth: 430, padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, maxHeight: '35vh', overflowY: 'auto' }}>
