@@ -3,7 +3,6 @@ import { supabase, Profile, Checkin } from '../lib/supabase';
 import { PhaseData } from '../utils/phaseEngine';
 import { Send, Loader2, AlertCircle, Volume2, VolumeX, Maximize2, X } from 'lucide-react';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
-import { computeAdhocGreeting } from '../utils/greetingUtils';
 import { QuantumDNA, QuantumState } from '../components/QuantumDNA';
 import { calculateSessionIntegrity, SessionData } from '../utils/integrityEngine';
 
@@ -726,8 +725,6 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const [messageCount, setMessageCount] = useState(getMessageCount());
   const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
   const [daysOfData, setDaysOfData] = useState(0);
-  const greetingGeneratedRef = useRef(false);
-
   // ── Speech input state ───────────────────────────────────────────
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(true);
@@ -790,143 +787,115 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
     document.head.appendChild(tag);
   }, []);
 
-  // ── Generate greeting on mount ───────────────────────────────────
+  // ── Greeting — fires once on mount ──────────────────────────────
+  const greetingFiredRef = useRef(false);
+
   useEffect(() => {
-    cancelSpeech();
-    if (sessionType === 'scheduled') {
-      greetingGeneratedRef.current = false;
-    }
-    if (greetingGeneratedRef.current) return;
-    greetingGeneratedRef.current = true;
-    localStorage.removeItem('biocycle_coach_muted');
+    if (greetingFiredRef.current) return;
+    greetingFiredRef.current = true;
 
-    // Adhoc: greeting already in state (passed from AmbientCoach bubble)
-    if (sessionType === 'adhoc') {
-      if (adhocGreeting) {
-        // Greeting already spoken by AmbientCoach bubble — do not speak again
-        return;
-      }
-      // No stored greeting (coach tab opened directly) — compute intelligently
-      (async () => {
-        setBioState('speaking');
-        try {
-          const greeting = await computeAdhocGreeting(profile);
-          setMessages([{ role: 'assistant', content: greeting }]);
-          setGreetingLoading(false);
-          setTimeout(() => speakResponse(greeting), 400);
-        } catch {
-          setGreetingLoading(false);
+    const isScheduled = sessionType === 'scheduled';
+    const isSpanishUser = profile?.idioma === 'ES';
+    const userName = profile?.nombre || '';
+    const currentHour = new Date().getHours();
+    const slot = currentHour >= 5 && currentHour < 12 ? 'morning'
+      : currentHour >= 12 && currentHour < 17 ? 'afternoon' : 'night';
+
+    const generateAndSpeak = async () => {
+      setBioState('thinking');
+      setGreetingLoading(true);
+
+      try {
+        // Build greeting prompt based on context
+        const daysCount = daysOfData;
+
+        let greetingPrompt = '';
+
+        if (daysCount === 0) {
+          // First time user — never used the app before
+          greetingPrompt = isSpanishUser
+            ? `Eres Jules, coach de BioCycle. Es la primera vez que ${userName} usa la app. Salúdala/o con una bienvenida breve y cálida (1 oración). Luego pregunta: ¿Quieres que te explique brevemente cómo funciona BioCycle antes de comenzar?. Si dice sí, explica en máximo 3 oraciones simples: BioCycle aprende tus patrones biológicos a través de conversaciones diarias contigo. Cada sesión que completas me enseña algo nuevo sobre tu cuerpo y tu mente. Con el tiempo puedo predecir cómo te sentirás antes de que suceda. Luego pregunta: ¿Quieres saber más o comenzamos? Si quiere más, agrega en 2 oraciones: También formas parte de un grupo de Data Traders — tu información, con tu permiso, puede contribuir a investigaciones y generarte ingresos. Todo es tuyo, tú decides. Luego di: Listo, vamos a comenzar. ¿Cómo está tu energía física ahora mismo del 1 al 10?`
+            : `You are Jules, BioCycle coach. This is ${userName}'s first time using the app. Welcome them warmly in 1 sentence. Then ask: Would you like a quick explanation of how BioCycle works before we start? If yes, explain in maximum 3 simple sentences: BioCycle learns your biological patterns through daily conversations with you. Every session you complete teaches me something new about your body and mind. Over time I can predict how you will feel before it happens. Then ask: Want to know more or shall we start? If they want more, add in 2 sentences: You are also part of a group called Data Traders — your information, with your permission, can contribute to research and generate income for you. Everything is yours, you decide. Then say: Alright, let's begin. How is your physical energy right now on a scale of 1 to 10?`;
+        } else if (isScheduled) {
+          // Scheduled session — collect dimensions
+          if (daysCount < 30) {
+            greetingPrompt = isSpanishUser
+              ? `Eres Jules, coach de BioCycle. Saluda a ${userName} de forma breve y cálida (máximo 2 oraciones). Estás aprendiendo sus patrones — NO hagas predicciones ni menciones su fase. Sé curiosa y acogedora. Luego pregunta directamente: ¿Cómo está tu energía física esta mañana del 1 al 10?`
+              : `You are Jules, BioCycle coach. Greet ${userName} warmly in 2 sentences maximum. You are still learning their patterns — do NOT make predictions or mention their phase. Be curious and welcoming. Then ask directly: How is your physical energy this morning on a scale of 1 to 10?`;
+          } else {
+            greetingPrompt = isSpanishUser
+              ? `Eres Jules, coach de BioCycle. Saluda a ${userName} brevemente (1-2 oraciones) con una observación sobre su fase ${phaseData?.phase}. Luego pregunta: ¿Cómo está tu energía física del 1 al 10?`
+              : `You are Jules, BioCycle coach. Greet ${userName} briefly (1-2 sentences) with one observation about their ${phaseData?.phase} phase. Then ask: How is your physical energy on a scale of 1 to 10?`;
+          }
+        } else {
+          // Adhoc session — check session status
+          const todayStr = new Date().toISOString().split('T')[0];
+          const { data: todaySessions } = await supabase
+            .from('conversation_sessions')
+            .select('time_slot, session_complete')
+            .eq('user_id', profile.id)
+            .eq('session_date', todayStr);
+
+          const completedSlots = todaySessions?.filter(s => s.session_complete).map(s => s.time_slot) || [];
+          const allDone = completedSlots.length >= 3;
+          const missedMorning = slot !== 'morning' && !completedSlots.includes('morning');
+          const missedAfternoon = slot === 'night' && !completedSlots.includes('afternoon');
+
+          if (allDone) {
+            greetingPrompt = isSpanishUser
+              ? `Eres Jules. Di a ${userName} en 1 oración que ya completó sus tres depósitos de hoy. Pregunta si hay algo en lo que puedas ayudar.`
+              : `You are Jules. Tell ${userName} in 1 sentence they completed all three deposits today. Ask if there is anything on their mind.`;
+          } else if (missedMorning || missedAfternoon) {
+            const missed = missedMorning ? (isSpanishUser ? 'mañana' : 'morning') : (isSpanishUser ? 'tarde' : 'afternoon');
+            greetingPrompt = isSpanishUser
+              ? `Eres Jules. Di a ${userName} en 1 oración que no registró su depósito de ${missed}. Pregunta si quiere hacerlo ahora.`
+              : `You are Jules. Tell ${userName} in 1 sentence they missed their ${missed} deposit. Ask if they want to log it now.`;
+          } else {
+            greetingPrompt = isSpanishUser
+              ? `Eres Jules. Saluda a ${userName} brevemente (1 oración). Pregunta qué tiene en mente.`
+              : `You are Jules. Greet ${userName} briefly (1 sentence). Ask what is on their mind.`;
+          }
         }
-      })();
-      return;
-    }
 
-    // Scheduled: full dynamic API greeting
-    setBioState('speaking');
+        // Generate greeting via API
+        const response = await fetch('/.netlify/functions/coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 150,
+            system: greetingPrompt,
+            messages: [{ role: 'user', content: 'Generate the greeting now. One response only.' }],
+          }),
+        });
 
-    const applyGreeting = (text: string) => {
-      setMessages([{ role: 'assistant', content: text }]);
-      setGreetingLoading(false);
-      setTimeout(() => speakResponse(text), 400);
+        const data = await response.json();
+        let greeting = '';
+        if (data.content?.[0]?.text) greeting = data.content[0].text;
+        else if (typeof data.content === 'string') greeting = data.content;
+
+        if (!greeting) {
+          greeting = isSpanishUser
+            ? `Hola ${userName}, ¿cómo estás hoy?`
+            : `Hi ${userName}, how are you today?`;
+        }
+
+        setMessages([{ role: 'assistant', content: greeting.trim() }]);
+        setGreetingLoading(false);
+        speakResponse(greeting.trim());
+
+      } catch {
+        const fallback = isSpanishUser ? `Hola ${userName}.` : `Hi ${userName}.`;
+        setMessages([{ role: 'assistant', content: fallback }]);
+        setGreetingLoading(false);
+        speakResponse(fallback);
+      }
     };
 
-    (async () => {
-      // Fetch recent checkin data, session summaries, morning summary, and total day count in parallel
-      const [checkinResult, summaries, morningData, countResult] = await Promise.all([
-        supabase
-          .from('checkins')
-          .select('factor_ansiedad, factor_emocional')
-          .eq('user_id', profile.id)
-          .order('checkin_date', { ascending: false })
-          .limit(5),
-        fetchRecentSessionSummaries(profile.id),
-        // Fetch today's morning session summary for the afternoon opener
-        currentSlot === 'afternoon'
-          ? supabase
-              .from('conversation_sessions')
-              .select('session_summary')
-              .eq('user_id', profile.id)
-              .eq('session_date', todayDate)
-              .eq('time_slot', 'morning')
-              .eq('session_complete', true)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-        // Count completed coach sessions to determine coaching mode
-        supabase
-          .from('conversation_sessions')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', profile.id),
-      ]);
+    // Wait for daysOfData to load then generate greeting
+    const timer = setTimeout(generateAndSpeak, 800);
+    return () => clearTimeout(timer);
 
-      setRecentSummaries(summaries);
-      if (morningData.data?.session_summary) {
-        setMorningSummary(morningData.data.session_summary);
-      }
-      if (countResult.count != null) {
-        setDaysOfData(countResult.count);
-      }
-
-      const { data } = checkinResult;
-      let anxAvg: number | null = null;
-      let lastEmotionalVal: number | null = null;
-
-      if (data && data.length > 0) {
-        const anxData = data.filter((c: Checkin) => c.factor_ansiedad != null);
-        if (anxData.length > 0) {
-          anxAvg = Math.round(anxData.reduce((s: number, c: Checkin) => s + (c.factor_ansiedad || 0), 0) / anxData.length * 10) / 10;
-        }
-        const emoItem = data.find((c: Checkin) => c.factor_emocional != null);
-        if (emoItem) lastEmotionalVal = emoItem.factor_emocional ?? null;
-      }
-
-      setRecentAnxiety(anxAvg);
-
-      // ── Partial session recovery (CHANGE 6) ──────────────────────
-      const progress = sessionProgressRef.current;
-      const hasPartial = progress.questionIdx > 0 && progress.sessionId;
-      if (hasPartial) {
-        const dimList = currentSlot === 'morning' ? MORNING_DIMS
-          : currentSlot === 'afternoon' ? AFTERNOON_DIMS : NIGHT_DIMS;
-        const collected = Object.keys(progress.dimensions).length;
-        const nextDim = dimList[collected] ?? dimList[dimList.length - 1];
-        const recoveryMsg = isSpanish
-          ? `Hola ${profile.nombre}. Nos cortaron antes. Ya me habías dado ${collected} datos. Sigamos donde quedamos — ${nextDim}.`
-          : `Hey ${profile.nombre}. We got cut off earlier. You had given me ${collected} dimension${collected !== 1 ? 's' : ''} so far. Let me pick up where we left off — ${nextDim}.`;
-        applyGreeting(recoveryMsg);
-        return;
-      }
-
-      // Normal greeting flow
-      const greeting = await generateGreeting(profile, phaseData, lastEmotionalVal, anxAvg, countResult.count ?? 0);
-
-      // Create a session record in the DB for tracking (CHANGE 6)
-      const { data: sessionRow } = await supabase
-        .from('conversation_sessions')
-        .insert({
-          user_id: profile.id,
-          session_date: todayDate,
-          time_slot: currentSlot,
-          phase_at_session: phaseData.phase,
-          personality_mode: profile.picardia_mode ? 'sienna' : 'jules',
-          session_complete: false,
-        })
-        .select('id')
-        .single();
-
-      if (sessionRow?.id) {
-        const newProgress: SessionProgress = {
-          sessionId: sessionRow.id,
-          slot: currentSlot,
-          date: todayDate,
-          dimensions: {},
-          questionIdx: 0,
-        };
-        setSessionProgress(newProgress);
-        localStorage.setItem(sessionProgressKey, JSON.stringify(newProgress));
-      }
-
-      applyGreeting(greeting);
-    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionType]);
 
