@@ -972,6 +972,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   const speakResponse = useCallback(
     (text: string) => {
       if (isMuted) return;
+      cancelSpeech();
       setBioState('speaking');
       speakWithElevenLabs(text, profile.idioma, profile.picardia_mode ?? false, {
         onStart: () => setBioState('speaking'),
@@ -1183,6 +1184,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   };
 
   const toggleListening = () => {
+    if (isListening || bioState === 'speaking' || bioState === 'thinking') return;
     if (!speechSupported) return;
     // Cancel any pending auto-listen timer when user taps manually
     if (autoListenTimerRef.current) {
@@ -1216,9 +1218,13 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
   // ── Shared sub-components ────────────────────────────────────────
   const SpeakerButton = ({ text }: { text: string }) => (
     <button
-      onClick={() => speakResponse(text)}
+      onClick={() => {
+        cancelSpeech();
+        setTimeout(() => speakResponse(text), 100);
+      }}
+      disabled={bioState === 'speaking'}
       title={isSpanish ? 'Reproducir audio' : 'Replay audio'}
-      className="mt-1 ml-1 text-gray-400 hover:text-[#2D1B69] transition-colors flex-shrink-0"
+      className="mt-1 ml-1 text-gray-400 hover:text-[#2D1B69] transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
     >
       <Volume2 className="w-3.5 h-3.5" />
     </button>
