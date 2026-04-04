@@ -792,6 +792,10 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
 
   // ── Generate greeting on mount ───────────────────────────────────
   useEffect(() => {
+    cancelSpeech();
+    if (sessionType === 'scheduled') {
+      greetingGeneratedRef.current = false;
+    }
     if (greetingGeneratedRef.current) return;
     greetingGeneratedRef.current = true;
     localStorage.removeItem('biocycle_coach_muted');
@@ -924,7 +928,7 @@ export function CoachScreen({ profile, phaseData, sessionType = 'scheduled' }: C
       applyGreeting(greeting);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionType]);
 
   // ── Speech RECOGNITION setup ─────────────────────────────────────
   useEffect(() => {
