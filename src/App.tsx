@@ -190,7 +190,7 @@ function App() {
   };
 
   const handleNavigate = (screen: Screen) => {
-    if (screen === 'coach') setCoachSessionType('adhoc');
+    if (screen === 'coach' && sessionStorage.getItem('biocycle_pending_scheduled') !== '1') setCoachSessionType('adhoc');
     setCurrentScreen(screen);
   };
 
