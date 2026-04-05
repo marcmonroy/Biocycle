@@ -4,11 +4,12 @@ import { speakWithElevenLabs } from '../services/voiceService';
 
 interface Props {
   onRegister: () => void;
+  onSignIn?: () => void;
 }
 
 const JULES_GREETING = "I'm Jules. I'll learn your biology and tell you how you'll feel before it happens. The more consistent you are, the more your data is worth.";
 
-export function LandingScreen({ onRegister }: Props) {
+export function LandingScreen({ onRegister, onSignIn }: Props) {
   const [isMuted, setIsMuted] = useState(true);
   const [julesState, setJulesState] = useState<'idle' | 'speaking'>('idle');
   const [portfolioDays, setPortfolioDays] = useState(0);
@@ -145,6 +146,23 @@ export function LandingScreen({ onRegister }: Props) {
         >
           Become a Data Trader
         </button>
+
+        {onSignIn && (
+          <button
+            onClick={onSignIn}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#4A5568',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              padding: '4px 0',
+            }}
+          >
+            Already a trader? Sign in
+          </button>
+        )}
       </div>
 
       <div style={{ width: '100%', maxWidth: 430, height: 1, background: 'rgba(255,255,255,0.07)' }} />

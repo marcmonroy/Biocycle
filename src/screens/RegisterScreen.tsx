@@ -3,32 +3,34 @@ import { supabase } from '../lib/supabase';
 
 interface Props {
   onComplete: () => void;
+  onSignIn?: () => void;
 }
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const COUNTRY_CODES = [
-  { code: '+1', label: 'US/CA' },
-  { code: '+44', label: 'UK' },
-  { code: '+34', label: 'ES' },
-  { code: '+52', label: 'MX' },
+  { code: '+1',    label: 'US/CA' },
+  { code: '+44',   label: 'UK' },
+  { code: '+34',   label: 'ES' },
+  { code: '+52',   label: 'MX' },
   { code: '+1809', label: 'DR' },
   { code: '+1829', label: 'DR' },
-  { code: '+57', label: 'CO' },
-  { code: '+54', label: 'AR' },
-  { code: '+56', label: 'CL' },
-  { code: '+58', label: 'VE' },
-  { code: '+51', label: 'PE' },
-  { code: '+55', label: 'BR' },
+  { code: '+57',   label: 'CO' },
+  { code: '+54',   label: 'AR' },
+  { code: '+56',   label: 'CL' },
+  { code: '+58',   label: 'VE' },
+  { code: '+51',   label: 'PE' },
+  { code: '+55',   label: 'BR' },
 ];
 
-export function RegisterScreen({ onComplete }: Props) {
+export function RegisterScreen({ onComplete, onSignIn }: Props) {
   const [step, setStep] = useState<Step>(1);
   const [userId, setUserId] = useState<string | null>(null);
 
   // Step 1
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [existingAccount, setExistingAccount] = useState(false);
 
   // Step 2
   const [dob, setDob] = useState('');
@@ -42,11 +44,12 @@ export function RegisterScreen({ onComplete }: Props) {
   // Step 4
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
+  const [savedPhone, setSavedPhone] = useState('');
 
   // Step 5
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
+  const [codeExpired, setCodeExpired] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [sentCode, setSentCode] = useState<string | null>(null);
 
   // Step 6
   const [cycleStartDate, setCycleStartDate] = useState('');
@@ -57,19 +60,36 @@ export function RegisterScreen({ onComplete }: Props) {
   const isES = language === 'ES';
   const progress = (step / 6) * 100;
 
-  // ── Step 1 ───────────────────────────────────────────────────────
+  // ── Step 1 ───────────────────────────────────────────────────────────────
   const handleStep1 = async () => {
     if (!email || !password) { setError('All fields required.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     setError('');
+    setExistingAccount(false);
     setLoading(true);
+
     const { data, error: authError } = await supabase.auth.signUp({ email, password });
     setLoading(false);
-    if (authError) { setError(authError.message); return; }
-    if (data.user) { setUserId(data.user.id); setStep(2); }
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    // Supabase returns user with session=null for an already-registered email
+    if (data.user && !data.session) {
+      setExistingAccount(true);
+      setError('An account with this email already exists.');
+      return;
+    }
+
+    if (data.user && data.session) {
+      setUserId(data.user.id);
+      setStep(2);
+    }
   };
 
-  // ── Step 2 ───────────────────────────────────────────────────────
+  // ── Step 2 ───────────────────────────────────────────────────────────────
   const handleStep2 = async () => {
     if (!dob) { setError('Please enter your date of birth.'); return; }
     const birth = new Date(dob);
@@ -88,7 +108,7 @@ export function RegisterScreen({ onComplete }: Props) {
     setStep(3);
   };
 
-  // ── Step 3 ───────────────────────────────────────────────────────
+  // ── Step 3 ───────────────────────────────────────────────────────────────
   const handleStep3 = async () => {
     if (!name || !gender) { setError('All fields required.'); return; }
     setError('');
@@ -103,7 +123,7 @@ export function RegisterScreen({ onComplete }: Props) {
     setStep(4);
   };
 
-  // ── Step 4 ───────────────────────────────────────────────────────
+  // ── Step 4 ───────────────────────────────────────────────────────────────
   const handleStep4 = async () => {
     const digits = phone.replace(/\D/g, '');
     if (digits.length < 7 || digits.length > 13) {
@@ -132,19 +152,23 @@ export function RegisterScreen({ onComplete }: Props) {
 
     // Save phone to profile
     await supabase.from('profiles').update({ whatsapp_phone: fullPhone }).eq('id', userId);
+    setSavedPhone(fullPhone);
 
-    // Generate and send 6-digit code via Twilio
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSentCode(code);
-
-    const teaserText = `Your BioCycle verification code is ${code}`;
-    await fetch('/.netlify/functions/send-whatsapp', {
+    // Send verification code via Netlify function (code generated + stored server-side)
+    const res = await fetch('/.netlify/functions/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: fullPhone, language, teaserText }),
+      body: JSON.stringify({ to: fullPhone, userId, action: 'send_verification' }),
     });
 
     setLoading(false);
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      setError(errData.error || (isES ? 'Error al enviar el código.' : 'Failed to send code.'));
+      return;
+    }
+
     startResendCooldown();
     setStep(5);
   };
@@ -159,55 +183,83 @@ export function RegisterScreen({ onComplete }: Props) {
     }, 1000);
   };
 
-  // ── Step 5 ───────────────────────────────────────────────────────
+  // ── Step 5 ───────────────────────────────────────────────────────────────
   const handleCodeInput = (val: string, idx: number) => {
     const d = val.replace(/\D/g, '').slice(0, 1);
     const next = [...verificationCode];
     next[idx] = d;
     setVerificationCode(next);
-    // Auto-advance
     if (d && idx < 5) {
-      const nextInput = document.getElementById(`code-${idx + 1}`);
-      nextInput?.focus();
+      document.getElementById(`code-${idx + 1}`)?.focus();
     }
   };
 
   const handleStep5 = async () => {
     const entered = verificationCode.join('');
-    if (entered.length < 6) { setError('Enter all 6 digits.'); return; }
-    if (entered !== sentCode) {
-      setError(isES ? 'Código incorrecto. Intenta de nuevo.' : 'Incorrect code. Try again.');
+    if (entered.length < 6) { setError(isES ? 'Ingresa los 6 dígitos.' : 'Enter all 6 digits.'); return; }
+    setError('');
+    setCodeExpired(false);
+    setLoading(true);
+
+    // Query code from Supabase (server-generated, RLS: user can read own row)
+    const { data: codeRow } = await supabase
+      .from('whatsapp_verification_codes')
+      .select('code, expires_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!codeRow) {
+      setLoading(false);
+      setError(isES ? 'Código no encontrado. Reenvía el código.' : 'Code not found. Please resend.');
       return;
     }
-    setError('');
-    setLoading(true);
+
+    if (new Date() > new Date(codeRow.expires_at)) {
+      setLoading(false);
+      setCodeExpired(true);
+      setError(isES ? 'El código expiró.' : 'Code expired.');
+      return;
+    }
+
+    if (entered !== codeRow.code) {
+      setLoading(false);
+      setError(isES ? 'Código incorrecto. Intenta de nuevo.' : 'Incorrect code. Please try again.');
+      return;
+    }
+
+    // Match — mark verified, delete code row, create user_state
     await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userId);
-    // Create user_state record
-    await supabase.from('user_state').upsert({
-      user_id: userId,
-      state: 'active_trader',
-    });
+    await supabase.from('whatsapp_verification_codes').delete().eq('user_id', userId);
+    await supabase.from('user_state').upsert({ user_id: userId, state: 'active_trader' });
+
     setLoading(false);
     setStep(6);
   };
 
   const handleResend = async () => {
     if (resendCooldown > 0) return;
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSentCode(code);
-    const { data: profileData } = await supabase.from('profiles').select('whatsapp_phone').eq('id', userId).single();
-    if (profileData?.whatsapp_phone) {
-      const teaserText = `Your BioCycle verification code is ${code}`;
-      await fetch('/.netlify/functions/send-whatsapp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: profileData.whatsapp_phone, language, teaserText }),
-      });
+    setError('');
+    setCodeExpired(false);
+    setVerificationCode(['', '', '', '', '', '']);
+    setLoading(true);
+
+    const res = await fetch('/.netlify/functions/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: savedPhone, userId, action: 'send_verification' }),
+    });
+
+    setLoading(false);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      setError(errData.error || (isES ? 'Error al reenviar.' : 'Failed to resend.'));
+      return;
     }
+
     startResendCooldown();
   };
 
-  // ── Step 6 ───────────────────────────────────────────────────────
+  // ── Step 6 ───────────────────────────────────────────────────────────────
   const handleStep6 = async () => {
     setLoading(true);
     if (gender === 'female' && cycleStartDate) {
@@ -217,7 +269,7 @@ export function RegisterScreen({ onComplete }: Props) {
     onComplete();
   };
 
-  // ── Under-age hard block ─────────────────────────────────────────
+  // ── Under-age hard block ──────────────────────────────────────────────────
   if (underAge) {
     return (
       <div style={screenStyle}>
@@ -260,13 +312,28 @@ export function RegisterScreen({ onComplete }: Props) {
         {step === 1 && (<>
           <h2 style={headingStyle}>Create your account</h2>
           <input style={inputStyle} type="email" placeholder="Email address"
-            value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
+            value={email} onChange={e => { setEmail(e.target.value); setError(''); setExistingAccount(false); }}
+            autoComplete="email" />
           <input style={inputStyle} type="password" placeholder="Password (min 8 chars)"
-            value={password} onChange={e => setPassword(e.target.value)} autoComplete="new-password" />
-          {error && <p style={errorStyle}>{error}</p>}
+            value={password} onChange={e => { setPassword(e.target.value); setError(''); }}
+            autoComplete="new-password" />
+          {error && (
+            <p style={errorStyle}>
+              {error}
+              {existingAccount && onSignIn && (
+                <> <button onClick={onSignIn} style={inlineLinkStyle}>Sign in</button></>
+              )}
+            </p>
+          )}
           <button style={btnStyle} onClick={handleStep1} disabled={loading}>
             {loading ? '...' : 'Continue →'}
           </button>
+          <p style={{ ...bodyStyle, textAlign: 'center', marginTop: 4 }}>
+            Already have an account?{' '}
+            {onSignIn && (
+              <button onClick={onSignIn} style={inlineLinkStyle}>Sign in</button>
+            )}
+          </p>
         </>)}
 
         {/* STEP 2 */}
@@ -300,8 +367,8 @@ export function RegisterScreen({ onComplete }: Props) {
             <p style={{ ...bodyStyle, margin: 0 }}>{isES ? 'Género' : 'Gender'}</p>
             <div style={{ display: 'flex', gap: 8 }}>
               {[
-                { val: 'female', label: isES ? 'Femenino' : 'Female' },
-                { val: 'male', label: isES ? 'Masculino' : 'Male' },
+                { val: 'female',    label: isES ? 'Femenino' : 'Female' },
+                { val: 'male',      label: isES ? 'Masculino' : 'Male' },
                 { val: 'nonbinary', label: isES ? 'No binario' : 'Non-binary' },
               ].map(opt => (
                 <button key={opt.val} onClick={() => setGender(opt.val as typeof gender)}
@@ -389,26 +456,46 @@ export function RegisterScreen({ onComplete }: Props) {
               />
             ))}
           </div>
-          {error && <p style={errorStyle}>{error}</p>}
+
+          {error && (
+            <p style={errorStyle}>
+              {error}
+              {codeExpired && (
+                <> <button
+                  onClick={handleResend}
+                  disabled={resendCooldown > 0 || loading}
+                  style={inlineLinkStyle}
+                >
+                  {resendCooldown > 0
+                    ? (isES ? `Reenviar en ${resendCooldown}s` : `Resend in ${resendCooldown}s`)
+                    : (isES ? 'Reenviar' : 'Resend')}
+                </button></>
+              )}
+            </p>
+          )}
+
           <button style={btnStyle} onClick={handleStep5} disabled={loading}>
             {loading ? '...' : (isES ? 'Verificar →' : 'Verify →')}
           </button>
-          <button
-            onClick={handleResend}
-            disabled={resendCooldown > 0}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: resendCooldown > 0 ? '#4A5568' : 'rgba(255,255,255,0.5)',
-              fontSize: 13,
-              cursor: resendCooldown > 0 ? 'default' : 'pointer',
-              padding: '4px 0',
-            }}
-          >
-            {resendCooldown > 0
-              ? (isES ? `Reenviar en ${resendCooldown}s` : `Resend in ${resendCooldown}s`)
-              : (isES ? 'Reenviar código' : 'Resend code')}
-          </button>
+
+          {!codeExpired && (
+            <button
+              onClick={handleResend}
+              disabled={resendCooldown > 0 || loading}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: resendCooldown > 0 ? '#4A5568' : 'rgba(255,255,255,0.5)',
+                fontSize: 13,
+                cursor: (resendCooldown > 0 || loading) ? 'default' : 'pointer',
+                padding: '4px 0',
+              }}
+            >
+              {resendCooldown > 0
+                ? (isES ? `Reenviar en ${resendCooldown}s` : `Resend in ${resendCooldown}s`)
+                : (isES ? 'Reenviar código' : 'Resend code')}
+            </button>
+          )}
         </>)}
 
         {/* STEP 6 */}
@@ -446,7 +533,7 @@ export function RegisterScreen({ onComplete }: Props) {
   );
 }
 
-// ── Shared styles ────────────────────────────────────────────────────────
+// ── Shared styles ─────────────────────────────────────────────────────────
 const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
   background: '#0A0A1A',
@@ -510,6 +597,17 @@ const errorStyle: React.CSSProperties = {
   color: '#FF6B6B',
   fontSize: '0.85rem',
   margin: 0,
+};
+
+const inlineLinkStyle: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: 'rgba(255,255,255,0.6)',
+  fontSize: 'inherit',
+  cursor: 'pointer',
+  padding: 0,
+  textDecoration: 'underline',
+  fontFamily: 'inherit',
 };
 
 const pillStyle = (active: boolean): React.CSSProperties => ({

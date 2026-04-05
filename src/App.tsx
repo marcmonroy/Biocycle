@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 
 import { LandingScreen } from './screens/LandingScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
+import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { CoachScreen } from './screens/CoachScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
@@ -19,7 +20,7 @@ if (_urlParams.get('session') === 'scheduled') {
   sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
 }
 
-type Screen = 'landing' | 'register' | 'home' | 'coach' | 'data' | 'profile';
+type Screen = 'landing' | 'register' | 'login' | 'home' | 'coach' | 'data' | 'profile';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -142,12 +143,20 @@ export default function App() {
       return (
         <RegisterScreen
           onComplete={handleRegisterComplete}
+          onSignIn={() => setScreen('login')}
         />
-
+      );
+    }
+    if (screen === 'login') {
+      return (
+        <LoginScreen onRegister={() => setScreen('register')} />
       );
     }
     return (
-      <LandingScreen onRegister={() => setScreen('register')} />
+      <LandingScreen
+        onRegister={() => setScreen('register')}
+        onSignIn={() => setScreen('login')}
+      />
     );
   }
 
