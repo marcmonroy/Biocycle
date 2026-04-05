@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getLang } from '../lib/lang';
 
 interface Props {
   onComplete: () => void;
@@ -36,10 +37,10 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
   const [dob, setDob] = useState('');
   const [underAge, setUnderAge] = useState(false);
 
-  // Step 3
+  // Step 3 — language read from localStorage (set on landing page)
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'female' | 'male' | 'nonbinary' | ''>('');
-  const [language, setLanguage] = useState<'EN' | 'ES'>('EN');
+  const [language] = useState<'EN' | 'ES'>(() => getLang());
 
   // Step 4
   const [countryCode, setCountryCode] = useState('+1');
@@ -373,16 +374,6 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
               ].map(opt => (
                 <button key={opt.val} onClick={() => setGender(opt.val as typeof gender)}
                   style={pillStyle(gender === opt.val)}>{opt.label}</button>
-              ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <p style={{ ...bodyStyle, margin: 0 }}>Language / Idioma</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {(['EN', 'ES'] as const).map(l => (
-                <button key={l} onClick={() => setLanguage(l)}
-                  style={pillStyle(language === l)}>{l === 'EN' ? 'English' : 'Español'}</button>
               ))}
             </div>
           </div>

@@ -1,18 +1,20 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { getLang } from '../lib/lang';
 
 interface Props {
   onRegister?: () => void;
 }
 
 export function LoginScreen({ onRegister }: Props) {
+  const isES = getLang() === 'ES';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleLogin = async () => {
-    if (!email || !password) { setError('All fields required.'); return; }
+    if (!email || !password) { setError(isES ? 'Todos los campos son requeridos.' : 'All fields required.'); return; }
     setError('');
     setLoading(true);
 
@@ -29,13 +31,13 @@ export function LoginScreen({ onRegister }: Props) {
   return (
     <div style={screenStyle}>
       <div style={cardStyle}>
-        <h2 style={headingStyle}>Welcome back.</h2>
-        <p style={bodyStyle}>Sign in to your BioCycle account.</p>
+        <h2 style={headingStyle}>{isES ? 'Bienvenido de vuelta.' : 'Welcome back.'}</h2>
+        <p style={bodyStyle}>{isES ? 'Inicia sesión en tu cuenta de BioCycle.' : 'Sign in to your BioCycle account.'}</p>
 
         <input
           style={inputStyle}
           type="email"
-          placeholder="Email address"
+          placeholder={isES ? 'Correo electrónico' : 'Email address'}
           value={email}
           onChange={e => { setEmail(e.target.value); setError(''); }}
           autoComplete="email"
@@ -44,7 +46,7 @@ export function LoginScreen({ onRegister }: Props) {
         <input
           style={inputStyle}
           type="password"
-          placeholder="Password"
+          placeholder={isES ? 'Contraseña' : 'Password'}
           value={password}
           onChange={e => { setPassword(e.target.value); setError(''); }}
           autoComplete="current-password"
@@ -54,14 +56,14 @@ export function LoginScreen({ onRegister }: Props) {
         {error && <p style={errorStyle}>{error}</p>}
 
         <button style={btnStyle} onClick={handleLogin} disabled={loading}>
-          {loading ? '...' : 'Sign in →'}
+          {loading ? '...' : (isES ? 'Iniciar sesión →' : 'Sign in →')}
         </button>
 
         {onRegister && (
           <p style={{ ...bodyStyle, textAlign: 'center' }}>
-            New here?{' '}
+            {isES ? '¿Nuevo aquí? ' : 'New here? '}
             <button onClick={onRegister} style={inlineLinkStyle}>
-              Create an account
+              {isES ? 'Crear una cuenta' : 'Create an account'}
             </button>
           </p>
         )}
