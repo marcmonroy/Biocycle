@@ -1,294 +1,121 @@
-import { useState, useEffect } from 'react';
-import { supabase, Profile, Checkin } from './lib/supabase';
-import { SetupScreen } from './components/SetupScreen';
-import { BottomNav, Screen } from './components/BottomNav';
-import { HomeScreen } from './screens/HomeScreen';
-import { ForecastScreen } from './screens/ForecastScreen';
-import { CheckinScreen } from './screens/CheckinScreen';
-import { CoachSessionType } from './screens/CoachScreen';
-import { CoachScreenV2 } from './screens/CoachScreenV2';
-import { DashboardScreen } from './screens/DashboardScreen';
-import { AdminScreen } from './screens/AdminScreen';
-import { ResearchScreen } from './screens/ResearchScreen';
-import { TradingFloorScreen } from './screens/TradingFloorScreen';
-import { LandingScreen } from './screens/LandingScreen';
-import { PrivacyScreen } from './screens/PrivacyScreen';
-import { TermsScreen } from './screens/TermsScreen';
-import { ProfileEditScreen } from './screens/ProfileEditScreen';
-import { AmbientCoach } from './components/AmbientCoach';
-import { QuantumDNA } from './components/QuantumDNA';
-import { calculatePhase, getForecast } from './utils/phaseEngine';
-import { Session } from '@supabase/supabase-js';
-
-// Clear adhoc greeting immediately if this is a scheduled session URL
-const _urlCheck = new URLSearchParams(window.location.search);
-if (_urlCheck.get('session') === 'scheduled') {
-  sessionStorage.removeItem('biocycle_adhoc_greeting');
-  sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
-}
-
-type AppState = 'loading' | 'landing' | 'setup' | 'home' | 'admin' | 'research' | 'trading-floor' | 'privacy' | 'terms';
+import { useState } from 'react'
+import reactLogo from './assets/react.svg'
+import viteLogo from './assets/vite.svg'
+import heroImg from './assets/hero.png'
+import './App.css'
 
 function App() {
-  const [appState, setAppState] = useState<AppState>('loading');
-  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [lastCheckinData, setLastCheckinData] = useState<{ lowestDimension: string; lowestScore: number } | null>(null);
-  const [recentAnxiety, setRecentAnxiety] = useState<number | null>(null);
-  const [coachSessionType, setCoachSessionType] = useState<CoachSessionType>('adhoc');
+  const [count, setCount] = useState(0)
 
-  useEffect(() => {
-    // Detect ?session=scheduled from WhatsApp link
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('session') === 'scheduled') {
-      sessionStorage.setItem('biocycle_pending_scheduled', '1');
-      sessionStorage.removeItem('biocycle_adhoc_greeting');
-      sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
+  return (
+    <>
+      <section id="center">
+        <div className="hero">
+          <img src={heroImg} className="base" width="170" height="179" alt="" />
+          <img src={reactLogo} className="framework" alt="React logo" />
+          <img src={viteLogo} className="vite" alt="Vite logo" />
+        </div>
+        <div>
+          <h1>Get started</h1>
+          <p>
+            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+          </p>
+        </div>
+        <button
+          className="counter"
+          onClick={() => setCount((count) => count + 1)}
+        >
+          Count is {count}
+        </button>
+      </section>
 
-    if (window.location.pathname === '/admin') {
-      setAppState('admin');
-      return;
-    }
+      <div className="ticks"></div>
 
-    if (window.location.pathname === '/research') {
-      setAppState('research');
-      return;
-    }
+      <section id="next-steps">
+        <div id="docs">
+          <svg className="icon" role="presentation" aria-hidden="true">
+            <use href="/icons.svg#documentation-icon"></use>
+          </svg>
+          <h2>Documentation</h2>
+          <p>Your questions, answered</p>
+          <ul>
+            <li>
+              <a href="https://vite.dev/" target="_blank">
+                <img className="logo" src={viteLogo} alt="" />
+                Explore Vite
+              </a>
+            </li>
+            <li>
+              <a href="https://react.dev/" target="_blank">
+                <img className="button-icon" src={reactLogo} alt="" />
+                Learn more
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div id="social">
+          <svg className="icon" role="presentation" aria-hidden="true">
+            <use href="/icons.svg#social-icon"></use>
+          </svg>
+          <h2>Connect with us</h2>
+          <p>Join the Vite community</p>
+          <ul>
+            <li>
+              <a href="https://github.com/vitejs/vite" target="_blank">
+                <svg
+                  className="button-icon"
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <use href="/icons.svg#github-icon"></use>
+                </svg>
+                GitHub
+              </a>
+            </li>
+            <li>
+              <a href="https://chat.vite.dev/" target="_blank">
+                <svg
+                  className="button-icon"
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <use href="/icons.svg#discord-icon"></use>
+                </svg>
+                Discord
+              </a>
+            </li>
+            <li>
+              <a href="https://x.com/vite_js" target="_blank">
+                <svg
+                  className="button-icon"
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <use href="/icons.svg#x-icon"></use>
+                </svg>
+                X.com
+              </a>
+            </li>
+            <li>
+              <a href="https://bsky.app/profile/vite.dev" target="_blank">
+                <svg
+                  className="button-icon"
+                  role="presentation"
+                  aria-hidden="true"
+                >
+                  <use href="/icons.svg#bluesky-icon"></use>
+                </svg>
+                Bluesky
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
 
-    if (window.location.pathname === '/trading-floor') {
-      setAppState('trading-floor');
-      return;
-    }
-
-    if (window.location.pathname === '/privacy') {
-      setAppState('privacy' as AppState);
-      return;
-    }
-
-    if (window.location.pathname === '/terms') {
-      setAppState('terms' as AppState);
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        checkProfile(session.user.id);
-      } else {
-        setAppState('landing');
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        checkProfile(session.user.id);
-      } else {
-        setAppState('landing');
-        setProfile(null);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error checking profile:', error);
-      setAppState('setup');
-      return;
-    }
-
-    if (data) {
-      setProfile(data);
-      setAppState('home');
-      const urlParams = new URLSearchParams(window.location.search);
-      const isScheduledFromURL = urlParams.get('session') === 'scheduled';
-      const isScheduledFromStorage = sessionStorage.getItem('biocycle_pending_scheduled') === '1';
-      if (isScheduledFromURL || isScheduledFromStorage) {
-        sessionStorage.removeItem('biocycle_pending_scheduled');
-        setCoachSessionType('scheduled');
-        setCurrentScreen('coach');
-      }
-    } else {
-      setAppState('setup');
-    }
-  };
-
-  const handleSetupComplete = () => {
-    if (session) {
-      checkProfile(session.user.id);
-    }
-  };
-
-  const handleCheckinComplete = () => {
-    setCurrentScreen('home');
-    loadRecentCheckinData();
-  };
-
-  const loadRecentCheckinData = async () => {
-    if (!profile) return;
-
-    const { data } = await supabase
-      .from('checkins')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('checkin_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (data) {
-      const factors: { key: string; value: number }[] = [
-        { key: 'emotional', value: data.factor_emocional || 5 },
-        { key: 'physical', value: data.factor_fisico || 5 },
-        { key: 'cognitive', value: data.factor_cognitivo || 5 },
-        { key: 'stress', value: data.factor_estres || 5 },
-        { key: 'social', value: data.factor_social || 5 },
-      ];
-      if (data.factor_ansiedad) {
-        factors.push({ key: 'anxiety', value: data.factor_ansiedad });
-      }
-
-      const lowest = factors.reduce((min, f) => f.value < min.value ? f : min, factors[0]);
-      setLastCheckinData({ lowestDimension: lowest.key, lowestScore: lowest.value });
-    }
-
-    const { data: anxietyData } = await supabase
-      .from('checkins')
-      .select('factor_ansiedad')
-      .eq('user_id', profile.id)
-      .not('factor_ansiedad', 'is', null)
-      .order('checkin_date', { ascending: false })
-      .limit(5);
-
-    if (anxietyData && anxietyData.length > 0) {
-      const avg = anxietyData.reduce((sum: number, c: Checkin) => sum + (c.factor_ansiedad || 0), 0) / anxietyData.length;
-      setRecentAnxiety(Math.round(avg * 10) / 10);
-    }
-  };
-
-  useEffect(() => {
-    if (profile) {
-      loadRecentCheckinData();
-    }
-  }, [profile?.id]);
-
-  const handleProfileUpdate = () => {
-    if (session) {
-      checkProfile(session.user.id);
-    }
-  };
-
-  const handleNavigate = (screen: Screen) => {
-    if (screen === 'coach' && sessionStorage.getItem('biocycle_pending_scheduled') !== '1') setCoachSessionType('adhoc');
-    setCurrentScreen(screen);
-  };
-
-  if (appState === 'loading') {
-    return (
-      <div className="min-h-screen bg-[#0A0A1A] flex flex-col items-center justify-center gap-4">
-        <QuantumDNA size={180} state="idle" />
-        <p style={{ fontFamily: "'Syne', system-ui, sans-serif", fontSize: '.72rem', letterSpacing: '.28em', color: 'rgba(255,217,61,.5)', textTransform: 'uppercase' }}>
-          BIOCYCLE
-        </p>
-      </div>
-    );
-  }
-
-  if (appState === 'admin') {
-    return <AdminScreen />;
-  }
-
-  if (appState === 'research') {
-    return <ResearchScreen />;
-  }
-
-  if (appState === 'trading-floor') {
-    return <TradingFloorScreen />;
-  }
-
-  if (appState === ('privacy' as AppState)) {
-    return <PrivacyScreen />;
-  }
-
-  if (appState === ('terms' as AppState)) {
-    return <TermsScreen />;
-  }
-
-  if (appState === 'landing') {
-    return <LandingScreen />;
-  }
-
-  if (appState === 'setup' && session) {
-    return <SetupScreen userId={session.user.id} onComplete={handleSetupComplete} />;
-  }
-
-  if (appState === 'home' && profile) {
-    const phaseData = calculatePhase(profile);
-    const forecast = getForecast(profile);
-
-    return (
-      <div className="max-w-[430px] mx-auto bg-gray-50 min-h-screen">
-        {currentScreen === 'home' && (
-          <HomeScreen
-            profile={profile}
-            phaseData={phaseData}
-            onNavigate={handleNavigate}
-            onProfileUpdate={handleProfileUpdate}
-          />
-        )}
-        {currentScreen === 'forecast' && (
-          <ForecastScreen profile={profile} forecast={forecast} />
-        )}
-        {currentScreen === 'checkin' && (
-          <CheckinScreen
-            profile={profile}
-            phaseData={phaseData}
-            onComplete={handleCheckinComplete}
-          />
-        )}
-        {currentScreen === 'coach' && (
-          <CoachScreenV2 profile={profile} phaseData={phaseData} sessionType={coachSessionType} onBack={() => handleNavigate('home')} />
-        )}
-        {currentScreen === 'dashboard' && (
-          <DashboardScreen profile={profile} onNavigate={setCurrentScreen} />
-        )}
-        {currentScreen === 'profile-edit' && (
-          <ProfileEditScreen
-            profile={profile}
-            onBack={() => setCurrentScreen('dashboard')}
-            onSaved={() => {
-              checkProfile(session!.user.id);
-              setCurrentScreen('dashboard');
-            }}
-          />
-        )}
-        <BottomNav currentScreen={currentScreen} onNavigate={handleNavigate} profile={profile} />
-        <AmbientCoach
-          profile={profile}
-          phaseData={phaseData}
-          forecast={forecast}
-          currentScreen={currentScreen}
-          lastCheckinData={lastCheckinData}
-          recentAnxiety={recentAnxiety}
-          onNavigate={handleNavigate}
-        />
-      </div>
-    );
-  }
-
-  return null;
+      <div className="ticks"></div>
+      <section id="spacer"></section>
+    </>
+  )
 }
 
-export default App;
+export default App
