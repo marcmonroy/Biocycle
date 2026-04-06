@@ -67,10 +67,30 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const [picardia, setPicardia] = useState(profile.picardia_mode);
   const [idioma, setIdioma] = useState<'EN' | 'ES'>(profile.idioma ?? 'EN');
 
-  // Body metrics
+  // Unit system — persisted to localStorage
+  const [units, setUnits] = useState<'metric' | 'imperial'>(() =>
+    (localStorage.getItem('biocycle_units') as 'metric' | 'imperial') || 'metric'
+  );
+
+  // Body metrics — metric fields are always the source of truth for DB
   const [heightCm, setHeightCm] = useState(String(profile.height_cm ?? ''));
   const [weightKg, setWeightKg] = useState(String(profile.weight_kg ?? ''));
   const [sleepHours, setSleepHours] = useState(String(profile.sleep_hours ?? ''));
+
+  // Imperial display fields — initialized by converting stored metric values
+  const [heightFt, setHeightFt] = useState(() => {
+    if (!profile.height_cm) return '';
+    return String(Math.floor(profile.height_cm / 2.54 / 12));
+  });
+  const [heightIn, setHeightIn] = useState(() => {
+    if (!profile.height_cm) return '';
+    const totalInches = profile.height_cm / 2.54;
+    return String(Math.round(totalInches % 12));
+  });
+  const [weightLbs, setWeightLbs] = useState(() => {
+    if (!profile.weight_kg) return '';
+    return String(Math.round(profile.weight_kg / 0.453592 * 10) / 10);
+  });
 
   // Lifestyle
   const [exerciseFreq, setExerciseFreq] = useState(profile.exercise_frequency ?? '');
@@ -98,7 +118,41 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const isFemale = profile.genero === 'female';
   const phaseLabel = isES ? phase.displayNameES : phase.displayName;
 
-  const bmi = calcBmi(Number(heightCm), Number(weightKg));
+  // Always compute metric values from whichever input set is active
+  const metricHeightCm = units === 'metric'
+    ? (parseFloat(heightCm) || 0)
+    : Math.round(((parseInt(heightFt, 10) || 0) * 12 + (parseInt(heightIn, 10) || 0)) * 2.54);
+
+  const metricWeightKg = units === 'metric'
+    ? (parseFloat(weightKg) || 0)
+    : Math.round((parseFloat(weightLbs) || 0) * 0.453592 * 10) / 10;
+
+  const bmi = calcBmi(metricHeightCm, metricWeightKg);
+
+  function handleUnitToggle(newUnit: 'metric' | 'imperial') {
+    if (newUnit === units) return;
+    if (newUnit === 'imperial') {
+      // Convert current metric inputs → imperial display
+      const cm = parseFloat(heightCm);
+      const kg = parseFloat(weightKg);
+      if (cm) {
+        const totalInches = cm / 2.54;
+        setHeightFt(String(Math.floor(totalInches / 12)));
+        setHeightIn(String(Math.round(totalInches % 12)));
+      }
+      if (kg) setWeightLbs(String(Math.round(kg / 0.453592 * 10) / 10));
+    } else {
+      // Convert current imperial inputs → metric display
+      const ft = parseInt(heightFt, 10) || 0;
+      const inch = parseInt(heightIn, 10) || 0;
+      const lbs = parseFloat(weightLbs);
+      const totalInches = ft * 12 + inch;
+      if (totalInches > 0) setHeightCm(String(Math.round(totalInches * 2.54)));
+      if (lbs) setWeightKg(String(Math.round(lbs * 0.453592 * 10) / 10));
+    }
+    localStorage.setItem('biocycle_units', newUnit);
+    setUnits(newUnit);
+  }
 
   const L = (en: string, es: string) => isES ? es : en;
 
@@ -108,8 +162,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
     const updates: Record<string, unknown> = {
       picardia_mode:      picardia,
       idioma,
-      height_cm:          heightCm ? parseInt(heightCm, 10) : null,
-      weight_kg:          weightKg ? parseFloat(weightKg) : null,
+      height_cm:          metricHeightCm || null,
+      weight_kg:          metricWeightKg || null,
       bmi:                bmi,
       sleep_hours:        sleepHours ? parseFloat(sleepHours) : null,
       exercise_frequency: exerciseFreq || null,
@@ -223,27 +277,81 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
 
       {/* ── Section 2: Body metrics ─────────────────────────────────────────── */}
       <Section label={L('Body Metrics', 'Métricas Corporales')}>
+        {/* Unit toggle */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(['metric', 'imperial'] as const).map(u => (
+            <PillButton
+              key={u}
+              label={u === 'metric' ? 'Metric' : 'Imperial'}
+              active={units === u}
+              onClick={() => handleUnitToggle(u)}
+            />
+          ))}
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div>
-            <FieldLabel>{L('Height (cm)', 'Altura (cm)')}</FieldLabel>
-            <input
-              type="number"
-              value={heightCm}
-              onChange={e => setHeightCm(e.target.value)}
-              placeholder="170"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <FieldLabel>{L('Weight (kg)', 'Peso (kg)')}</FieldLabel>
-            <input
-              type="number"
-              value={weightKg}
-              onChange={e => setWeightKg(e.target.value)}
-              placeholder="70"
-              style={inputStyle}
-            />
-          </div>
+          {units === 'metric' ? (
+            <div>
+              <FieldLabel>{L('Height (cm)', 'Altura (cm)')}</FieldLabel>
+              <input
+                type="number"
+                value={heightCm}
+                onChange={e => setHeightCm(e.target.value)}
+                placeholder="170"
+                style={inputStyle}
+              />
+            </div>
+          ) : (
+            <div>
+              <FieldLabel>{L('Height', 'Altura')}</FieldLabel>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="number"
+                  value={heightFt}
+                  onChange={e => setHeightFt(e.target.value)}
+                  placeholder="5"
+                  style={{ ...inputStyle, width: '50%' }}
+                />
+                <input
+                  type="number"
+                  value={heightIn}
+                  onChange={e => setHeightIn(e.target.value)}
+                  placeholder="7"
+                  min={0}
+                  max={11}
+                  style={{ ...inputStyle, width: '50%' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                <span style={{ color: '#4A5568', fontSize: 10, width: '50%', textAlign: 'center' }}>ft</span>
+                <span style={{ color: '#4A5568', fontSize: 10, width: '50%', textAlign: 'center' }}>in</span>
+              </div>
+            </div>
+          )}
+
+          {units === 'metric' ? (
+            <div>
+              <FieldLabel>{L('Weight (kg)', 'Peso (kg)')}</FieldLabel>
+              <input
+                type="number"
+                value={weightKg}
+                onChange={e => setWeightKg(e.target.value)}
+                placeholder="70"
+                style={inputStyle}
+              />
+            </div>
+          ) : (
+            <div>
+              <FieldLabel>{L('Weight (lbs)', 'Peso (lbs)')}</FieldLabel>
+              <input
+                type="number"
+                value={weightLbs}
+                onChange={e => setWeightLbs(e.target.value)}
+                placeholder="154"
+                style={inputStyle}
+              />
+            </div>
+          )}
         </div>
 
         {bmi !== null && (
