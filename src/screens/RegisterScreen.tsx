@@ -151,9 +151,24 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
       return;
     }
 
-    // Save phone to profile
-    await supabase.from('profiles').update({ whatsapp_phone: fullPhone }).eq('id', userId);
+    // Upsert full profile row — guarantees it exists before the FK insert in send-whatsapp
+    await supabase.from('profiles').upsert({
+      id:               userId,
+      nombre:           name,
+      gender:           gender || null,
+      idioma:           language,
+      date_of_birth:    dob || null,
+      age_verified:     true,
+      whatsapp_phone:   fullPhone,
+      whatsapp_verified: false,
+    });
     setSavedPhone(fullPhone);
+
+    // Create user_state row before verification code is inserted
+    await supabase.from('user_state').upsert({
+      user_id: userId,
+      state:   'active_trader',
+    });
 
     // Send verification code via Netlify function (code generated + stored server-side)
     const res = await fetch('/.netlify/functions/send-whatsapp', {
