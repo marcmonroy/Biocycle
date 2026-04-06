@@ -13,6 +13,23 @@ const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const EXERCISE_OPTIONS_EN = ['None', 'Light (1–2×/wk)', 'Moderate (3–4×/wk)', 'Heavy (5+×/wk)'];
 const EXERCISE_OPTIONS_ES = ['Ninguno', 'Ligero (1–2×/sem)', 'Moderado (3–4×/sem)', 'Intenso (5+×/sem)'];
 
+const CONDITION_OPTIONS = [
+  'None', 'Diabetes', 'Hypertension', 'Thyroid disorder', 'PCOS',
+  'Endometriosis', 'Depression', 'Anxiety', 'Chronic pain',
+  'Sleep disorder', 'Autoimmune condition', 'Heart condition', 'Other',
+];
+const MEDICATION_OPTIONS = [
+  'None', 'Hormonal contraceptives', 'HRT', 'Antidepressants',
+  'Anti-anxiety', 'Thyroid medication', 'Blood pressure medication',
+  'Diabetes medication', 'Pain medication', 'Sleep medication',
+  'Vitamins/Supplements', 'Other',
+];
+
+function parseMultiSelect(val: string | null): string[] {
+  if (!val) return [];
+  return val.split(',').map(s => s.trim()).filter(Boolean);
+}
+
 export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -26,8 +43,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const [weight, setWeight] = useState(String(profile.weight ?? ''));
   const [exercise, setExercise] = useState(profile.exercise_frequency ?? '');
   const [bloodType, setBloodType] = useState(profile.blood_type ?? '');
-  const [conditions, setConditions] = useState(profile.medical_conditions ?? '');
-  const [medications, setMedications] = useState(profile.medications ?? '');
+  const [conditions, setConditions] = useState<string[]>(() => parseMultiSelect(profile.medical_conditions));
+  const [medications, setMedications] = useState<string[]>(() => parseMultiSelect(profile.medications));
 
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
@@ -35,6 +52,22 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const phaseDesc = idioma === 'ES' ? phase.descriptionES : phase.description;
 
   const exerciseOptions = idioma === 'ES' ? EXERCISE_OPTIONS_ES : EXERCISE_OPTIONS_EN;
+
+  function toggleCondition(val: string) {
+    if (val === 'None') { setConditions(['None']); return; }
+    setConditions(prev => {
+      const without = prev.filter(v => v !== 'None');
+      return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
+    });
+  }
+
+  function toggleMedication(val: string) {
+    if (val === 'None') { setMedications(['None']); return; }
+    setMedications(prev => {
+      const without = prev.filter(v => v !== 'None');
+      return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
+    });
+  }
 
   async function saveProfile() {
     setSaving(true);
@@ -45,8 +78,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       weight: weight ? parseFloat(weight) : null,
       exercise_frequency: exercise || null,
       blood_type: bloodType || null,
-      medical_conditions: conditions || null,
-      medications: medications || null,
+      medical_conditions: conditions.length ? conditions.join(', ') : null,
+      medications: medications.length ? medications.join(', ') : null,
     };
 
     const { data, error } = await supabase
@@ -351,24 +384,58 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
 
         <div>
           <FieldLabel>{L('Medical conditions (optional)', 'Condiciones médicas (opcional)')}</FieldLabel>
-          <textarea
-            value={conditions}
-            onChange={e => setConditions(e.target.value)}
-            placeholder={L('e.g. PCOS, diabetes...', 'ej. SOP, diabetes...')}
-            rows={2}
-            style={{ ...inputStyle, resize: 'none' }}
-          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {CONDITION_OPTIONS.map(opt => {
+              const active = conditions.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  onClick={() => toggleCondition(opt)}
+                  style={{
+                    background: active ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: active ? '1px solid rgba(255,107,107,0.45)' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    color: active ? '#FF6B6B' : '#4A5568',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
           <FieldLabel>{L('Medications (optional)', 'Medicamentos (opcional)')}</FieldLabel>
-          <textarea
-            value={medications}
-            onChange={e => setMedications(e.target.value)}
-            placeholder={L('e.g. birth control, metformin...', 'ej. anticonceptivos, metformina...')}
-            rows={2}
-            style={{ ...inputStyle, resize: 'none' }}
-          />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {MEDICATION_OPTIONS.map(opt => {
+              const active = medications.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  onClick={() => toggleMedication(opt)}
+                  style={{
+                    background: active ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: active ? '1px solid rgba(255,107,107,0.45)' : '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 8,
+                    padding: '6px 12px',
+                    color: active ? '#FF6B6B' : '#4A5568',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </Section>
 
