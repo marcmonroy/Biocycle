@@ -171,11 +171,21 @@ exports.handler = async (event) => {
       };
     }
 
-    // Attempt 1: plain text Body
-    const messageBody = `BioCycle: Your verification code is ${code}. It expires in 10 minutes.`;
-    const plainPayload = new URLSearchParams({ From: from, To: toNumber, Body: messageBody });
+    // Send via approved template — ContentSid + ContentVariables
+    const templateSid = language === 'es'
+      ? 'HXa511293ce070bfd02ac0d799b2aa6526'
+      : 'HX2a761c6b6589f010cd416d1bf4f386d8';
 
-    console.log('[send-whatsapp] Attempting plain text to:', toNumber, 'from:', from);
+    const codeVar = `Your verification code is ${code}. Enter it in the BioCycle app to verify your account.`;
+
+    const tmplPayload = new URLSearchParams({
+      From:             from,
+      To:               toNumber,
+      ContentSid:       templateSid,
+      ContentVariables: JSON.stringify({ '1': codeVar }),
+    });
+
+    console.log('[send-whatsapp] Sending template', templateSid, 'to:', toNumber, 'from:', from);
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -185,63 +195,13 @@ exports.handler = async (event) => {
           'Content-Type': 'application/x-www-form-urlencoded',
           Authorization:  `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         },
-        body: plainPayload.toString(),
+        body: tmplPayload.toString(),
       }
     );
 
     const twilioData = await twilioRes.json();
-    console.log('[send-whatsapp] Twilio plain text status:', twilioRes.status);
-    console.log('[send-whatsapp] Twilio plain text response:', JSON.stringify(twilioData));
-
-    // Error 21656/63016 = template required for business-initiated messages
-    const needsTemplate = !twilioRes.ok && (
-      twilioData.code === 21656 ||
-      twilioData.code === 63016 ||
-      (twilioData.message || '').toLowerCase().includes('template')
-    );
-
-    if (needsTemplate) {
-      console.log('[send-whatsapp] Plain text rejected — falling back to approved template');
-      const templateSid = language === 'ES'
-        ? 'HXa511293ce070bfd02ac0d799b2aa6526'
-        : 'HX2a761c6b6589f010cd416d1bf4f386d8';
-
-      const tmplPayload = new URLSearchParams({
-        From:             from,
-        To:               toNumber,
-        ContentSid:       templateSid,
-        ContentVariables: JSON.stringify({ '1': `Your verification code is ${code}. It expires in 10 minutes.` }),
-      });
-
-      const tmplRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Authorization:  `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
-          },
-          body: tmplPayload.toString(),
-        }
-      );
-
-      const tmplData = await tmplRes.json();
-      console.log('[send-whatsapp] Template fallback status:', tmplRes.status);
-      console.log('[send-whatsapp] Template fallback response:', JSON.stringify(tmplData));
-
-      if (!tmplRes.ok) {
-        return {
-          statusCode: tmplRes.status,
-          headers: corsHeaders,
-          body: JSON.stringify({ error: tmplData.message || 'Twilio template error', code: tmplData.code }),
-        };
-      }
-      return {
-        statusCode: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sid: tmplData.sid, method: 'template_fallback' }),
-      };
-    }
+    console.log('[send-whatsapp] Twilio template status:', twilioRes.status);
+    console.log('[send-whatsapp] Twilio template response:', JSON.stringify(twilioData));
 
     if (!twilioRes.ok) {
       return {
@@ -254,7 +214,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sid: twilioData.sid, method: 'plain_text' }),
+      body: JSON.stringify({ sid: twilioData.sid }),
     };
   }
 
