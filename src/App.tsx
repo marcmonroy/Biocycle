@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import type { Profile } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
@@ -30,6 +30,11 @@ export default function App() {
   const [coachSessionType, setCoachSessionType] = useState<'scheduled' | 'adhoc'>('adhoc');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
+  // Ref so the onAuthStateChange closure can read the live screen value
+  const screenRef = useRef<Screen>('landing');
+
+  // Keep screenRef in sync so the auth listener closure always sees the live screen
+  useEffect(() => { screenRef.current = screen; }, [screen]);
 
   // ── Auth state ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -44,6 +49,7 @@ export default function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (screenRef.current === 'register') return; // registration wizard owns its own state
       if (newSession) {
         setAuthLoading(true);
         loadProfile(newSession.user.id);
