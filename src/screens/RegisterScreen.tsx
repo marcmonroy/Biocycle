@@ -210,10 +210,15 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setSavedPhone(fullPhone);
 
     // Create user_state row before verification code is inserted
-    await supabase.from('user_state').upsert({
-      user_id: uid,
-      state:   'active_trader',
-    });
+    const { error: stateError } = await supabase.from('user_state').upsert({
+      user_id:         uid,
+      state:           'active_trader',
+      founding_trader: false,
+    }, { onConflict: 'user_id' });
+
+    if (stateError) {
+      console.error('[RegisterScreen] user_state upsert error:', stateError.message);
+    }
 
     // Send verification code via Netlify function (code generated + stored server-side)
     const res = await fetch('/.netlify/functions/send-whatsapp', {
@@ -288,10 +293,18 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       return;
     }
 
-    // Match — mark verified, delete code row, create user_state
+    // Match — mark verified, delete code row, upsert user_state
     await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userIdRef.current);
     await supabase.from('whatsapp_verification_codes').delete().eq('user_id', userIdRef.current);
-    await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader' });
+    const { error: stateError5 } = await supabase.from('user_state').upsert({
+      user_id:         userIdRef.current,
+      state:           'active_trader',
+      founding_trader: false,
+    }, { onConflict: 'user_id' });
+
+    if (stateError5) {
+      console.error('[RegisterScreen] user_state upsert error (step 5):', stateError5.message);
+    }
 
     setLoading(false);
     setStep(6);
@@ -324,7 +337,13 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const handleStep6 = async () => {
     setLoading(true);
     if (gender === 'female' && cycleStartDate) {
-      await supabase.from('profiles').update({ cycle_start_date: cycleStartDate }).eq('id', userIdRef.current);
+      const { error: cycleError } = await supabase
+        .from('profiles')
+        .update({ cycle_start_date: cycleStartDate })
+        .eq('id', userIdRef.current);
+      if (cycleError) {
+        console.error('[RegisterScreen] cycle_start_date update error:', cycleError.message);
+      }
     }
     setLoading(false);
     onComplete();
