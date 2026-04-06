@@ -176,9 +176,9 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     const { error: insertError } = await supabase.from('profiles').insert({
       id:                uid,
       nombre:            name,
-      gender:            gender || null,
+      genero:            gender || null,
       idioma:            language,
-      date_of_birth:     dob || null,
+      fecha_nacimiento:  dob || null,
       age_verified:      true,
       whatsapp_phone:    fullPhone,
       whatsapp_verified: false,
@@ -187,9 +187,9 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     if (insertError && insertError.code === '23505') {
       const { error: updateError } = await supabase.from('profiles').update({
         nombre:            name,
-        gender:            gender || null,
+        genero:            gender || null,
         idioma:            language,
-        date_of_birth:     dob || null,
+        fecha_nacimiento:  dob || null,
         age_verified:      true,
         whatsapp_phone:    fullPhone,
         whatsapp_verified: false,
