@@ -21,6 +21,7 @@ if (_urlParams.get('session') === 'scheduled') {
 }
 
 type Screen = 'landing' | 'register' | 'login' | 'home' | 'coach' | 'data' | 'profile';
+type VerifyResume = { userId: string; phone: string } | null;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -28,6 +29,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('landing');
   const [coachSessionType, setCoachSessionType] = useState<'scheduled' | 'adhoc'>('adhoc');
   const [authLoading, setAuthLoading] = useState(true);
+  const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
 
   // ── Auth state ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
       if (newSession) {
+        setAuthLoading(true);
         loadProfile(newSession.user.id);
       } else {
         setProfile(null);
@@ -63,22 +66,29 @@ export default function App() {
       .maybeSingle();
 
     if (error || !data) {
-      // Profile not created yet — stay on landing/register
+      // Profile not created yet — stay on current screen (registration in progress)
       setAuthLoading(false);
       return;
     }
 
-    setProfile(data as Profile);
-    setAuthLoading(false);
+    const p = data as Profile;
+    setProfile(p);
 
-    // Navigate to home after loading profile
+    // If WhatsApp not verified, route back to step 5 to complete verification
+    if (!p.whatsapp_verified) {
+      setVerifyResume({ userId: p.id, phone: (p as any).whatsapp_phone || '' });
+      setAuthLoading(false);
+      return;
+    }
+
+    setVerifyResume(null);
+    setAuthLoading(false);
     setScreen('home');
 
     // Check if this is a scheduled session via URL
     if (_urlParams.get('session') === 'scheduled') {
       setCoachSessionType('scheduled');
       setScreen('coach');
-      // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
     }
   }
@@ -99,8 +109,13 @@ export default function App() {
   }
 
   function handleRegisterComplete() {
-    // Profile will be loaded via onAuthStateChange → loadProfile
-    // which sets screen to 'home'
+    // Re-fetch profile so whatsapp_verified is fresh; loadProfile routes to 'home'
+    if (session) {
+      setAuthLoading(true);
+      loadProfile(session.user.id);
+    } else {
+      setScreen('home');
+    }
   }
 
   function handleProfileUpdate(updated: Profile) {
@@ -134,6 +149,19 @@ export default function App() {
           BIOCYCLE
         </div>
       </div>
+    );
+  }
+
+  // ── Resume WhatsApp verification for logged-in but unverified users ────────
+  if (session && verifyResume) {
+    return (
+      <RegisterScreen
+        onComplete={handleRegisterComplete}
+        onSignIn={() => setScreen('login')}
+        initialStep={5}
+        initialUserId={verifyResume.userId}
+        initialPhone={verifyResume.phone}
+      />
     );
   }
 

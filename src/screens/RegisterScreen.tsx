@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getLang } from '../lib/lang';
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface Props {
   onComplete: () => void;
   onSignIn?: () => void;
+  initialStep?: Step;
+  initialUserId?: string;
+  initialPhone?: string;
 }
-
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 const COUNTRY_CODES = [
   { code: '+1',    label: 'US/CA' },
@@ -24,9 +27,12 @@ const COUNTRY_CODES = [
   { code: '+55',   label: 'BR' },
 ];
 
-export function RegisterScreen({ onComplete, onSignIn }: Props) {
-  const [step, setStep] = useState<Step>(1);
-  const [userId, setUserId] = useState<string | null>(null);
+export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserId, initialPhone }: Props) {
+  const [step, setStep] = useState<Step>(() => initialStep ?? 1);
+  const [userId, setUserId] = useState<string | null>(() => initialUserId ?? null);
+  // Authoritative userId — set only from the live signUp response (or explicitly in the resume effect).
+  // Never initialized from props so a fresh registration always starts clean.
+  const userIdRef = useRef<string | null>(null);
 
   // Step 1
   const [email, setEmail] = useState('');
@@ -45,7 +51,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
   // Step 4
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
-  const [savedPhone, setSavedPhone] = useState('');
+  const [savedPhone, setSavedPhone] = useState(() => initialPhone ?? '');
 
   // Step 5
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
@@ -61,12 +67,37 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
   const isES = language === 'ES';
   const progress = (step / 6) * 100;
 
+  // ── Auto-send code when resuming at step 5 after login ────────────────────
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (initialUserId) userIdRef.current = initialUserId;
+    if (initialStep === 5 && userIdRef.current && savedPhone && !autoSentRef.current) {
+      autoSentRef.current = true;
+      setLoading(true);
+      fetch('/.netlify/functions/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
+      })
+        .then(res => {
+          setLoading(false);
+          if (res.ok) startResendCooldown();
+          else setError(isES ? 'Error al enviar el código.' : 'Failed to send code.');
+        })
+        .catch(() => { setLoading(false); setError('Network error.'); });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Step 1 ───────────────────────────────────────────────────────────────
   const handleStep1 = async () => {
     if (!email || !password) { setError('All fields required.'); return; }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return; }
     setError('');
     setExistingAccount(false);
+    // Clear any stale userId from a previous session before issuing a new signUp
+    userIdRef.current = null;
+    setUserId(null);
     setLoading(true);
 
     const { data, error: authError } = await supabase.auth.signUp({ email, password });
@@ -85,7 +116,11 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     }
 
     if (data.user && data.session) {
-      setUserId(data.user.id);
+      // Capture authoritative ID directly from signUp response — never from state or cache
+      const freshUserId = data.user.id;
+      console.log('[RegisterScreen] signUp success. authoritative user_id:', freshUserId);
+      userIdRef.current = freshUserId;
+      setUserId(freshUserId);
       setStep(2);
     }
   };
@@ -104,7 +139,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     await supabase.from('profiles').update({
       date_of_birth: dob,
       age_verified: true,
-    }).eq('id', userId);
+    }).eq('id', userIdRef.current);
     setLoading(false);
     setStep(3);
   };
@@ -115,7 +150,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     setError('');
     setLoading(true);
     await supabase.from('profiles').upsert({
-      id: userId,
+      id: userIdRef.current,
       nombre: name,
       gender,
       idioma: language,
@@ -135,12 +170,15 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     setError('');
     setLoading(true);
 
+    const uid = userIdRef.current;
+    console.log('[RegisterScreen] handleStep4 using user_id:', uid);
+
     // Check uniqueness
     const { data: existing } = await supabase
       .from('profiles')
       .select('id')
       .eq('whatsapp_phone', fullPhone)
-      .neq('id', userId)
+      .neq('id', uid)
       .maybeSingle();
 
     if (existing) {
@@ -151,22 +189,46 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
       return;
     }
 
-    // Upsert full profile row — guarantees it exists before the FK insert in send-whatsapp
-    await supabase.from('profiles').upsert({
-      id:               userId,
-      nombre:           name,
-      gender:           gender || null,
-      idioma:           language,
-      date_of_birth:    dob || null,
-      age_verified:     true,
-      whatsapp_phone:   fullPhone,
+    // Try insert first; fall back to update if row already exists
+    const { error: insertError } = await supabase.from('profiles').insert({
+      id:                uid,
+      nombre:            name,
+      gender:            gender || null,
+      idioma:            language,
+      date_of_birth:     dob || null,
+      age_verified:      true,
+      whatsapp_phone:    fullPhone,
       whatsapp_verified: false,
     });
+
+    if (insertError && insertError.code === '23505') {
+      const { error: updateError } = await supabase.from('profiles').update({
+        nombre:            name,
+        gender:            gender || null,
+        idioma:            language,
+        date_of_birth:     dob || null,
+        age_verified:      true,
+        whatsapp_phone:    fullPhone,
+        whatsapp_verified: false,
+      }).eq('id', uid);
+
+      if (updateError) {
+        setError('Profile save failed: ' + updateError.message);
+        setLoading(false);
+        return;
+      }
+    } else if (insertError) {
+      setError('Profile save failed: ' + insertError.message);
+      setLoading(false);
+      return;
+    }
+
+    console.log('[RegisterScreen] profile upsert success for user_id:', uid);
     setSavedPhone(fullPhone);
 
     // Create user_state row before verification code is inserted
     await supabase.from('user_state').upsert({
-      user_id: userId,
+      user_id: uid,
       state:   'active_trader',
     });
 
@@ -174,7 +236,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     const res = await fetch('/.netlify/functions/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: fullPhone, userId, action: 'send_verification' }),
+      body: JSON.stringify({ to: fullPhone, userId: uid, action: 'send_verification' }),
     });
 
     setLoading(false);
@@ -221,7 +283,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     const { data: codeRow } = await supabase
       .from('whatsapp_verification_codes')
       .select('code, expires_at')
-      .eq('user_id', userId)
+      .eq('user_id', userIdRef.current)
       .maybeSingle();
 
     if (!codeRow) {
@@ -244,9 +306,9 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     }
 
     // Match — mark verified, delete code row, create user_state
-    await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userId);
-    await supabase.from('whatsapp_verification_codes').delete().eq('user_id', userId);
-    await supabase.from('user_state').upsert({ user_id: userId, state: 'active_trader' });
+    await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userIdRef.current);
+    await supabase.from('whatsapp_verification_codes').delete().eq('user_id', userIdRef.current);
+    await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader' });
 
     setLoading(false);
     setStep(6);
@@ -262,7 +324,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
     const res = await fetch('/.netlify/functions/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: savedPhone, userId, action: 'send_verification' }),
+      body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
     });
 
     setLoading(false);
@@ -279,7 +341,7 @@ export function RegisterScreen({ onComplete, onSignIn }: Props) {
   const handleStep6 = async () => {
     setLoading(true);
     if (gender === 'female' && cycleStartDate) {
-      await supabase.from('profiles').update({ cycle_start_date: cycleStartDate }).eq('id', userId);
+      await supabase.from('profiles').update({ cycle_start_date: cycleStartDate }).eq('id', userIdRef.current);
     }
     setLoading(false);
     onComplete();
