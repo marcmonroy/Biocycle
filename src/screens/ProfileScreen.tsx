@@ -15,6 +15,7 @@ const EXERCISE_OPTIONS_ES = ['Ninguno', 'Ligero (1–2×/sem)', 'Moderado (3–4
 
 export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -58,6 +59,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
     setSaving(false);
     if (!error && data) {
       onProfileUpdate(data as Profile);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     }
   }
 
@@ -373,21 +376,22 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '8px 24px 16px' }}>
         <button
           onClick={saveProfile}
-          disabled={saving}
+          disabled={saving || saved}
           style={{
             width: '100%',
-            background: saving ? 'rgba(255,107,107,0.4)' : '#FF6B6B',
-            border: 'none',
+            background: saved ? 'rgba(0,200,150,0.2)' : saving ? 'rgba(255,107,107,0.4)' : '#FF6B6B',
+            border: saved ? '1px solid rgba(0,200,150,0.4)' : 'none',
             borderRadius: 14,
             padding: '16px',
-            color: 'white',
+            color: saved ? '#00C896' : 'white',
             fontSize: '1rem',
             fontWeight: 600,
-            cursor: saving ? 'default' : 'pointer',
+            cursor: (saving || saved) ? 'default' : 'pointer',
             fontFamily: 'Inter, system-ui, sans-serif',
+            transition: 'background 0.2s, color 0.2s',
           }}
         >
-          {saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
+          {saved ? L('Saved', 'Guardado') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
         </button>
       </div>
 
