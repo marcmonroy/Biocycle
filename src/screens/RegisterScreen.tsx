@@ -29,7 +29,6 @@ const COUNTRY_CODES = [
 
 export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserId, initialPhone }: Props) {
   const [step, setStep] = useState<Step>(() => initialStep ?? 1);
-  const [userId, setUserId] = useState<string | null>(() => initialUserId ?? null);
   // Authoritative userId — set only from the live signUp response (or explicitly in the resume effect).
   // Never initialized from props so a fresh registration always starts clean.
   const userIdRef = useRef<string | null>(null);
@@ -97,7 +96,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setExistingAccount(false);
     // Clear any stale userId from a previous session before issuing a new signUp
     userIdRef.current = null;
-    setUserId(null);
     setLoading(true);
 
     const { data, error: authError } = await supabase.auth.signUp({ email, password });
@@ -120,7 +118,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       const freshUserId = data.user.id;
       console.log('[RegisterScreen] signUp success. authoritative user_id:', freshUserId);
       userIdRef.current = freshUserId;
-      setUserId(freshUserId);
       setStep(2);
     }
   };
