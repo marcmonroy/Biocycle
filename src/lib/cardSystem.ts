@@ -218,7 +218,7 @@ function formatValue(days: number): string {
 export function getCardForUser(profile: Profile): Card {
   const daysOfData = getDaysOfData(profile);
   const slot = getCurrentTimeSlot();
-  const gender = profile.gender ?? 'nonbinary';
+  const gender = profile.genero ?? 'nonbinary';
 
   // Milestone cards take priority on exact days
   if (MILESTONE_DAYS[daysOfData]) {

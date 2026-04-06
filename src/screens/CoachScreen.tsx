@@ -95,7 +95,7 @@ function buildSystemPrompt(
 
   return `You are Jules, a warm and perceptive biological intelligence coach inside BioCycle. You help users understand their hormonal rhythms and build valuable health data.
 
-User: ${profile.nombre ?? 'User'} | Gender: ${profile.gender ?? 'unknown'} | Days of data: ${daysOfData} | Time: ${slot} | Phase: ${phaseName} (${phaseDesc})
+User: ${profile.nombre ?? 'User'} | Gender: ${profile.genero ?? 'unknown'} | Days of data: ${daysOfData} | Time: ${slot} | Phase: ${phaseName} (${phaseDesc})
 
 ${modeDesc[mode]}
 

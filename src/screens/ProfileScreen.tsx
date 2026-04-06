@@ -9,14 +9,29 @@ interface Props {
   onLogout: () => void;
 }
 
+// ── Option sets ────────────────────────────────────────────────────────────
+const EXERCISE_FREQ_OPTIONS = ['Sedentary', '1-2x week', '3-4x week', '5+ week', 'Daily'];
+const EXERCISE_TYPE_OPTIONS = ['None', 'Walking', 'Running', 'Weights', 'Yoga', 'Cycling', 'Swimming', 'Sports', 'Other'];
+const DIET_TYPE_OPTIONS = ['Omnivore', 'Vegetarian', 'Vegan', 'Keto', 'Paleo', 'Mediterranean', 'Gluten-free', 'Other'];
 const BLOOD_TYPES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-const EXERCISE_OPTIONS_EN = ['None', 'Light (1–2×/wk)', 'Moderate (3–4×/wk)', 'Heavy (5+×/wk)'];
-const EXERCISE_OPTIONS_ES = ['Ninguno', 'Ligero (1–2×/sem)', 'Moderado (3–4×/sem)', 'Intenso (5+×/sem)'];
-
+const CAFFEINE_OPTIONS = [
+  { label: '0', value: 0 },
+  { label: '1', value: 1 },
+  { label: '2', value: 2 },
+  { label: '3', value: 3 },
+  { label: '4+', value: 4 },
+];
+const ALCOHOL_OPTIONS = [
+  { label: '0', value: 0 },
+  { label: '1-2', value: 1 },
+  { label: '3-5', value: 3 },
+  { label: '6-10', value: 6 },
+  { label: '10+', value: 10 },
+];
 const CONDITION_OPTIONS = [
   'None', 'Diabetes', 'Hypertension', 'Thyroid disorder', 'PCOS',
   'Endometriosis', 'Depression', 'Anxiety', 'Chronic pain',
-  'Sleep disorder', 'Autoimmune condition', 'Heart condition', 'Other',
+  'Sleep disorder', 'Autoimmune condition', 'Heart condition', 'Migraine', 'Other',
 ];
 const MEDICATION_OPTIONS = [
   'None', 'Hormonal contraceptives', 'HRT', 'Antidepressants',
@@ -24,10 +39,22 @@ const MEDICATION_OPTIONS = [
   'Diabetes medication', 'Pain medication', 'Sleep medication',
   'Vitamins/Supplements', 'Other',
 ];
+const FAMILY_HISTORY_OPTIONS = [
+  'None', 'Diabetes', 'Heart disease', 'Cancer', 'Depression',
+  'Anxiety', 'Thyroid disorders', 'Hormonal conditions', 'Other',
+];
 
-function parseMultiSelect(val: string | null): string[] {
-  if (!val) return [];
-  return val.split(',').map(s => s.trim()).filter(Boolean);
+// ── Helpers ────────────────────────────────────────────────────────────────
+function calcBmi(heightCm: number, weightKg: number): number | null {
+  if (!heightCm || !weightKg) return null;
+  const bmi = weightKg / Math.pow(heightCm / 100, 2);
+  return Math.round(bmi * 10) / 10;
+}
+
+function toggleMulti(prev: string[], val: string): string[] {
+  if (val === 'None') return ['None'];
+  const without = prev.filter(v => v !== 'None');
+  return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
 }
 
 export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
@@ -36,51 +63,71 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Editable fields
+  // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
   const [idioma, setIdioma] = useState<'EN' | 'ES'>(profile.idioma ?? 'EN');
-  const [height, setHeight] = useState(String(profile.height ?? ''));
-  const [weight, setWeight] = useState(String(profile.weight ?? ''));
-  const [exercise, setExercise] = useState(profile.exercise_frequency ?? '');
+
+  // Body metrics
+  const [heightCm, setHeightCm] = useState(String(profile.height_cm ?? ''));
+  const [weightKg, setWeightKg] = useState(String(profile.weight_kg ?? ''));
+  const [sleepHours, setSleepHours] = useState(String(profile.sleep_hours ?? ''));
+
+  // Lifestyle
+  const [exerciseFreq, setExerciseFreq] = useState(profile.exercise_frequency ?? '');
+  const [exerciseType, setExerciseType] = useState<string[]>(profile.exercise_type ?? []);
+  const [dietType, setDietType] = useState(profile.diet_type ?? '');
   const [bloodType, setBloodType] = useState(profile.blood_type ?? '');
-  const [conditions, setConditions] = useState<string[]>(() => parseMultiSelect(profile.medical_conditions));
-  const [medications, setMedications] = useState<string[]>(() => parseMultiSelect(profile.medications));
+  const [caffeine, setCaffeine] = useState<number | null>(profile.caffeine_per_day ?? null);
+  const [alcohol, setAlcohol] = useState<number | null>(profile.alcohol_per_week ?? null);
+
+  // Medical
+  const [knownConditions, setKnownConditions] = useState<string[]>(profile.known_conditions ?? []);
+  const [currentMeds, setCurrentMeds] = useState<string[]>(profile.current_medications ?? []);
+  const [familyHistory, setFamilyHistory] = useState<string[]>(profile.family_history ?? []);
+
+  // Cycle (females only)
+  const [lastPeriodDate, setLastPeriodDate] = useState(profile.last_period_date ?? '');
+  const [cycleLength, setCycleLength] = useState(String(profile.cycle_length ?? 28));
+
+  // Sexual partner
+  const [sexualPartner, setSexualPartner] = useState<boolean | null>(profile.has_sexual_partner ?? null);
 
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
-  const phaseLabel = idioma === 'ES' ? phase.displayNameES : phase.displayName;
-  const phaseDesc = idioma === 'ES' ? phase.descriptionES : phase.description;
+  const isES = idioma === 'ES';
+  const isFemale = profile.genero === 'female';
+  const phaseLabel = isES ? phase.displayNameES : phase.displayName;
 
-  const exerciseOptions = idioma === 'ES' ? EXERCISE_OPTIONS_ES : EXERCISE_OPTIONS_EN;
+  const bmi = calcBmi(Number(heightCm), Number(weightKg));
 
-  function toggleCondition(val: string) {
-    if (val === 'None') { setConditions(['None']); return; }
-    setConditions(prev => {
-      const without = prev.filter(v => v !== 'None');
-      return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
-    });
-  }
-
-  function toggleMedication(val: string) {
-    if (val === 'None') { setMedications(['None']); return; }
-    setMedications(prev => {
-      const without = prev.filter(v => v !== 'None');
-      return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
-    });
-  }
+  const L = (en: string, es: string) => isES ? es : en;
 
   async function saveProfile() {
     setSaving(true);
-    const updates: Partial<Profile> = {
-      picardia_mode: picardia,
+
+    const updates: Record<string, unknown> = {
+      picardia_mode:      picardia,
       idioma,
-      height: height ? parseFloat(height) : null,
-      weight: weight ? parseFloat(weight) : null,
-      exercise_frequency: exercise || null,
-      blood_type: bloodType || null,
-      medical_conditions: conditions.length ? conditions.join(', ') : null,
-      medications: medications.length ? medications.join(', ') : null,
+      height_cm:          heightCm ? parseInt(heightCm, 10) : null,
+      weight_kg:          weightKg ? parseFloat(weightKg) : null,
+      bmi:                bmi,
+      sleep_hours:        sleepHours ? parseFloat(sleepHours) : null,
+      exercise_frequency: exerciseFreq || null,
+      exercise_type:      exerciseType.length ? exerciseType : null,
+      diet_type:          dietType || null,
+      blood_type:         bloodType || null,
+      caffeine_per_day:   caffeine,
+      alcohol_per_week:   alcohol,
+      known_conditions:   knownConditions.length ? knownConditions : null,
+      current_medications: currentMeds.length ? currentMeds : null,
+      family_history:     familyHistory.length ? familyHistory : null,
+      has_sexual_partner: sexualPartner,
     };
+
+    if (isFemale) {
+      updates.last_period_date = lastPeriodDate || null;
+      updates.cycle_length = cycleLength ? parseInt(cycleLength, 10) : 28;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -102,8 +149,6 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
     onLogout();
   }
 
-  const L = (en: string, es: string) => idioma === 'ES' ? es : en;
-
   return (
     <div style={{
       minHeight: '100vh',
@@ -113,12 +158,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       overflowY: 'auto',
     }}>
       {/* Header */}
-      <div style={{
-        width: '100%',
-        maxWidth: 430,
-        margin: '0 auto',
-        padding: '52px 24px 24px',
-      }}>
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '52px 24px 20px' }}>
         <h1 style={{
           fontFamily: 'JetBrains Mono, monospace',
           fontSize: '1.2rem',
@@ -129,195 +169,67 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
           {profile.nombre ?? 'Profile'}
         </h1>
         <p style={{ color: '#4A5568', fontSize: 12, margin: 0 }}>
-          {daysOfData} {L('days of data', 'días de datos')}
+          {daysOfData} {L('days of data', 'días de datos')} · {phaseLabel}
         </p>
       </div>
 
-      {/* Phase card */}
-      <div style={{
-        width: '100%',
-        maxWidth: 430,
-        margin: '0 auto',
-        padding: '0 24px 24px',
-      }}>
-        <div style={{
-          background: 'rgba(123,97,255,0.08)',
-          border: '1px solid rgba(123,97,255,0.2)',
-          borderRadius: 16,
-          padding: '20px',
-          display: 'flex',
-          gap: 16,
-          alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 36 }}>{phase.emoji}</span>
-          <div>
-            <div style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              color: 'white',
-              marginBottom: 4,
-            }}>
-              {phaseLabel}
-            </div>
-            <div style={{ color: '#4A5568', fontSize: 12, lineHeight: 1.5 }}>
-              {phaseDesc}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', height: 1, background: 'rgba(255,255,255,0.05)' }} />
-
-      {/* Preferences section */}
+      {/* ── Preferences ───────────────────────────────────────────────────── */}
       <Section label={L('Preferences', 'Preferencias')}>
-        {/* Language toggle */}
         <FieldRow label={L('Language', 'Idioma')}>
           <div style={{ display: 'flex', gap: 6 }}>
             {(['EN', 'ES'] as const).map(lang => (
-              <button
+              <PillButton
                 key={lang}
+                label={lang === 'EN' ? 'English' : 'Español'}
+                active={idioma === lang}
                 onClick={() => setIdioma(lang)}
-                style={{
-                  background: idioma === lang ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
-                  border: idioma === lang ? '1px solid rgba(255,107,107,0.4)' : '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8,
-                  padding: '6px 16px',
-                  color: idioma === lang ? '#FF6B6B' : '#4A5568',
-                  fontSize: 13,
-                  fontWeight: idioma === lang ? 600 : 400,
-                  cursor: 'pointer',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {lang}
-              </button>
+              />
             ))}
           </div>
         </FieldRow>
 
-        {/* Picardia mode */}
-        <FieldRow label={L('Picardia Mode', 'Modo Picardía')} sublabel={L('More playful, flirtatious tone from Jules', 'Tono más juguetón y coqueto de Jules')}>
+        <FieldRow
+          label={L('Picardia Mode', 'Modo Picardía')}
+          sublabel={L('More playful tone from Jules', 'Tono más juguetón de Jules')}
+        >
           <button
-            onClick={() => {
-              if (!picardia) {
-                setShowPicardiaConfirm(true);
-              } else {
-                setPicardia(false);
-              }
-            }}
+            onClick={() => picardia ? setPicardia(false) : setShowPicardiaConfirm(true)}
             style={{
-              width: 48,
-              height: 28,
-              borderRadius: 14,
+              width: 48, height: 28, borderRadius: 14,
               background: picardia ? '#FF6B6B' : 'rgba(255,255,255,0.1)',
-              border: 'none',
-              cursor: 'pointer',
-              position: 'relative',
-              transition: 'background 0.2s',
-              flexShrink: 0,
+              border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
             }}
           >
             <div style={{
-              width: 22,
-              height: 22,
-              borderRadius: '50%',
-              background: 'white',
-              position: 'absolute',
-              top: 3,
-              left: picardia ? 23 : 3,
-              transition: 'left 0.2s',
+              width: 22, height: 22, borderRadius: '50%', background: 'white',
+              position: 'absolute', top: 3, left: picardia ? 23 : 3, transition: 'left 0.2s',
               boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
             }} />
           </button>
         </FieldRow>
       </Section>
 
-      {/* Picardia confirm modal */}
-      {showPicardiaConfirm && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          padding: 24,
-        }}>
-          <div style={{
-            background: '#12122A',
-            border: '1px solid rgba(255,107,107,0.3)',
-            borderRadius: 20,
-            padding: 28,
-            maxWidth: 360,
-            width: '100%',
-          }}>
-            <h3 style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              color: 'white',
-              fontSize: '1rem',
-              margin: '0 0 12px',
-            }}>
-              {L('Enable Picardia Mode?', '¿Activar Modo Picardía?')}
-            </h3>
-            <p style={{ color: '#4A5568', fontSize: 13, lineHeight: 1.6, margin: '0 0 20px' }}>
-              {L(
-                'Jules will use a more playful, flirtatious tone. This is adult content (18+). You can turn it off at any time.',
-                'Jules usará un tono más juguetón y coqueto. Este es contenido para adultos (+18). Puedes desactivarlo en cualquier momento.'
-              )}
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowPicardiaConfirm(false)}
-                style={{
-                  flex: 1,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10,
-                  padding: '12px',
-                  color: '#4A5568',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {L('Cancel', 'Cancelar')}
-              </button>
-              <button
-                onClick={() => {
-                  setPicardia(true);
-                  setShowPicardiaConfirm(false);
-                }}
-                style={{
-                  flex: 1,
-                  background: 'rgba(255,107,107,0.15)',
-                  border: '1px solid rgba(255,107,107,0.35)',
-                  borderRadius: 10,
-                  padding: '12px',
-                  color: '#FF6B6B',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {L('Yes, enable', 'Sí, activar')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ── Section 1: Basic info (read-only) ──────────────────────────────── */}
+      <Section label={L('Account', 'Cuenta')}>
+        <ReadRow label={L('Name', 'Nombre')} value={profile.nombre ?? '—'} />
+        <ReadRow label={L('Gender', 'Género')} value={profile.genero ?? '—'} />
+        <ReadRow
+          label={L('Date of birth', 'Fecha de nacimiento')}
+          value={profile.fecha_nacimiento ?? '—'}
+        />
+        <ReadRow label={L('Language', 'Idioma')} value={profile.idioma} />
+        <ReadRow label="WhatsApp" value={profile.whatsapp_phone ?? '—'} />
+      </Section>
 
-      {/* Health data section */}
-      <Section label={L('Health Data', 'Datos de Salud')}>
+      {/* ── Section 2: Body metrics ─────────────────────────────────────────── */}
+      <Section label={L('Body Metrics', 'Métricas Corporales')}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <FieldLabel>{L('Height (cm)', 'Altura (cm)')}</FieldLabel>
             <input
               type="number"
-              value={height}
-              onChange={e => setHeight(e.target.value)}
+              value={heightCm}
+              onChange={e => setHeightCm(e.target.value)}
               placeholder="170"
               style={inputStyle}
             />
@@ -326,120 +238,224 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
             <FieldLabel>{L('Weight (kg)', 'Peso (kg)')}</FieldLabel>
             <input
               type="number"
-              value={weight}
-              onChange={e => setWeight(e.target.value)}
+              value={weightKg}
+              onChange={e => setWeightKg(e.target.value)}
               placeholder="70"
               style={inputStyle}
             />
           </div>
         </div>
 
+        {bmi !== null && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: '#4A5568', fontSize: 13 }}>BMI</span>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '1.1rem',
+              fontWeight: 700,
+              color: '#FFD93D',
+            }}>
+              {bmi}
+            </span>
+          </div>
+        )}
+
+        <div>
+          <FieldLabel>{L('Sleep hours/night', 'Horas de sueño/noche')}</FieldLabel>
+          <input
+            type="number"
+            value={sleepHours}
+            onChange={e => setSleepHours(e.target.value)}
+            placeholder="7.5"
+            min={0}
+            max={12}
+            step={0.5}
+            style={{ ...inputStyle, maxWidth: 100 }}
+          />
+        </div>
+      </Section>
+
+      {/* ── Section 3: Lifestyle ────────────────────────────────────────────── */}
+      <Section label={L('Lifestyle', 'Estilo de Vida')}>
         <div>
           <FieldLabel>{L('Exercise frequency', 'Frecuencia de ejercicio')}</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {exerciseOptions.map(opt => (
-              <button
+          <div style={pillRowStyle}>
+            {EXERCISE_FREQ_OPTIONS.map(opt => (
+              <PillButton
                 key={opt}
-                onClick={() => setExercise(opt)}
-                style={{
-                  background: exercise === opt ? 'rgba(0,200,150,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: exercise === opt ? '1px solid rgba(0,200,150,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 8,
-                  padding: '6px 12px',
-                  color: exercise === opt ? '#00C896' : '#4A5568',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {opt}
-              </button>
+                label={opt}
+                active={exerciseFreq === opt}
+                onClick={() => setExerciseFreq(opt)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>{L('Exercise type (select all that apply)', 'Tipo de ejercicio (selecciona todos)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {EXERCISE_TYPE_OPTIONS.map(opt => (
+              <PillButton
+                key={opt}
+                label={opt}
+                active={exerciseType.includes(opt)}
+                onClick={() => setExerciseType(prev => toggleMulti(prev, opt))}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>{L('Diet type', 'Tipo de dieta')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {DIET_TYPE_OPTIONS.map(opt => (
+              <PillButton
+                key={opt}
+                label={opt}
+                active={dietType === opt}
+                onClick={() => setDietType(opt)}
+              />
             ))}
           </div>
         </div>
 
         <div>
           <FieldLabel>{L('Blood type', 'Tipo de sangre')}</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <div style={pillRowStyle}>
             {BLOOD_TYPES.map(bt => (
-              <button
+              <PillButton
                 key={bt}
+                label={bt}
+                active={bloodType === bt}
                 onClick={() => setBloodType(bt)}
-                style={{
-                  background: bloodType === bt ? 'rgba(255,107,107,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: bloodType === bt ? '1px solid rgba(255,107,107,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 8,
-                  padding: '6px 12px',
-                  color: bloodType === bt ? '#FF6B6B' : '#4A5568',
-                  fontSize: 12,
-                  cursor: 'pointer',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {bt}
-              </button>
+              />
             ))}
           </div>
         </div>
 
         <div>
-          <FieldLabel>{L('Medical conditions (optional)', 'Condiciones médicas (opcional)')}</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {CONDITION_OPTIONS.map(opt => {
-              const active = conditions.includes(opt);
-              return (
-                <button
-                  key={opt}
-                  onClick={() => toggleCondition(opt)}
-                  style={{
-                    background: active ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: active ? '1px solid rgba(255,107,107,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 8,
-                    padding: '6px 12px',
-                    color: active ? '#FF6B6B' : '#4A5568',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {opt}
-                </button>
-              );
-            })}
+          <FieldLabel>{L('Caffeine per day (cups)', 'Cafeína por día (tazas)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {CAFFEINE_OPTIONS.map(opt => (
+              <PillButton
+                key={opt.label}
+                label={opt.label}
+                active={caffeine === opt.value}
+                onClick={() => setCaffeine(opt.value)}
+              />
+            ))}
           </div>
         </div>
 
         <div>
-          <FieldLabel>{L('Medications (optional)', 'Medicamentos (opcional)')}</FieldLabel>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {MEDICATION_OPTIONS.map(opt => {
-              const active = medications.includes(opt);
-              return (
-                <button
-                  key={opt}
-                  onClick={() => toggleMedication(opt)}
-                  style={{
-                    background: active ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: active ? '1px solid rgba(255,107,107,0.45)' : '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 8,
-                    padding: '6px 12px',
-                    color: active ? '#FF6B6B' : '#4A5568',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  {opt}
-                </button>
-              );
-            })}
+          <FieldLabel>{L('Alcohol per week (drinks)', 'Alcohol por semana (bebidas)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {ALCOHOL_OPTIONS.map(opt => (
+              <PillButton
+                key={opt.label}
+                label={opt.label}
+                active={alcohol === opt.value}
+                onClick={() => setAlcohol(opt.value)}
+              />
+            ))}
           </div>
         </div>
       </Section>
 
-      {/* Save button */}
+      {/* ── Section 4: Medical ──────────────────────────────────────────────── */}
+      <Section label={L('Medical', 'Salud')}>
+        <div>
+          <FieldLabel>{L('Known conditions (optional)', 'Condiciones conocidas (opcional)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {CONDITION_OPTIONS.map(opt => (
+              <PillButton
+                key={opt}
+                label={opt}
+                active={knownConditions.includes(opt)}
+                onClick={() => setKnownConditions(prev => toggleMulti(prev, opt))}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>{L('Current medications (optional)', 'Medicamentos actuales (opcional)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {MEDICATION_OPTIONS.map(opt => (
+              <PillButton
+                key={opt}
+                label={opt}
+                active={currentMeds.includes(opt)}
+                onClick={() => setCurrentMeds(prev => toggleMulti(prev, opt))}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <FieldLabel>{L('Family history (optional)', 'Historial familiar (opcional)')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {FAMILY_HISTORY_OPTIONS.map(opt => (
+              <PillButton
+                key={opt}
+                label={opt}
+                active={familyHistory.includes(opt)}
+                onClick={() => setFamilyHistory(prev => toggleMulti(prev, opt))}
+              />
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Section 5: Cycle (females only) ────────────────────────────────── */}
+      {isFemale && (
+        <Section label={L('Cycle', 'Ciclo')}>
+          <div>
+            <FieldLabel>{L('Last period date', 'Fecha del último período')}</FieldLabel>
+            <input
+              type="date"
+              value={lastPeriodDate}
+              onChange={e => setLastPeriodDate(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
+              style={{ ...inputStyle, maxWidth: 180 }}
+            />
+          </div>
+          <div>
+            <FieldLabel>{L('Cycle length (days)', 'Duración del ciclo (días)')}</FieldLabel>
+            <input
+              type="number"
+              value={cycleLength}
+              onChange={e => setCycleLength(e.target.value)}
+              min={21}
+              max={45}
+              style={{ ...inputStyle, maxWidth: 100 }}
+            />
+          </div>
+        </Section>
+      )}
+
+      {/* ── Section 6: Sexual partner ───────────────────────────────────────── */}
+      <Section label={L('Partner', 'Pareja')}>
+        <div>
+          <FieldLabel>{L('Currently have a sexual partner?', '¿Tienes pareja sexual actualmente?')}</FieldLabel>
+          <div style={pillRowStyle}>
+            {[
+              { label: L('Yes', 'Sí'), value: true as boolean | null },
+              { label: 'No', value: false as boolean | null },
+              { label: L('Prefer not to say', 'Prefiero no decir'), value: null as boolean | null },
+            ].map(opt => (
+              <PillButton
+                key={opt.label}
+                label={opt.label}
+                active={sexualPartner === opt.value}
+                onClick={() => setSexualPartner(opt.value)}
+              />
+            ))}
+          </div>
+        </div>
+      </Section>
+
+      {/* ── Save button ─────────────────────────────────────────────────────── */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '8px 24px 16px' }}>
         <button
           onClick={saveProfile}
@@ -458,12 +474,12 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
             transition: 'background 0.2s, color 0.2s',
           }}
         >
-          {saved ? L('Saved', 'Guardado') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
+          {saved ? L('Saved ✓', 'Guardado ✓') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
         </button>
       </div>
 
-      {/* Logout */}
-      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px' }}>
+      {/* ── Logout ──────────────────────────────────────────────────────────── */}
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px 24px' }}>
         <button
           onClick={() => setShowLogoutConfirm(true)}
           style={{
@@ -482,86 +498,53 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
         </button>
       </div>
 
-      {/* Logout confirm */}
-      {showLogoutConfirm && (
-        <div style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.7)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 100,
-          padding: 24,
-        }}>
-          <div style={{
-            background: '#12122A',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 20,
-            padding: 28,
-            maxWidth: 340,
-            width: '100%',
-          }}>
-            <h3 style={{ fontFamily: 'JetBrains Mono, monospace', color: 'white', fontSize: '1rem', margin: '0 0 10px' }}>
-              {L('Sign out?', '¿Cerrar sesión?')}
-            </h3>
-            <p style={{ color: '#4A5568', fontSize: 13, margin: '0 0 20px' }}>
-              {L('Your data is saved in the cloud.', 'Tus datos están guardados en la nube.')}
-            </p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                style={{
-                  flex: 1,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10,
-                  padding: '12px',
-                  color: '#4A5568',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {L('Cancel', 'Cancelar')}
-              </button>
-              <button
-                onClick={handleLogout}
-                style={{
-                  flex: 1,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 10,
-                  padding: '12px',
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {L('Sign out', 'Cerrar sesión')}
-              </button>
-            </div>
+      {/* ── Picardia confirm modal ───────────────────────────────────────────── */}
+      {showPicardiaConfirm && (
+        <Modal>
+          <h3 style={modalHeadingStyle}>{L('Enable Picardia Mode?', '¿Activar Modo Picardía?')}</h3>
+          <p style={modalBodyStyle}>
+            {L(
+              'Jules will use a more playful, flirtatious tone. Adult content (18+). You can turn it off at any time.',
+              'Jules usará un tono más juguetón y coqueto. Contenido para adultos (+18). Puedes desactivarlo en cualquier momento.',
+            )}
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <ModalBtn onClick={() => setShowPicardiaConfirm(false)} variant="ghost">
+              {L('Cancel', 'Cancelar')}
+            </ModalBtn>
+            <ModalBtn onClick={() => { setPicardia(true); setShowPicardiaConfirm(false); }} variant="coral">
+              {L('Yes, enable', 'Sí, activar')}
+            </ModalBtn>
           </div>
-        </div>
+        </Modal>
+      )}
+
+      {/* ── Logout confirm modal ─────────────────────────────────────────────── */}
+      {showLogoutConfirm && (
+        <Modal>
+          <h3 style={modalHeadingStyle}>{L('Sign out?', '¿Cerrar sesión?')}</h3>
+          <p style={modalBodyStyle}>{L('Your data is saved in the cloud.', 'Tus datos están guardados en la nube.')}</p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <ModalBtn onClick={() => setShowLogoutConfirm(false)} variant="ghost">
+              {L('Cancel', 'Cancelar')}
+            </ModalBtn>
+            <ModalBtn onClick={handleLogout} variant="ghost">
+              {L('Sign out', 'Cerrar sesión')}
+            </ModalBtn>
+          </div>
+        </Modal>
       )}
     </div>
   );
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Sub-components ──────────────────────────────────────────────────────────
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ width: '100%', maxWidth: 430, margin: '0 auto' }}>
       <div style={{ padding: '20px 24px 6px' }}>
-        <p style={{
-          color: '#4A5568',
-          fontSize: 10,
-          letterSpacing: '0.12em',
-          textTransform: 'uppercase',
-          margin: 0,
-        }}>
+        <p style={{ color: '#4A5568', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
           {label}
         </p>
       </div>
@@ -585,6 +568,15 @@ function FieldRow({ label, sublabel, children }: { label: string; sublabel?: str
   );
 }
 
+function ReadRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span style={{ color: '#4A5568', fontSize: 13 }}>{label}</span>
+      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'Inter, system-ui, sans-serif' }}>{value}</span>
+    </div>
+  );
+}
+
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
     <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 6px' }}>
@@ -593,6 +585,65 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function PillButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? '#FF6B6B' : 'transparent',
+        border: `1px solid ${active ? '#FF6B6B' : '#4A5568'}`,
+        borderRadius: 8,
+        padding: '6px 12px',
+        color: active ? 'white' : '#4A5568',
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        cursor: 'pointer',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function Modal({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24,
+    }}>
+      <div style={{
+        background: '#12122A', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 20, padding: 28, maxWidth: 360, width: '100%',
+        display: 'flex', flexDirection: 'column', gap: 16,
+      }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ModalBtn({ children, onClick, variant }: { children: React.ReactNode; onClick: () => void; variant: 'ghost' | 'coral' }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        background: variant === 'coral' ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.06)',
+        border: variant === 'coral' ? '1px solid rgba(255,107,107,0.35)' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 10, padding: '12px',
+        color: variant === 'coral' ? '#FF6B6B' : '#4A5568',
+        cursor: 'pointer', fontSize: 14, fontWeight: variant === 'coral' ? 600 : 400,
+        fontFamily: 'Inter, system-ui, sans-serif',
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ── Styles ──────────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%',
   background: 'rgba(255,255,255,0.04)',
@@ -604,4 +655,24 @@ const inputStyle: React.CSSProperties = {
   fontFamily: 'Inter, system-ui, sans-serif',
   outline: 'none',
   boxSizing: 'border-box',
+};
+
+const pillRowStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+};
+
+const modalHeadingStyle: React.CSSProperties = {
+  fontFamily: 'JetBrains Mono, monospace',
+  color: 'white',
+  fontSize: '1rem',
+  margin: 0,
+};
+
+const modalBodyStyle: React.CSSProperties = {
+  color: '#4A5568',
+  fontSize: 13,
+  lineHeight: 1.6,
+  margin: 0,
 };

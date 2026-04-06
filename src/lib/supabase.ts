@@ -10,20 +10,41 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export interface Profile {
   id: string;
   nombre: string | null;
-  gender: 'female' | 'male' | 'nonbinary' | null;
+  genero: string | null;
   idioma: 'EN' | 'ES';
   picardia_mode: boolean;
-  cycle_start_date: string | null;
-  date_of_birth: string | null;
+  fecha_nacimiento: string | null;
   age_verified: boolean;
   whatsapp_phone: string | null;
   whatsapp_verified: boolean;
-  height: number | null;
-  weight: number | null;
+
+  // Body metrics
+  height_cm: number | null;
+  weight_kg: number | null;
+  bmi: number | null;
+  sleep_hours: number | null;
+
+  // Lifestyle
   exercise_frequency: string | null;
+  exercise_type: string[] | null;
+  diet_type: string | null;
   blood_type: string | null;
-  medical_conditions: string | null;
-  medications: string | null;
+  caffeine_per_day: number | null;
+  alcohol_per_week: number | null;
+
+  // Medical (jsonb arrays)
+  known_conditions: string[] | null;
+  current_medications: string[] | null;
+  family_history: string[] | null;
+  hormonal_transition: string | null;
+  has_sexual_partner: boolean | null;
+
+  // Cycle
+  cycle_start_date: string | null;
+  last_period_date: string | null;
+  cycle_length: number | null;
+
+  // System
   pattern_summary: string | null;
   pattern_updated_at: string | null;
   wearable_connected: boolean;

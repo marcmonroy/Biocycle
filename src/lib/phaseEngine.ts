@@ -158,8 +158,8 @@ function getMalePhase(hour: number, dayOfWeek: number): PhaseResult {
 }
 
 export function getCurrentPhase(profile: Profile): PhaseResult {
-  const age = profile.date_of_birth ? getAge(profile.date_of_birth) : 0;
-  const gender = profile.gender;
+  const age = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
+  const gender = profile.genero;
   const hour = new Date().getHours();
   const dayOfWeek = new Date().getDay();
 
