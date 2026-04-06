@@ -126,7 +126,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   };
 
   // ── Step 2 ───────────────────────────────────────────────────────────────
-  const handleStep2 = async () => {
+  const handleStep2 = () => {
     if (!dob) { setError('Please enter your date of birth.'); return; }
     const birth = new Date(dob);
     const now = new Date();
@@ -135,27 +135,13 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
     if (age < 18) { setUnderAge(true); return; }
     setError('');
-    setLoading(true);
-    await supabase.from('profiles').update({
-      date_of_birth: dob,
-      age_verified: true,
-    }).eq('id', userIdRef.current);
-    setLoading(false);
     setStep(3);
   };
 
   // ── Step 3 ───────────────────────────────────────────────────────────────
-  const handleStep3 = async () => {
+  const handleStep3 = () => {
     if (!name || !gender) { setError('All fields required.'); return; }
     setError('');
-    setLoading(true);
-    await supabase.from('profiles').upsert({
-      id: userIdRef.current,
-      nombre: name,
-      gender,
-      idioma: language,
-    });
-    setLoading(false);
     setStep(4);
   };
 
