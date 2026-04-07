@@ -188,6 +188,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   const [isMuted, setIsMuted] = useState(false);
 
   const sessionStartedRef = useRef(false);
+  const isProcessingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const showNumberPadRef = useRef(false);
@@ -212,14 +213,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     setBioState('speaking');
     speakWithElevenLabs(text, idioma, false, {
       onStart: () => setBioState('speaking'),
-      onEnd: () => {
-        setBioState('idle');
-        if (!showNumberPadRef.current) {
-          startListeningFn();
-        }
-      },
+      onEnd: () => setBioState('idle'),
     });
-  }, [isMuted, idioma]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isMuted, idioma]);
 
   // ── startListening ───────────────────────────────────────────────────────
   const startListeningFn = useCallback(() => {
@@ -240,7 +236,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
             recognition.stop();
             setIsListening(false);
             setBioState('idle');
-            sendMessageFn(transcript);
+            // Populate input for user review — do NOT auto-send
+            setInputText(transcript);
           }
         }
       }
@@ -284,6 +281,10 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   // ── sendMessage ──────────────────────────────────────────────────────────
   const sendMessageFn = useCallback(async (userText: string, daysOverride?: number) => {
+    // Block concurrent API calls — only one Jules response in flight at a time
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
     const days = daysOverride ?? daysOfData ?? 0;
 
     // Hide number pad
@@ -373,6 +374,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     } catch (err) {
       console.error('Coach API error:', err);
       setBioState('idle');
+    } finally {
+      isProcessingRef.current = false;
     }
   }, [daysOfData, messages, profile, idioma, sessionType, speak]); // eslint-disable-line react-hooks/exhaustive-deps
 
