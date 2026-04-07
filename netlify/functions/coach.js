@@ -20,6 +20,11 @@ exports.handler = async (event) => {
     delete parsed.picardia_mode;
     delete parsed.days_of_data;
 
+    // Ensure model is always set
+    if (!parsed.model) {
+      parsed.model = 'claude-sonnet-4-20250514';
+    }
+
     // If the client did not provide a system prompt (should never happen in normal flow),
     // inject the safety-net Jules prompt with today's date.
     if (!parsed.system) {

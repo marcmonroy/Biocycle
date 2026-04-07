@@ -272,6 +272,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
         messages: safeMessages,
         system: systemPrompt,
         max_tokens: 200,
