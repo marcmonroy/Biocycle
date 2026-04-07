@@ -77,8 +77,12 @@ function buildSystemPrompt(
 
   const modeDesc: Record<CoachingMode, string> = {
     LEARNING: idioma === 'ES'
-      ? `Modo APRENDIZAJE (Días 0–6): Estás conociendo a ${profile.nombre}. Haz preguntas de descubrimiento cálidas y abiertas. Explica brevemente por qué sus datos tienen valor.`
-      : `LEARNING mode (Days 0–6): You are getting to know ${profile.nombre}. Ask warm, open-ended discovery questions. Briefly explain why their data has value.`,
+      ? (daysOfData === 0
+        ? `MODO PRIMERA VEZ: Tu mensaje de apertura es UNA SOLA oración de bienvenida cálida a ${profile.nombre}. Máximo 15 palabras. No expliques BioCycle. No menciones hormonas ni biología. No hagas preguntas. Solo saluda con calidez.`
+        : `Modo APRENDIZAJE (Días 0–6): Estás conociendo a ${profile.nombre}. Haz preguntas de descubrimiento cálidas y abiertas. Explica brevemente por qué sus datos tienen valor.`)
+      : (daysOfData === 0
+        ? `FIRST-TIME MODE: Your opening message is ONE warm welcome sentence to ${profile.nombre}. Maximum 15 words. Do not explain BioCycle. Do not mention hormones or biology. Do not ask any questions. Just greet them warmly.`
+        : `LEARNING mode (Days 0–6): You are getting to know ${profile.nombre}. Ask warm, open-ended discovery questions. Briefly explain why their data has value.`),
     CALIBRATION: idioma === 'ES'
       ? `Modo CALIBRACIÓN (Días 7–29): Recopila dimensiones específicas puntuadas del 1 al 10: energía física, cognición, estrés, ansiedad, emocional, social, sueño, libido. Pregunta de 1 a 2 a la vez.`
       : `CALIBRATION mode (Days 7–29): Collect specific 1–10 scored dimensions: physical energy, cognition, stress, anxiety, emotional, social, sleep, libido. Ask 1–2 at a time.`,
@@ -189,10 +193,13 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   const sessionStartedRef = useRef(false);
   const isProcessingRef = useRef(false);
+  const onboardingRef = useRef<'greeting' | 'biocycle' | 'money' | 'done'>('done');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const showNumberPadRef = useRef(false);
   const dimensionScoresRef = useRef<Record<string, number>>({});
+
+  const [pendingYesNo, setPendingYesNo] = useState<'biocycle' | 'money' | null>(null);
 
   const idioma = profile.idioma ?? 'EN';
 
@@ -259,7 +266,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   }, [bioState, idioma]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── callAPI ──────────────────────────────────────────────────────────────
-  async function callAPI(msgs: Message[], systemPrompt: string): Promise<string> {
+  async function callAPI(msgs: Message[], systemPrompt: string, maxTokens = 200): Promise<string> {
     // Strip leading assistant messages — Anthropic requires first message to be user
     const firstUserIdx = msgs.findIndex(m => m.role === 'user');
     const safeMessages = firstUserIdx >= 0 ? msgs.slice(firstUserIdx) : msgs;
@@ -271,7 +278,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         model: 'claude-sonnet-4-20250514',
         messages: safeMessages,
         system: systemPrompt,
-        max_tokens: 200,
+        max_tokens: maxTokens,
       }),
     });
     if (!response.ok) throw new Error(`API error ${response.status}`);
@@ -287,32 +294,35 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
     const days = daysOverride ?? daysOfData ?? 0;
 
-    // Hide number pad
     setShowNumberPad(false);
     showNumberPadRef.current = false;
 
-    // Extract score from user text
-    const scoreMatch = userText.match(/\b([1-9]|10)\b/);
-    if (scoreMatch) {
-      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-      if (lastAssistant) {
-        const key = lastAssistant.content.slice(0, 60);
-        dimensionScoresRef.current[key] = parseInt(scoreMatch[0], 10);
+    const isStart = userText === '__START__';
+    // Silent triggers don't add a user message to the chat
+    const isSilent = ['__BIOCYCLE_EXPLAIN__', '__MONEY_EXPLAIN__', '__FIRST_QUESTION__'].includes(userText);
+
+    // Extract score + safety check — only for real user messages
+    if (!isStart && !isSilent) {
+      const scoreMatch = userText.match(/\b([1-9]|10)\b/);
+      if (scoreMatch) {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+        if (lastAssistant) {
+          dimensionScoresRef.current[lastAssistant.content.slice(0, 60)] = parseInt(scoreMatch[0], 10);
+        }
+      }
+      if (hasCrisisContent(userText)) {
+        await logSafetyEvent(profile.id, userText, 'user_input');
       }
     }
 
-    // Safety check — user input
-    if (hasCrisisContent(userText)) {
-      await logSafetyEvent(profile.id, userText, 'user_input');
-    }
-
-    const isStart = userText === '__START__';
-    let updatedMessages: Message[] = isStart ? [] : [
-      ...messages,
-      { role: 'user', content: userText },
-    ];
-
-    if (!isStart) {
+    // Build message list
+    let updatedMessages: Message[];
+    if (isStart) {
+      updatedMessages = [];
+    } else if (isSilent) {
+      updatedMessages = messages; // use current messages without adding trigger text
+    } else {
+      updatedMessages = [...messages, { role: 'user', content: userText }];
       setMessages(updatedMessages);
     }
 
@@ -320,57 +330,98 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
     try {
       const systemPrompt = buildSystemPrompt(profile, days, idioma);
-
-      // Build prompt for __START__
+      const slot = getCurrentTimeSlot();
       let apiMessages: Message[];
+
       if (isStart) {
-        const mode = getCoachingMode(days);
-        const slot = getCurrentTimeSlot();
-        let initMsg: string;
-        if (idioma === 'ES') {
-          initMsg = days === 0
-            ? `El usuario acaba de registrarse. Salúdalo, explica brevemente qué es BioCycle y por qué sus datos tienen valor. Sé cálido y emocionante. Momento del día: ${slot}.`
-            : `Inicia la sesión de ${sessionType === 'scheduled' ? 'check-in programado' : 'conversación'} del ${slot}. Modo: ${mode}. Días de datos: ${days}. Saluda y haz tu primera pregunta.`;
+        if (days === 0) {
+          // First-time: strict one-sentence welcome, 150 tokens
+          onboardingRef.current = 'greeting';
+          const welcome = idioma === 'ES'
+            ? `Di exactamente UNA oración de bienvenida cálida a ${profile.nombre ?? 'el usuario'}. Máximo 15 palabras. Nada más.`
+            : `Say exactly ONE warm welcome sentence to ${profile.nombre ?? 'the user'}. Maximum 15 words. Nothing else.`;
+          apiMessages = [{ role: 'user', content: welcome }];
         } else {
-          initMsg = days === 0
-            ? `The user just registered. Greet them, briefly explain what BioCycle is and why their data has value. Be warm and exciting. Time of day: ${slot}.`
+          const mode = getCoachingMode(days);
+          const initMsg = idioma === 'ES'
+            ? `Inicia la sesión de ${sessionType === 'scheduled' ? 'check-in programado' : 'conversación'} del ${slot}. Modo: ${mode}. Días de datos: ${days}. Saluda y haz tu primera pregunta.`
             : `Start the ${sessionType === 'scheduled' ? 'scheduled check-in' : 'conversation'} session for ${slot}. Mode: ${mode}. Days of data: ${days}. Greet them and ask your first question.`;
+          apiMessages = [{ role: 'user', content: initMsg }];
         }
-        apiMessages = [{ role: 'user', content: initMsg }];
+      } else if (userText === '__BIOCYCLE_EXPLAIN__') {
+        const prompt = idioma === 'ES'
+          ? 'Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo y cómo predice su estado biológico futuro. Solo 2 oraciones, nada más.'
+          : 'Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state. Exactly 2 sentences, nothing else.';
+        apiMessages = [{ role: 'user', content: prompt }];
+      } else if (userText === '__MONEY_EXPLAIN__') {
+        const prompt = idioma === 'ES'
+          ? 'Explica en exactamente 1 oración cómo los Data Traders de BioCycle generan ingresos con sus datos biológicos.'
+          : 'Explain in exactly 1 sentence how BioCycle Data Traders earn money from their biological data.';
+        apiMessages = [{ role: 'user', content: prompt }];
+      } else if (userText === '__FIRST_QUESTION__') {
+        const prompt = idioma === 'ES'
+          ? `Haz tu primera pregunta de dimensión para el check-in del ${slot}. Solo la pregunta, sin introducción ni explicación.`
+          : `Ask your first dimension check-in question for the ${slot} session. Just the question, no preamble.`;
+        apiMessages = [{ role: 'user', content: prompt }];
       } else {
         apiMessages = updatedMessages;
       }
 
-      const reply = await callAPI(apiMessages, systemPrompt);
+      const isOnboarding = days === 0 && onboardingRef.current !== 'done';
+      const reply = await callAPI(apiMessages, systemPrompt, isOnboarding ? 150 : 200);
       if (!reply) return;
 
-      // Safety check — AI response
       if (hasCrisisContent(reply)) {
         await logSafetyEvent(profile.id, reply, 'ai_response');
       }
 
-      const newMessages: Message[] = isStart
-        ? [{ role: 'assistant', content: reply }]
-        : [...updatedMessages, { role: 'assistant', content: reply }];
-
+      const newMessages: Message[] = [...updatedMessages, { role: 'assistant', content: reply }];
       setMessages(newMessages);
       setBioState('idle');
 
-      // Detect number pad question
       if (asksForNumber(reply)) {
         setShowNumberPad(true);
         showNumberPadRef.current = true;
       }
 
-      // Detect session complete
       const completeTriggers = ['session complete', 'sesión completa', 'great session', 'buena sesión', 'talk tomorrow', 'hasta mañana'];
-      const isComplete = completeTriggers.some(t => reply.toLowerCase().includes(t));
-      if (isComplete) {
+      if (completeTriggers.some(t => reply.toLowerCase().includes(t))) {
         setSessionComplete(true);
         await saveSession(days, newMessages);
       }
 
       speak(reply);
+
+      // ── Onboarding state machine ────────────────────────────────────────
+      if (days === 0 && onboardingRef.current !== 'done') {
+        if (onboardingRef.current === 'greeting') {
+          // After welcome, append biocycle question and show YES/NO
+          const q = idioma === 'ES'
+            ? '¿Te gustaría una explicación rápida de cómo funciona BioCycle antes de empezar?'
+            : 'Would you like a quick explanation of how BioCycle works before we start?';
+          setTimeout(() => {
+            setMessages(prev => [...prev, { role: 'assistant', content: q }]);
+            onboardingRef.current = 'biocycle';
+            setPendingYesNo('biocycle');
+          }, 700);
+        } else if (userText === '__BIOCYCLE_EXPLAIN__') {
+          // After BioCycle explanation, append money question and show YES/NO
+          const q = idioma === 'ES'
+            ? '¿Quieres saber cómo tus datos pueden generarte dinero?'
+            : 'Want to know about how your data can earn you money?';
+          setTimeout(() => {
+            setMessages(prev => [...prev, { role: 'assistant', content: q }]);
+            onboardingRef.current = 'money';
+            setPendingYesNo('money');
+          }, 700);
+        } else if (userText === '__MONEY_EXPLAIN__') {
+          // After money explanation, fire first dimension question
+          onboardingRef.current = 'done';
+          setTimeout(() => sendMessageFn('__FIRST_QUESTION__'), 700);
+        } else if (userText === '__FIRST_QUESTION__') {
+          onboardingRef.current = 'done';
+        }
+      }
     } catch (err) {
       console.error('Coach API error:', err);
       setBioState('idle');
@@ -452,6 +503,38 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     init();
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Onboarding YES / NO handler ──────────────────────────────────────────
+  const handleYesNo = useCallback(async (answer: 'yes' | 'no') => {
+    setPendingYesNo(null);
+    const userMsg = answer === 'yes' ? (idioma === 'ES' ? 'Sí' : 'Yes') : 'No';
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+
+    const phase = onboardingRef.current;
+
+    if (phase === 'biocycle') {
+      if (answer === 'yes') {
+        await sendMessageFn('__BIOCYCLE_EXPLAIN__');
+      } else {
+        // Skip explanation — go directly to money question
+        const q = idioma === 'ES'
+          ? '¿Quieres saber cómo tus datos pueden generarte dinero?'
+          : 'Want to know about how your data can earn you money?';
+        setTimeout(() => {
+          setMessages(prev => [...prev, { role: 'assistant', content: q }]);
+          onboardingRef.current = 'money';
+          setPendingYesNo('money');
+        }, 400);
+      }
+    } else if (phase === 'money') {
+      if (answer === 'yes') {
+        await sendMessageFn('__MONEY_EXPLAIN__');
+      } else {
+        // Skip money — go directly to first dimension question
+        await sendMessageFn('__FIRST_QUESTION__');
+      }
+    }
+  }, [idioma, sendMessageFn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toggle mic ────────────────────────────────────────────────────────────
   const toggleMic = () => {
@@ -658,8 +741,55 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
-      <div style={{
+      {/* YES / NO onboarding choice buttons */}
+      {pendingYesNo && (
+        <div style={{
+          flexShrink: 0,
+          padding: '10px 16px',
+          display: 'flex',
+          gap: 10,
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          background: '#0A0A1A',
+        }}>
+          <button
+            onClick={() => handleYesNo('yes')}
+            style={{
+              flex: 1,
+              background: 'rgba(0,200,150,0.12)',
+              border: '1px solid rgba(0,200,150,0.3)',
+              borderRadius: 12,
+              padding: '14px',
+              color: '#00C896',
+              fontSize: '0.95rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            {idioma === 'ES' ? 'Sí' : 'Yes'}
+          </button>
+          <button
+            onClick={() => handleYesNo('no')}
+            style={{
+              flex: 1,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 12,
+              padding: '14px',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '0.95rem',
+              fontWeight: 400,
+              cursor: 'pointer',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            No
+          </button>
+        </div>
+      )}
+
+      {/* Input area — hidden during YES/NO onboarding prompts */}
+      {!pendingYesNo && <div style={{
         flexShrink: 0,
         padding: '12px 16px 32px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -735,7 +865,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         >
           ↑
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
