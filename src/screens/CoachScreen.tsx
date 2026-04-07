@@ -79,6 +79,9 @@ async function logSafetyEvent(userId: string, text: string, ctx: string) {
   } catch { /* never throw */ }
 }
 
+// ── localStorage session persistence key ──────────────────────────────────
+const LS_KEY = 'biocycle_active_session';
+
 // ── Session helpers ───────────────────────────────────────────────────────
 
 function getSessionSlot(): SessionSlot {
@@ -360,6 +363,10 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   // Stable constants — derived from props once, never stale
   const idioma       = profile.idioma ?? 'EN';
   const isES         = idioma === 'ES';
+  // Prepended to every system prompt so Jules never re-introduces herself
+  const noIntro      = isES
+    ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
+    : 'CRITICAL: You have already introduced yourself. NEVER say your name. NEVER say "I\'m Jules". NEVER greet. Start every response directly with the content.\n\n';
   const picardiaMode = profile.picardia_mode ?? false;
   const daysOfData   = profile.days_of_data ?? 0;
   const name         = profile.nombre ?? '';
@@ -400,6 +407,32 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // Persist session to localStorage on every stable state change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (convState === 'SESSION_COMPLETE') {
+      localStorage.removeItem(LS_KEY);
+      return;
+    }
+    const stableStates: ConversationState[] = [
+      'ENERGY_Q','COGNITIVE_Q','STRESS_Q','ANXIETY_Q','SLEEP_Q','CAFFEINE_Q',
+      'EMOTIONAL_Q','SOCIAL_Q','SEXUAL_Q','HYDRATION_Q','DAY_RATING_Q','MEMORABLE_Q',
+      'ALCOHOL_Q','ADHOC','EXPLAIN_OFFER','MONEY_OFFER',
+    ];
+    if (!stableStates.includes(sessionRef.current.state)) return;
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        state: sessionRef.current.state,
+        sessionId: sessionRef.current.id,
+        slot: sessionRef.current.slot,
+        scores: scoresRef.current,
+        messages: messages.slice(-10),
+        isGap: sessionRef.current.isGap,
+        onboardingComplete: sessionRef.current.onboardingComplete,
+      }));
+    } catch { /* storage full */ }
+  }, [convState, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -457,8 +490,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   async function callAckAPI(qState: ConversationState, userValue: string): Promise<string> {
     const dimLabel = getDimLabel(qState, isES);
     const sys = isES
-      ? `Eres Jules, una compañera de IA cálida. YA te presentaste — NO digas tu nombre, Hola, ni ningún saludo. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.`
-      : `You are Jules, a warm AI companion. You have already introduced yourself — do NOT say your name, Hi, Hello, or any greeting. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.`;
+      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.`
+      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.`;
     const text = await callCoachAPI(convHistoryRef.current, sys, 60);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
@@ -466,14 +499,14 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   async function callOpeningAPI(): Promise<string> {
     if (daysOfData >= 90 && profile.pattern_summary) {
       const sys = isES
-        ? `Eres Jules. YA te presentaste — NO uses nombre ni saludos. Una oración de pronóstico biológico para los próximos 3–7 días basado en fase actual. Sé específica y confiada. Máximo 25 palabras. Patrones: ${profile.pattern_summary}`
-        : `You are Jules. Already introduced — do NOT use name or greetings. One biological forecast sentence for next 3–7 days based on current phase. Be specific and confident. Max 25 words. Patterns: ${profile.pattern_summary}`;
+        ? `${noIntro}Eres Jules. Una oración de pronóstico biológico para los próximos 3–7 días basado en fase actual. Sé específica y confiada. Máximo 25 palabras. Patrones: ${profile.pattern_summary}`
+        : `${noIntro}You are Jules. One biological forecast sentence for next 3–7 days based on current phase. Be specific and confident. Max 25 words. Patterns: ${profile.pattern_summary}`;
       return await callCoachAPI([{ role: 'user', content: 'Generate forecast.' }], sys, 50);
     }
     if (daysOfData >= 30) {
       const sys = isES
-        ? `Eres Jules. YA te presentaste — NO uses nombre ni saludos. El usuario tiene ${daysOfData} días de datos. Una oración de observación de patrón. Empieza con "He notado..." Máximo 20 palabras.`
-        : `You are Jules. Already introduced — do NOT use name or greetings. The user has ${daysOfData} days of data. One pattern observation sentence. Frame as "I've been noticing..." Max 20 words.`;
+        ? `${noIntro}Eres Jules. El usuario tiene ${daysOfData} días de datos. Una oración de observación de patrón. Empieza con "He notado..." Máximo 20 palabras.`
+        : `${noIntro}You are Jules. The user has ${daysOfData} days of data. One pattern observation sentence. Frame as "I've been noticing..." Max 20 words.`;
       return await callCoachAPI([{ role: 'user', content: 'Generate observation.' }], sys, 40);
     }
     return '';
@@ -557,6 +590,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   // ── State machine: session complete ───────────────────────────────────────
 
   function enterSessionComplete() {
+    localStorage.removeItem(LS_KEY);
     const text = getCompletionText(sessionRef.current.slot, name, isES);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
@@ -630,8 +664,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           setConvState('EXPLAINING');
           setBioState('thinking');
           const sys = isES
-            ? 'Eres Jules. YA te presentaste — NO digas nombre ni saludos. Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo, y cómo predice su estado biológico futuro.'
-            : 'You are Jules. Already introduced — do NOT say name or greetings. Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state.';
+            ? `${noIntro}Eres Jules. Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo, y cómo predice su estado biológico futuro.`
+            : `${noIntro}You are Jules. Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state.`;
           const text = await callCoachAPI(convHistoryRef.current, sys, 80);
           setBioState('idle');
           const explanation = text || (isES
@@ -660,8 +694,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           setConvState('MONEY_EXPLAINING');
           setBioState('thinking');
           const sys = isES
-            ? 'Eres Jules. YA te presentaste — NO digas nombre ni saludos. Explica en 1 oración cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos.'
-            : 'You are Jules. Already introduced — do NOT say name or greetings. Explain in 1 sentence how BioCycle Data Traders earn money from their biological data.';
+            ? `${noIntro}Eres Jules. Explica en 1 oración cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos.`
+            : `${noIntro}You are Jules. Explain in 1 sentence how BioCycle Data Traders earn money from their biological data.`;
           const text = await callCoachAPI(convHistoryRef.current, sys, 60);
           setBioState('idle');
           const explanation = text || (isES
@@ -672,7 +706,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           speak(explanation, () => enterFirstDimension());
         } else {
           await markOnboardingComplete();
+          isProcessingRef.current = false; // reset before entering dimension so answers aren't blocked
           enterFirstDimension();
+          return; // skip finally-reset (already done above)
         }
       }
     } finally {
@@ -689,8 +725,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       addUserMsg(userText);
       setBioState('thinking');
       const sys = isES
-        ? 'Eres Jules, una compañera de IA cálida de BioCycle. YA te presentaste — NO digas nombre ni saludos. Responde en español. Sé cálida, breve (2–3 oraciones máximo) y directa.'
-        : 'You are Jules, a warm AI companion inside BioCycle. Already introduced — do NOT say name or greetings. Respond in English. Be warm, brief (2–3 sentences max), and direct.';
+        ? `${noIntro}Eres Jules, una compañera de IA cálida de BioCycle. Responde en español. Sé cálida, breve (2–3 oraciones máximo) y directa.`
+        : `${noIntro}You are Jules, a warm AI companion inside BioCycle. Respond in English. Be warm, brief (2–3 sentences max), and direct.`;
       const text = await callCoachAPI(convHistoryRef.current, sys, 150);
       setBioState('idle');
       if (!text) return;
@@ -733,8 +769,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         addUserMsg(text);
         setBioState('thinking');
         const sys = isES
-          ? 'Eres Jules. Ya te presentaste. Explica BioCycle en exactamente 2 oraciones, sin saludos ni nombre.'
-          : 'You are Jules. Already introduced. Explain BioCycle in exactly 2 sentences, no greetings or name.';
+          ? `${noIntro}Eres Jules. Explica BioCycle en exactamente 2 oraciones.`
+          : `${noIntro}You are Jules. Explain BioCycle in exactly 2 sentences.`;
         const reply = await callCoachAPI(convHistoryRef.current, sys, 80);
         setBioState('idle');
         if (reply) { addJulesMsg(reply); speak(reply); }
@@ -819,6 +855,35 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     mountedRef.current = true;
 
     void (async () => {
+      // 0. Fast restore from localStorage (skips DB round-trip on nav back)
+      const savedRaw = localStorage.getItem(LS_KEY);
+      if (savedRaw) {
+        try {
+          const saved = JSON.parse(savedRaw);
+          sessionRef.current.id = saved.sessionId || sessionRef.current.id;
+          if (saved.slot) sessionRef.current.slot = saved.slot;
+          sessionRef.current.isGap = !!saved.isGap;
+          sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
+          if (saved.scores) scoresRef.current = saved.scores;
+          if (saved.messages?.length > 0) {
+            convHistoryRef.current = saved.messages;
+            setMessages(saved.messages);
+          }
+          let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
+          if (restoreState.endsWith('_ACK')) {
+            restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
+          }
+          sessionRef.current.state = restoreState;
+          setConvState(restoreState);
+          const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
+          addJulesMsg(resumeMsg);
+          speak(resumeMsg);
+          return; // skip DB queries
+        } catch {
+          localStorage.removeItem(LS_KEY);
+        }
+      }
+
       const today     = new Date().toISOString().split('T')[0];
       const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
 
@@ -949,9 +1014,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   return (
     <div style={{
-      minHeight: '100vh', width: '100%', maxWidth: '100vw',
+      height: '100dvh', width: '100%', maxWidth: '100vw',
       background: '#0A0A1A', display: 'flex', flexDirection: 'column',
-      fontFamily: 'Inter, system-ui, sans-serif', overflowX: 'hidden',
+      fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden',
     }}>
 
       {/* Top bar */}
@@ -970,13 +1035,26 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
             {phaseLabel}
           </span>
         </div>
-        <button onClick={() => setIsMuted(m => !m)} style={{ background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 18, padding: '4px 8px' }}>
-          {isMuted ? '🔇' : '🔊'}
-        </button>
+        <div style={{ width: 44 }} />
       </div>
 
+      {/* Floating mute button — fixed so it's always accessible */}
+      <button
+        onClick={() => setIsMuted(m => !m)}
+        style={{
+          position: 'fixed', top: 16, right: 16, zIndex: 100,
+          background: 'rgba(10,10,26,0.85)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: '50%', width: 40, height: 40,
+          cursor: 'pointer', fontSize: 18, color: 'white',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {isMuted ? '🔇' : '🔊'}
+      </button>
+
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && isBusy && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
             <QuantumDNA size={80} state="thinking" />
