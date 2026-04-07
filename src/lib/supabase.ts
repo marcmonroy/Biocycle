@@ -51,6 +51,7 @@ export interface Profile {
   wearable_source: string | null;
   validation_due_date: string | null;
   days_of_data: number | null;
+  onboarding_complete: boolean | null;
   created_at: string;
 }
 
@@ -92,5 +93,6 @@ export interface ConversationSession {
   factor_alcohol: boolean | null;
   day_memory: string | null;
   day_rating: number | null;
+  interrupted_at_state: string | null;
   created_at: string;
 }

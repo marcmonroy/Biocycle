@@ -1,20 +1,66 @@
-// CoachScreen — Session 1 shell
-// Jules greeting, first-time flow, phase badge, learning mode indicator
-// Full conversation engine wired via Netlify function /api/coach
+// CoachScreen — Session 2 — Jules Deterministic State Machine
+// Anthropic API called ONLY for ACK sentences and phase-specific openings.
+// Every question is hardcoded. Every state is explicit. Jules never drifts.
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
-import { getCurrentPhase, getDaysOfData, getCurrentTimeSlot } from '../lib/phaseEngine';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 
+// ── Types ─────────────────────────────────────────────────────────────────
+
+type ConversationState =
+  | 'OPENING'
+  | 'EXPLAIN_OFFER' | 'EXPLAINING' | 'MONEY_OFFER' | 'MONEY_EXPLAINING'
+  | 'ENERGY_Q' | 'ENERGY_ACK'
+  | 'COGNITIVE_Q' | 'COGNITIVE_ACK'
+  | 'STRESS_Q' | 'STRESS_ACK'
+  | 'ANXIETY_Q' | 'ANXIETY_ACK'
+  | 'SLEEP_Q' | 'SLEEP_ACK'
+  | 'CAFFEINE_Q' | 'CAFFEINE_ACK'
+  | 'EMOTIONAL_Q' | 'EMOTIONAL_ACK'
+  | 'SOCIAL_Q' | 'SOCIAL_ACK'
+  | 'SEXUAL_Q' | 'SEXUAL_ACK'
+  | 'HYDRATION_Q' | 'HYDRATION_ACK'
+  | 'DAY_RATING_Q' | 'DAY_RATING_ACK'
+  | 'MEMORABLE_Q' | 'MEMORABLE_ACK'
+  | 'ALCOHOL_Q' | 'ALCOHOL_ACK'
+  | 'SESSION_COMPLETE'
+  | 'INTERRUPTED_RECOVERY'
+  | 'ADHOC';
+
+type SessionSlot = 'morning' | 'afternoon' | 'night' | 'adhoc';
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+interface SessionScores {
+  factor_fisico: number | null;
+  factor_cognitivo: number | null;
+  factor_estres: number | null;
+  factor_ansiedad: number | null;
+  factor_sueno: number | null;
+  factor_cafeina: number | null;
+  factor_emocional: number | null;
+  factor_social: number | null;
+  factor_sexual: number | null;
+  factor_hidratacion: string | null;
+  factor_alcohol: boolean | null;
+  day_rating: number | null;
+  day_memory: string | null;
+}
 
 // ── Safety ────────────────────────────────────────────────────────────────
+
 const CRISIS_KEYWORDS = [
-  'suicide', 'suicidio', 'kill myself', 'matarme', 'end my life',
+  'suicide', 'suicidio', 'kill myself', 'matarme', 'end my life', 'end my existence',
   'self-harm', 'autolesión', 'overdose', 'sobredosis',
   'cutting myself', 'cortarme', 'want to die', 'quiero morir',
+  'not worth living', 'no vale la pena vivir', 'hurt myself', 'hacerme daño',
+  'no reason to live', 'sin razón para vivir',
 ];
 
 function hasCrisisContent(text: string): boolean {
@@ -22,104 +68,236 @@ function hasCrisisContent(text: string): boolean {
   return CRISIS_KEYWORDS.some(k => lower.includes(k));
 }
 
-async function logSafetyEvent(userId: string, triggerText: string, context: string) {
+async function logSafetyEvent(userId: string, text: string, ctx: string) {
   try {
     await supabase.from('safety_events').insert({
       user_id: userId,
-      trigger_text: triggerText.slice(0, 500),
-      context,
+      trigger_text: text.slice(0, 500),
+      context: ctx,
       created_at: new Date().toISOString(),
     });
   } catch { /* never throw */ }
 }
 
-const SAFETY_SUFFIX_EN = '\n\nIMPORTANT: If the user expresses any thoughts of self-harm, suicide, or crisis, immediately respond with warmth and provide: "Please reach out to a crisis line — Crisis Text Line: text HOME to 741741, or call 988 (US/Canada)." Do not continue the biological coaching conversation until safety is confirmed.';
-const SAFETY_SUFFIX_ES = '\n\nIMPORTANTE: Si el usuario expresa pensamientos de autolesión, suicidio o crisis, responde con calidez y proporciona: "Por favor comunícate con una línea de crisis — Línea de Crisis: llama al 988 o visita crisistextline.org." No continúes la conversación de coaching biológico hasta confirmar la seguridad.';
+// ── Session helpers ───────────────────────────────────────────────────────
 
-// ── Coaching modes ────────────────────────────────────────────────────────
-type CoachingMode = 'LEARNING' | 'CALIBRATION' | 'COMPANION';
-
-function getCoachingMode(days: number): CoachingMode {
-  if (days < 7) return 'LEARNING';
-  if (days < 30) return 'CALIBRATION';
-  return 'COMPANION';
+function getSessionSlot(): SessionSlot {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 23) return 'night';
+  return 'adhoc';
 }
 
-// ── Message types ─────────────────────────────────────────────────────────
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
+function getSlotLabel(slot: SessionSlot, isES: boolean): string {
+  if (isES) {
+    return slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche';
+  }
+  return slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening';
 }
 
-// ── Number pad detection ──────────────────────────────────────────────────
-const NUMBER_TRIGGERS = [
-  'scale of 1 to 10', 'scale of 1-10', '1 to 10', '1-10',
-  'escala del 1 al 10', 'del 1 al 10', '1 al 10',
-  'rate your', 'califica tu', 'how would you rate',
-];
-
-function asksForNumber(text: string): boolean {
-  const lower = text.toLowerCase();
-  return NUMBER_TRIGGERS.some(t => lower.includes(t));
+function getNextSessionSlot(slot: SessionSlot, isES: boolean): string {
+  if (isES) {
+    return slot === 'morning' ? 'esta tarde' : slot === 'afternoon' ? 'esta noche' : 'mañana por la mañana';
+  }
+  return slot === 'morning' ? 'this afternoon' : slot === 'afternoon' ? 'tonight' : 'tomorrow morning';
 }
 
-// ── Build system prompt ───────────────────────────────────────────────────
-function buildSystemPrompt(
-  profile: Profile,
-  daysOfData: number,
-  idioma: 'EN' | 'ES'
-): string {
-  const mode = getCoachingMode(daysOfData);
-  const phase = getCurrentPhase(profile);
-  const slot = getCurrentTimeSlot();
-  const phaseName = idioma === 'ES' ? phase.displayNameES : phase.displayName;
-  const phaseDesc = idioma === 'ES' ? phase.descriptionES : phase.description;
+// ── Hardcoded question texts ──────────────────────────────────────────────
 
-  const modeDesc: Record<CoachingMode, string> = {
-    LEARNING: idioma === 'ES'
-      ? (daysOfData === 0
-        ? `MODO PRIMERA VEZ: Tu mensaje de apertura es UNA SOLA oración de bienvenida cálida a ${profile.nombre}. Máximo 15 palabras. No expliques BioCycle. No menciones hormonas ni biología. No hagas preguntas. Solo saluda con calidez.`
-        : `Modo APRENDIZAJE (Días 0–6): Estás conociendo a ${profile.nombre}. Haz preguntas de descubrimiento cálidas y abiertas. Explica brevemente por qué sus datos tienen valor.`)
-      : (daysOfData === 0
-        ? `FIRST-TIME MODE: Your opening message is ONE warm welcome sentence to ${profile.nombre}. Maximum 15 words. Do not explain BioCycle. Do not mention hormones or biology. Do not ask any questions. Just greet them warmly.`
-        : `LEARNING mode (Days 0–6): You are getting to know ${profile.nombre}. Ask warm, open-ended discovery questions. Briefly explain why their data has value.`),
-    CALIBRATION: idioma === 'ES'
-      ? `Modo CALIBRACIÓN (Días 7–29): Recopila dimensiones específicas puntuadas del 1 al 10: energía física, cognición, estrés, ansiedad, emocional, social, sueño, libido. Pregunta de 1 a 2 a la vez.`
-      : `CALIBRATION mode (Days 7–29): Collect specific 1–10 scored dimensions: physical energy, cognition, stress, anxiety, emotional, social, sleep, libido. Ask 1–2 at a time.`,
-    COMPANION: idioma === 'ES'
-      ? `Modo COMPAÑERO (Día 30+): Tienes suficientes datos para hacer observaciones. Nombra patrones reales. Predice cómo se sentirán mañana basado en sus datos históricos.`
-      : `COMPANION mode (Day 30+): You have enough data to make observations. Name real patterns. Predict how they'll feel tomorrow based on their historical data.`,
-  };
-
-  const lang = idioma === 'ES'
-    ? 'Respond entirely in Spanish. Be warm, direct, never clinical.'
-    : 'Respond entirely in English. Be warm, direct, never clinical.';
-
-  const safety = idioma === 'ES' ? SAFETY_SUFFIX_ES : SAFETY_SUFFIX_EN;
-
-  return `CRITICAL RULE: You are Jules. You have already introduced yourself. NEVER say your name again. NEVER say "Hi", "Hello", "Hey", "Welcome", or any greeting after your very first message. NEVER introduce yourself again under any circumstances. Starting from message 2, go directly to your question or response with zero preamble.
-
-You are Jules, a warm and perceptive biological intelligence coach inside BioCycle. You help users understand their hormonal rhythms and build valuable health data.
-
-User: ${profile.nombre ?? 'User'} | Gender: ${profile.genero ?? 'unknown'} | Days of data: ${daysOfData} | Time: ${slot} | Phase: ${phaseName} (${phaseDesc})
-
-${modeDesc[mode]}
-
-Keep responses to 2–3 sentences maximum. Short, warm, and inviting. Less is more.
-When asking about hydration always use exactly: "good, average, or poor". When asking yes/no questions always end with "— yes or no?". When asking about sleep quality always use: "restful or restless?". Always use these exact phrases so the choice button UI activates correctly.
-${lang}${safety}`;
+function getQuestionText(state: ConversationState, _name: string, _slot: SessionSlot, isES: boolean): string {
+  if (isES) {
+    switch (state) {
+      case 'EXPLAIN_OFFER':  return '¿Te gustaría una explicación rápida de cómo funciona BioCycle antes de empezar?';
+      case 'MONEY_OFFER':    return '¿Quieres saber cómo tus datos pueden generarte dinero?';
+      case 'ENERGY_Q':       return '¿Cómo calificarías tu energía ahora mismo — del 1 al 10?';
+      case 'COGNITIVE_Q':    return '¿Y tu claridad mental — qué tan enfocado/a te sientes? Del 1 al 10.';
+      case 'STRESS_Q':       return 'Nivel de estrés — del 1 al 10.';
+      case 'ANXIETY_Q':      return '¿Algo de ansiedad hoy? Del 1 al 10.';
+      case 'SLEEP_Q':        return '¿Cómo dormiste anoche — bien o mal?';
+      case 'CAFFEINE_Q':     return '¿Cuántos cafés o bebidas con cafeína has tomado hoy?';
+      case 'EMOTIONAL_Q':    return '¿Cómo te sientes emocionalmente ahora — del 1 al 10?';
+      case 'SOCIAL_Q':       return 'Energía social — ¿cuántas ganas tienes de estar con gente hoy? Del 1 al 10.';
+      case 'SEXUAL_Q':       return 'Energía sexual hoy — del 1 al 10.';
+      case 'HYDRATION_Q':    return '¿Cómo está tu hidratación hoy — bien, regular o mal?';
+      case 'DAY_RATING_Q':   return '¿Cómo calificarías el día de hoy en general — del 1 al 10?';
+      case 'MEMORABLE_Q':    return '¿Cuál fue un momento del día que te llamó la atención?';
+      case 'ALCOHOL_Q':      return '¿Tomaste alcohol hoy — sí o no?';
+      default: return '';
+    }
+  }
+  switch (state) {
+    case 'EXPLAIN_OFFER':  return 'Would you like a quick explanation of how BioCycle works before we start?';
+    case 'MONEY_OFFER':    return 'Want to know about how your data can earn you money?';
+    case 'ENERGY_Q':       return 'How would you rate your energy right now — on a scale of 1 to 10?';
+    case 'COGNITIVE_Q':    return 'And your mental clarity — how sharp are you feeling? 1 to 10.';
+    case 'STRESS_Q':       return 'Stress level — 1 to 10.';
+    case 'ANXIETY_Q':      return 'Any anxiety today? 1 to 10.';
+    case 'SLEEP_Q':        return 'How did you sleep last night — restful or restless?';
+    case 'CAFFEINE_Q':     return 'How many coffees or caffeinated drinks so far today?';
+    case 'EMOTIONAL_Q':    return 'How are you feeling emotionally right now — on a scale of 1 to 10?';
+    case 'SOCIAL_Q':       return 'Social energy — how much do you feel like being around people today? 1 to 10.';
+    case 'SEXUAL_Q':       return 'Sexual energy today — 1 to 10.';
+    case 'HYDRATION_Q':    return 'How is your hydration today — good, average, or poor?';
+    case 'DAY_RATING_Q':   return 'How would you rate today overall — 1 to 10?';
+    case 'MEMORABLE_Q':    return "What's one moment from today that stood out?";
+    case 'ALCOHOL_Q':      return 'Did you have any alcohol today — yes or no?';
+    default: return '';
+  }
 }
 
-// ── NumberPad ─────────────────────────────────────────────────────────────
+function getCompletionText(slot: SessionSlot, name: string, isES: boolean): string {
+  const slotLabel = getSlotLabel(slot, isES);
+  const next      = getNextSessionSlot(slot, isES);
+  if (isES) return `Eso es todo por esta ${slotLabel}, ${name}. Nos vemos ${next}.`;
+  return `That's it for this ${slotLabel}, ${name}. See you ${next}.`;
+}
+
+// ── Input UI — driven by state, not text scanning ─────────────────────────
+
+type InputUI = 'numberpad' | 'choices' | 'voice' | 'none';
+
+function getInputUI(state: ConversationState): InputUI {
+  const numpad:   ConversationState[] = ['ENERGY_Q','COGNITIVE_Q','STRESS_Q','ANXIETY_Q','EMOTIONAL_Q','SOCIAL_Q','SEXUAL_Q','DAY_RATING_Q'];
+  const choices:  ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
+  if (numpad.includes(state))  return 'numberpad';
+  if (choices.includes(state)) return 'choices';
+  if (state === 'MEMORABLE_Q' || state === 'ADHOC') return 'voice';
+  return 'none';
+}
+
+function getChoiceOptions(state: ConversationState, isES: boolean): string[] {
+  switch (state) {
+    case 'SLEEP_Q':       return isES ? ['Bien', 'Mal'] : ['Restful', 'Restless'];
+    case 'CAFFEINE_Q':    return ['0', '1', '2', '3', '4+'];
+    case 'HYDRATION_Q':   return isES ? ['Bien', 'Regular', 'Mal'] : ['Good', 'Average', 'Poor'];
+    case 'ALCOHOL_Q':     return isES ? ['Sí', 'No'] : ['Yes', 'No'];
+    case 'EXPLAIN_OFFER': return isES ? ['Sí', 'No'] : ['Yes', 'No'];
+    case 'MONEY_OFFER':   return isES ? ['Sí', 'No'] : ['Yes', 'No'];
+    default: return [];
+  }
+}
+
+// ── State transition graph ────────────────────────────────────────────────
+
+function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: boolean): ConversationState | 'SESSION_COMPLETE' {
+  if (isGap) {
+    if (qState === 'ENERGY_Q') return 'STRESS_Q';
+    return 'SESSION_COMPLETE';
+  }
+  switch (slot) {
+    case 'morning':
+      switch (qState) {
+        case 'ENERGY_Q':    return 'COGNITIVE_Q';
+        case 'COGNITIVE_Q': return 'STRESS_Q';
+        case 'STRESS_Q':    return 'ANXIETY_Q';
+        case 'ANXIETY_Q':   return 'SLEEP_Q';
+        case 'SLEEP_Q':     return 'CAFFEINE_Q';
+        case 'CAFFEINE_Q':  return 'SESSION_COMPLETE';
+        default:            return 'SESSION_COMPLETE';
+      }
+    case 'afternoon':
+      switch (qState) {
+        case 'EMOTIONAL_Q': return 'SOCIAL_Q';
+        case 'SOCIAL_Q':    return 'SEXUAL_Q';
+        case 'SEXUAL_Q':    return 'HYDRATION_Q';
+        case 'HYDRATION_Q': return 'SESSION_COMPLETE';
+        default:            return 'SESSION_COMPLETE';
+      }
+    case 'night':
+      switch (qState) {
+        case 'DAY_RATING_Q': return 'MEMORABLE_Q';
+        case 'MEMORABLE_Q':  return 'ALCOHOL_Q';
+        case 'ALCOHOL_Q':    return 'SESSION_COMPLETE';
+        default:             return 'SESSION_COMPLETE';
+      }
+    default:
+      return 'SESSION_COMPLETE';
+  }
+}
+
+function getFirstQForSlot(slot: SessionSlot): ConversationState {
+  if (slot === 'afternoon') return 'EMOTIONAL_Q';
+  if (slot === 'night')     return 'DAY_RATING_Q';
+  return 'ENERGY_Q';
+}
+
+// ── Score application ─────────────────────────────────────────────────────
+
+function applyScore(state: ConversationState, raw: string, scores: SessionScores): void {
+  const n = parseInt(raw, 10);
+  switch (state) {
+    case 'ENERGY_Q':    scores.factor_fisico    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'COGNITIVE_Q': scores.factor_cognitivo = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'STRESS_Q':    scores.factor_estres    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'ANXIETY_Q':   scores.factor_ansiedad  = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'SLEEP_Q': {
+      const lc = raw.toLowerCase();
+      scores.factor_sueno = (lc === 'restful' || lc === 'bien') ? 7 : 3;
+      break;
+    }
+    case 'CAFFEINE_Q':  scores.factor_cafeina   = raw === '4+' ? 4 : (isNaN(n) ? null : n); break;
+    case 'EMOTIONAL_Q': scores.factor_emocional = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'SOCIAL_Q':    scores.factor_social    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'SEXUAL_Q':    scores.factor_sexual    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'HYDRATION_Q': {
+      const lc = raw.toLowerCase();
+      scores.factor_hidratacion = (lc === 'good' || lc === 'bien') ? 'good' : (lc === 'average' || lc === 'regular') ? 'average' : 'poor';
+      break;
+    }
+    case 'DAY_RATING_Q': scores.day_rating  = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'MEMORABLE_Q':  scores.day_memory  = raw.trim(); break;
+    case 'ALCOHOL_Q': {
+      const lc = raw.toLowerCase();
+      scores.factor_alcohol = lc === 'yes' || lc === 'sí' || lc === 'si';
+      break;
+    }
+  }
+}
+
+function getDimLabel(state: ConversationState, isES: boolean): string {
+  if (isES) {
+    switch (state) {
+      case 'ENERGY_Q':    return 'energía física';
+      case 'COGNITIVE_Q': return 'claridad mental';
+      case 'STRESS_Q':    return 'nivel de estrés';
+      case 'ANXIETY_Q':   return 'nivel de ansiedad';
+      case 'SLEEP_Q':     return 'calidad de sueño';
+      case 'CAFFEINE_Q':  return 'consumo de cafeína';
+      case 'EMOTIONAL_Q': return 'estado emocional';
+      case 'SOCIAL_Q':    return 'energía social';
+      case 'SEXUAL_Q':    return 'energía sexual';
+      case 'HYDRATION_Q': return 'hidratación';
+      case 'DAY_RATING_Q':return 'el día en general';
+      case 'MEMORABLE_Q': return 'momento del día';
+      case 'ALCOHOL_Q':   return 'consumo de alcohol';
+      default: return 'respuesta';
+    }
+  }
+  switch (state) {
+    case 'ENERGY_Q':    return 'physical energy';
+    case 'COGNITIVE_Q': return 'mental clarity';
+    case 'STRESS_Q':    return 'stress level';
+    case 'ANXIETY_Q':   return 'anxiety level';
+    case 'SLEEP_Q':     return 'sleep quality';
+    case 'CAFFEINE_Q':  return 'caffeine intake';
+    case 'EMOTIONAL_Q': return 'emotional state';
+    case 'SOCIAL_Q':    return 'social energy';
+    case 'SEXUAL_Q':    return 'sexual energy';
+    case 'HYDRATION_Q': return 'hydration';
+    case 'DAY_RATING_Q':return 'overall day';
+    case 'MEMORABLE_Q': return 'moment of the day';
+    case 'ALCOHOL_Q':   return 'alcohol intake';
+    default: return 'response';
+  }
+}
+
+// ── UI Components ─────────────────────────────────────────────────────────
+
 function NumberPad({ onSelect }: { onSelect: (n: number) => void }) {
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(5, 1fr)',
-      gap: 8,
-      padding: '12px 0',
-    }}>
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, padding: '8px 0' }}>
+      {[1,2,3,4,5,6,7,8,9,10].map(n => (
         <button
           key={n}
           onClick={() => onSelect(n)}
@@ -127,7 +305,7 @@ function NumberPad({ onSelect }: { onSelect: (n: number) => void }) {
             background: 'rgba(123,97,255,0.12)',
             border: '1px solid rgba(123,97,255,0.25)',
             borderRadius: 10,
-            padding: '12px 0',
+            padding: '13px 0',
             color: '#7B61FF',
             fontFamily: 'JetBrains Mono, monospace',
             fontSize: '1rem',
@@ -142,8 +320,36 @@ function NumberPad({ onSelect }: { onSelect: (n: number) => void }) {
   );
 }
 
+function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v: string) => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, padding: '8px 0', flexWrap: 'wrap' }}>
+      {options.map(opt => (
+        <button
+          key={opt}
+          onClick={() => onSelect(opt)}
+          style={{
+            flex: 1,
+            minWidth: 72,
+            background: 'rgba(255,107,107,0.12)',
+            border: '1px solid rgba(255,107,107,0.35)',
+            borderRadius: 12,
+            padding: '13px 8px',
+            color: '#FF6B6B',
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-// ── Main component ────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────
+
 interface Props {
   profile: Profile;
   sessionType: 'scheduled' | 'adhoc';
@@ -151,616 +357,669 @@ interface Props {
 }
 
 export function CoachScreen({ profile, sessionType, onBack }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [bioState, setBioState] = useState<'idle' | 'listening' | 'thinking' | 'speaking'>('idle');
+  // Stable constants — derived from props once, never stale
+  const idioma       = profile.idioma ?? 'EN';
+  const isES         = idioma === 'ES';
+  const picardiaMode = profile.picardia_mode ?? false;
+  const daysOfData   = profile.days_of_data ?? 0;
+  const name         = profile.nombre ?? '';
+
+  // ── React state (display only) ───────────────────────────────────────────
+  const [convState, setConvState]     = useState<ConversationState>('OPENING');
+  const [messages, setMessages]       = useState<Message[]>([]);
+  const [bioState, setBioState]       = useState<'idle'|'listening'|'thinking'|'speaking'>('idle');
   const [isListening, setIsListening] = useState(false);
-  const [inputText, setInputText] = useState('');
-  const [showNumberPad, setShowNumberPad] = useState(false);
-  const [sessionComplete, setSessionComplete] = useState(false);
-  const [daysOfData, setDaysOfData] = useState<number | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  const [inputText, setInputText]     = useState('');
+  const [isMuted, setIsMuted]         = useState(false);
 
-  const sessionStartedRef = useRef(false);
+  // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
+  const mountedRef      = useRef(false);
   const isProcessingRef = useRef(false);
-  const onboardingRef = useRef<'greeting' | 'biocycle' | 'money' | 'done'>('done');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
-  const showNumberPadRef = useRef(false);
-  const dimensionScoresRef = useRef<Record<string, number>>({});
+  const isMutedRef      = useRef(false);
+  const recognitionRef  = useRef<any>(null);
+  const messagesEndRef  = useRef<HTMLDivElement>(null);
+  const convHistoryRef  = useRef<Message[]>([]);
 
-  const [pendingYesNo, setPendingYesNo] = useState<'biocycle' | 'money' | null>(null);
-  const [pendingChoices, setPendingChoices] = useState<string[] | null>(null);
+  // Single ref for all mutable session state
+  const sessionRef = useRef({
+    id:                 crypto.randomUUID(),
+    startTime:          Date.now(),
+    slot:               (sessionType === 'adhoc' ? 'adhoc' : getSessionSlot()) as SessionSlot,
+    state:              'OPENING' as ConversationState,
+    isGap:              false,
+    onboardingComplete: !!(profile.onboarding_complete),
+  });
 
-  const idioma = profile.idioma ?? 'EN';
+  const scoresRef = useRef<SessionScores>({
+    factor_fisico: null, factor_cognitivo: null, factor_estres: null,
+    factor_ansiedad: null, factor_sueno: null, factor_cafeina: null,
+    factor_emocional: null, factor_social: null, factor_sexual: null,
+    factor_hidratacion: null, factor_alcohol: null,
+    day_rating: null, day_memory: null,
+  });
 
-  // Ref mirror for isMuted — lets speak() always read the live value without
-  // being recreated (avoids stale-closure voice silence on subsequent messages)
-  const isMutedRef = useRef(isMuted);
+  // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
-  // Scroll to bottom
+  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Sync showNumberPad ref
-  useEffect(() => {
-    showNumberPadRef.current = showNumberPad;
-  }, [showNumberPad]);
+  // ── Core utilities ────────────────────────────────────────────────────────
 
-  // ── speak ────────────────────────────────────────────────────────────────
-  // Reads isMuted from ref so this callback is stable across message updates —
-  // prevents voice silence on messages 2+ caused by stale closures.
-  const speak = useCallback((text: string) => {
-    if (isMutedRef.current) return;
-    cancelSpeech();
-    setBioState('speaking');
-    speakWithElevenLabs(text, idioma, false, {
-      onStart: () => setBioState('speaking'),
-      onEnd: () => setBioState('idle'),
-    });
-  }, [idioma]); // stable — isMuted read from ref, not closure
-
-  // ── startListening ───────────────────────────────────────────────────────
-  const startListeningFn = useCallback(() => {
-    if (bioState === 'speaking' || bioState === 'thinking') return;
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
-
-    const recognition: any = new SR();
-    recognition.lang = idioma === 'ES' ? 'es-ES' : 'en-US';
-    recognition.continuous = true;
-    recognition.interimResults = true;
-
-    recognition.onresult = (e: any) => {
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          const transcript = e.results[i][0].transcript.trim();
-          if (transcript) {
-            recognition.stop();
-            setIsListening(false);
-            setBioState('idle');
-            // Populate input for user review — do NOT auto-send
-            setInputText(transcript);
-          }
-        }
-      }
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-      setBioState('idle');
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-    recognition.start();
-    setIsListening(true);
-    setBioState('listening');
-  }, [bioState, idioma]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── callAPI ──────────────────────────────────────────────────────────────
-  async function callAPI(msgs: Message[], systemPrompt: string, maxTokens = 200): Promise<string> {
-    // Strip leading assistant messages — Anthropic requires first message to be user
-    const firstUserIdx = msgs.findIndex(m => m.role === 'user');
-    const safeMessages = firstUserIdx >= 0 ? msgs.slice(firstUserIdx) : msgs;
-
-    const response = await fetch('/.netlify/functions/coach', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        messages: safeMessages,
-        system: systemPrompt,
-        max_tokens: maxTokens,
-      }),
-    });
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const data = await response.json();
-    return data.content?.[0]?.text ?? '';
+  function addJulesMsg(text: string) {
+    const msg: Message = { role: 'assistant', content: text };
+    convHistoryRef.current = [...convHistoryRef.current, msg];
+    setMessages(prev => [...prev, msg]);
   }
 
-  // ── sendMessage ──────────────────────────────────────────────────────────
-  const sendMessageFn = useCallback(async (userText: string, daysOverride?: number) => {
-    // Block concurrent API calls — only one Jules response in flight at a time
+  function addUserMsg(text: string) {
+    const msg: Message = { role: 'user', content: text };
+    convHistoryRef.current = [...convHistoryRef.current, msg];
+    setMessages(prev => [...prev, msg]);
+  }
+
+  // Every Jules message plays voice. onEnd fires even when muted (enables auto-advance).
+  function speak(text: string, onEnd?: () => void) {
+    cancelSpeech();
+    if (isMutedRef.current) {
+      setBioState('idle');
+      if (onEnd) setTimeout(onEnd, 400);
+      return;
+    }
+    setBioState('speaking');
+    speakWithElevenLabs(text, idioma, picardiaMode, {
+      onStart: () => setBioState('speaking'),
+      onEnd:   () => { setBioState('idle'); onEnd?.(); },
+    });
+  }
+
+  // ── API calls ─────────────────────────────────────────────────────────────
+
+  async function callCoachAPI(apiMsgs: Message[], systemPrompt: string, maxTokens = 80): Promise<string> {
+    // Anthropic requires first message to be from 'user'
+    const firstUser = apiMsgs.findIndex(m => m.role === 'user');
+    const safe = firstUser >= 0 ? apiMsgs.slice(firstUser) : apiMsgs;
+    try {
+      const res  = await fetch('/.netlify/functions/coach', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ model: 'claude-sonnet-4-20250514', messages: safe, system: systemPrompt, max_tokens: maxTokens }),
+      });
+      const data = await res.json();
+      return data.content?.[0]?.text?.trim() ?? '';
+    } catch {
+      return '';
+    }
+  }
+
+  async function callAckAPI(qState: ConversationState, userValue: string): Promise<string> {
+    const dimLabel = getDimLabel(qState, isES);
+    const sys = isES
+      ? `Eres Jules, una compañera de IA cálida. YA te presentaste — NO digas tu nombre, Hola, ni ningún saludo. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.`
+      : `You are Jules, a warm AI companion. You have already introduced yourself — do NOT say your name, Hi, Hello, or any greeting. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.`;
+    const text = await callCoachAPI(convHistoryRef.current, sys, 60);
+    return text || (isES ? 'Anotado.' : 'Got it.');
+  }
+
+  async function callOpeningAPI(): Promise<string> {
+    if (daysOfData >= 90 && profile.pattern_summary) {
+      const sys = isES
+        ? `Eres Jules. YA te presentaste — NO uses nombre ni saludos. Una oración de pronóstico biológico para los próximos 3–7 días basado en fase actual. Sé específica y confiada. Máximo 25 palabras. Patrones: ${profile.pattern_summary}`
+        : `You are Jules. Already introduced — do NOT use name or greetings. One biological forecast sentence for next 3–7 days based on current phase. Be specific and confident. Max 25 words. Patterns: ${profile.pattern_summary}`;
+      return await callCoachAPI([{ role: 'user', content: 'Generate forecast.' }], sys, 50);
+    }
+    if (daysOfData >= 30) {
+      const sys = isES
+        ? `Eres Jules. YA te presentaste — NO uses nombre ni saludos. El usuario tiene ${daysOfData} días de datos. Una oración de observación de patrón. Empieza con "He notado..." Máximo 20 palabras.`
+        : `You are Jules. Already introduced — do NOT use name or greetings. The user has ${daysOfData} days of data. One pattern observation sentence. Frame as "I've been noticing..." Max 20 words.`;
+      return await callCoachAPI([{ role: 'user', content: 'Generate observation.' }], sys, 40);
+    }
+    return '';
+  }
+
+  // ── DB helpers ────────────────────────────────────────────────────────────
+
+  function dbSlot(): 'morning' | 'afternoon' | 'night' {
+    const s = sessionRef.current.slot;
+    if (s === 'morning' || s === 'afternoon' || s === 'night') return s;
+    const h = new Date().getHours();
+    return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'night';
+  }
+
+  async function saveInterrupted(state: ConversationState) {
+    try {
+      await supabase.from('conversation_sessions').upsert({
+        id: sessionRef.current.id,
+        user_id: profile.id,
+        session_date: new Date().toISOString().split('T')[0],
+        time_slot: dbSlot(),
+        phase_at_session: `day_${daysOfData}`,
+        personality_mode: picardiaMode ? 'sienna' : 'jules',
+        session_complete: false,
+        manual_entry: false,
+        interrupted_at_state: state,
+        ...scoresRef.current,
+      });
+    } catch { /* non-blocking */ }
+  }
+
+  async function saveComplete() {
+    try {
+      const duration = Math.floor((Date.now() - sessionRef.current.startTime) / 1000);
+      await supabase.from('conversation_sessions').upsert({
+        id: sessionRef.current.id,
+        user_id: profile.id,
+        session_date: new Date().toISOString().split('T')[0],
+        time_slot: dbSlot(),
+        phase_at_session: `day_${daysOfData}`,
+        personality_mode: picardiaMode ? 'sienna' : 'jules',
+        session_complete: true,
+        manual_entry: false,
+        session_duration_seconds: duration,
+        interrupted_at_state: null,
+        ...scoresRef.current,
+      });
+      await supabase.from('profiles').update({ days_of_data: daysOfData + 1 }).eq('id', profile.id);
+    } catch (err) {
+      console.error('saveComplete error:', err);
+    }
+  }
+
+  async function markOnboardingComplete() {
+    sessionRef.current.onboardingComplete = true;
+    try {
+      await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
+    } catch { /* non-blocking */ }
+  }
+
+  // ── State machine: question display ───────────────────────────────────────
+
+  function showQuestion(state: ConversationState) {
+    const text = getQuestionText(state, name, sessionRef.current.slot, isES);
+    sessionRef.current.state = state;
+    setConvState(state);
+    addJulesMsg(text);
+    speak(text); // user answers — no onEnd advance
+  }
+
+  function enterFirstDimension() {
+    const slot = sessionRef.current.slot;
+    if (slot === 'adhoc') {
+      sessionRef.current.state = 'ADHOC';
+      setConvState('ADHOC');
+    } else {
+      showQuestion(getFirstQForSlot(slot));
+    }
+  }
+
+  // ── State machine: session complete ───────────────────────────────────────
+
+  function enterSessionComplete() {
+    const text = getCompletionText(sessionRef.current.slot, name, isES);
+    sessionRef.current.state = 'SESSION_COMPLETE';
+    setConvState('SESSION_COMPLETE');
+    addJulesMsg(text);
+    speak(text, () => void saveComplete());
+  }
+
+  // ── State machine: crisis ─────────────────────────────────────────────────
+
+  function handleCrisis() {
+    const line1 = isES
+      ? 'Lo que compartes importa. Por favor comunícate con la Línea de Crisis: 988 (EE.UU.) o tu línea de emergencia local. No estás solo/a.'
+      : 'What you are sharing matters. Please reach out to the Crisis Lifeline: 988 (US) or your local emergency line. You are not alone.';
+    const line2 = isES
+      ? 'Estoy aquí contigo en este momento. ¿Puedes contarme más sobre cómo te sientes?'
+      : 'I am here with you right now. Can you tell me more about what you are feeling?';
+    addJulesMsg(line1);
+    speak(line1, () => {
+      addJulesMsg(line2);
+      speak(line2);
+      sessionRef.current.state = 'ADHOC';
+      setConvState('ADHOC');
+    });
+  }
+
+  // ── State machine: dimension answer ───────────────────────────────────────
+
+  async function processAnswer(qState: ConversationState, rawInput: string) {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-
-    const days = daysOverride ?? daysOfData ?? 0;
-
-    setShowNumberPad(false);
-    showNumberPadRef.current = false;
-    setPendingChoices(null);
-
-    const isStart = userText === '__START__';
-    // Silent triggers don't add a user message to the chat
-    const isSilent = ['__BIOCYCLE_EXPLAIN__', '__MONEY_EXPLAIN__', '__FIRST_QUESTION__'].includes(userText);
-
-    // Extract score + safety check — only for real user messages
-    if (!isStart && !isSilent) {
-      const scoreMatch = userText.match(/\b([1-9]|10)\b/);
-      if (scoreMatch) {
-        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-        if (lastAssistant) {
-          dimensionScoresRef.current[lastAssistant.content.slice(0, 60)] = parseInt(scoreMatch[0], 10);
-        }
-      }
-      if (hasCrisisContent(userText)) {
-        await logSafetyEvent(profile.id, userText, 'user_input');
-      }
-    }
-
-    // Build message list
-    let updatedMessages: Message[];
-    if (isStart) {
-      updatedMessages = [];
-    } else if (isSilent) {
-      updatedMessages = messages; // use current messages without adding trigger text
-    } else {
-      updatedMessages = [...messages, { role: 'user', content: userText }];
-      setMessages(updatedMessages);
-    }
-
-    setBioState('thinking');
-
     try {
-      const systemPrompt = buildSystemPrompt(profile, days, idioma);
-      const slot = getCurrentTimeSlot();
-      let apiMessages: Message[];
+      applyScore(qState, rawInput, scoresRef.current);
+      addUserMsg(rawInput);
 
-      if (isStart) {
-        if (days === 0) {
-          // First-time: strict one-sentence welcome, 150 tokens
-          onboardingRef.current = 'greeting';
-          const welcome = idioma === 'ES'
-            ? `Di exactamente UNA oración de bienvenida cálida a ${profile.nombre ?? 'el usuario'}. Máximo 15 palabras. Nada más.`
-            : `Say exactly ONE warm welcome sentence to ${profile.nombre ?? 'the user'}. Maximum 15 words. Nothing else.`;
-          apiMessages = [{ role: 'user', content: welcome }];
-        } else {
-          const mode = getCoachingMode(days);
-          const initMsg = idioma === 'ES'
-            ? `Inicia la sesión de ${sessionType === 'scheduled' ? 'check-in programado' : 'conversación'} del ${slot}. Modo: ${mode}. Días de datos: ${days}. Saluda y haz tu primera pregunta.`
-            : `Start the ${sessionType === 'scheduled' ? 'scheduled check-in' : 'conversation'} session for ${slot}. Mode: ${mode}. Days of data: ${days}. Greet them and ask your first question.`;
-          apiMessages = [{ role: 'user', content: initMsg }];
-        }
-      } else if (userText === '__BIOCYCLE_EXPLAIN__') {
-        const prompt = idioma === 'ES'
-          ? 'Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo y cómo predice su estado biológico futuro. Solo 2 oraciones, nada más.'
-          : 'Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state. Exactly 2 sentences, nothing else.';
-        // Include history so Jules knows she has already introduced herself
-        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
-      } else if (userText === '__MONEY_EXPLAIN__') {
-        const prompt = idioma === 'ES'
-          ? `Responde con exactamente 1 oración explicando cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos. Luego inmediatamente haz tu primera pregunta de dimensión para el check-in del ${slot}. Máximo 100 tokens en total.`
-          : `Respond with exactly 1 sentence explaining how BioCycle Data Traders earn money from their biological data. Then immediately ask your first dimension check-in question for the ${slot} session. Maximum 100 tokens total.`;
-        // Include history so Jules knows she has already introduced herself
-        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
-      } else if (userText === '__FIRST_QUESTION__') {
-        const prompt = idioma === 'ES'
-          ? `Haz tu primera pregunta de dimensión para el check-in del ${slot}. Solo la pregunta, sin introducción ni explicación.`
-          : `Ask your first dimension check-in question for the ${slot} session. Just the question, no preamble.`;
-        // Include history so Jules knows she has already introduced herself
-        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
-      } else {
-        apiMessages = updatedMessages;
-      }
+      const ackState = (qState.replace('_Q', '_ACK')) as ConversationState;
+      const nextQ    = getNextQState(qState, sessionRef.current.slot, sessionRef.current.isGap);
 
-      const isOnboarding = days === 0 && onboardingRef.current !== 'done';
-      const reply = await callAPI(apiMessages, systemPrompt, isOnboarding ? 150 : 200);
-      if (!reply) return;
+      sessionRef.current.state = ackState;
+      setConvState(ackState); // shows 'none' input UI — no input while Jules responds
+      await saveInterrupted(ackState);
 
-      if (hasCrisisContent(reply)) {
-        await logSafetyEvent(profile.id, reply, 'ai_response');
-      }
-
-      const newMessages: Message[] = [...updatedMessages, { role: 'assistant', content: reply }];
-      setMessages(newMessages);
+      setBioState('thinking');
+      const ackText = await callAckAPI(qState, rawInput);
       setBioState('idle');
 
-      if (asksForNumber(reply)) {
-        setShowNumberPad(true);
-        showNumberPadRef.current = true;
-      }
-
-      const completeTriggers = ['session complete', 'sesión completa', 'great session', 'buena sesión', 'talk tomorrow', 'hasta mañana'];
-      if (completeTriggers.some(t => reply.toLowerCase().includes(t))) {
-        setSessionComplete(true);
-        await saveSession(days, newMessages);
-      }
-
-      speak(reply);
-
-      // ── Auto choice buttons for closed questions ────────────────────────
-      if (!pendingYesNo) {
-        const lowerResponse = reply.toLowerCase();
-        if (lowerResponse.includes('good') && lowerResponse.includes('average') && lowerResponse.includes('poor')) {
-          setPendingChoices(['Good', 'Average', 'Poor']);
-        } else if (
-          lowerResponse.includes('yes or no') ||
-          (lowerResponse.includes('?') && (
-            lowerResponse.includes('did you') ||
-            lowerResponse.includes('do you') ||
-            lowerResponse.includes('would you') ||
-            lowerResponse.includes('have you') ||
-            lowerResponse.includes('are you')
-          ))
-        ) {
-          setPendingChoices(idioma === 'ES' ? ['Sí', 'No'] : ['Yes', 'No']);
-        } else if (lowerResponse.includes('restful') && lowerResponse.includes('restless')) {
-          setPendingChoices(['Restful', 'Restless']);
+      addJulesMsg(ackText);
+      speak(ackText, () => {
+        if (nextQ === 'SESSION_COMPLETE') {
+          enterSessionComplete();
         } else {
-          setPendingChoices(null);
+          showQuestion(nextQ as ConversationState);
         }
-      }
-
-      // ── Onboarding state machine ────────────────────────────────────────
-      if (days === 0 && onboardingRef.current !== 'done') {
-        if (onboardingRef.current === 'greeting') {
-          // After welcome, append biocycle question and show YES/NO
-          const q = idioma === 'ES'
-            ? '¿Te gustaría una explicación rápida de cómo funciona BioCycle antes de empezar?'
-            : 'Would you like a quick explanation of how BioCycle works before we start?';
-          setTimeout(() => {
-            setMessages(prev => [...prev, { role: 'assistant', content: q }]);
-            onboardingRef.current = 'biocycle';
-            setPendingYesNo('biocycle');
-          }, 700);
-        } else if (userText === '__BIOCYCLE_EXPLAIN__') {
-          // After BioCycle explanation, append money question and show YES/NO
-          const q = idioma === 'ES'
-            ? '¿Quieres saber cómo tus datos pueden generarte dinero?'
-            : 'Want to know about how your data can earn you money?';
-          setTimeout(() => {
-            setMessages(prev => [...prev, { role: 'assistant', content: q }]);
-            onboardingRef.current = 'money';
-            setPendingYesNo('money');
-          }, 700);
-        } else if (userText === '__MONEY_EXPLAIN__') {
-          // Money explanation already includes the first dimension question (combined prompt)
-          onboardingRef.current = 'done';
-        } else if (userText === '__FIRST_QUESTION__') {
-          onboardingRef.current = 'done';
-        }
-      }
-    } catch (err) {
-      console.error('Coach API error:', err);
-      setBioState('idle');
+      });
     } finally {
       isProcessingRef.current = false;
     }
-  }, [daysOfData, messages, profile, idioma, sessionType, speak]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
-  // ── saveSession ──────────────────────────────────────────────────────────
-  async function saveSession(days: number, msgs: Message[]) {
-    const slot = getCurrentTimeSlot();
-    const phase = getCurrentPhase(profile);
-    const scores = dimensionScoresRef.current;
+  // ── State machine: onboarding yes/no ──────────────────────────────────────
 
-    const summary = msgs
-      .filter(m => m.role === 'assistant')
-      .map(m => m.content)
-      .join(' ')
-      .slice(0, 500);
-
+  async function handleOnboardingChoice(state: ConversationState, choice: string) {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
     try {
-      await supabase.from('conversation_sessions').insert({
-        user_id: profile.id,
-        session_date: new Date().toISOString().split('T')[0],
-        time_slot: slot,
-        phase_at_session: phase.phase,
-        personality_mode: 'jules',
-        session_complete: true,
-        integrity_score: Math.min(100, 60 + Object.keys(scores).length * 5),
-        session_duration_seconds: null,
-        manual_entry: false,
-        session_summary: summary,
-        factor_fisico: extractScore(scores, ['energy', 'energía', 'physical']),
-        factor_cognitivo: extractScore(scores, ['cognit', 'focus', 'mental']),
-        factor_estres: extractScore(scores, ['stress', 'estrés']),
-        factor_ansiedad: extractScore(scores, ['anxiet', 'ansiedad']),
-        factor_emocional: extractScore(scores, ['emotion', 'emocional']),
-        factor_social: extractScore(scores, ['social']),
-        factor_sueno: extractScore(scores, ['sleep', 'sueño']),
-        factor_sexual: extractScore(scores, ['libido', 'sexual']),
-      });
+      const yes = choice === 'Yes' || choice === 'Sí' || choice === 'Si';
+      addUserMsg(choice);
 
-      // Update days_of_data
-      await supabase
-        .from('profiles')
-        .update({ days_of_data: days + 1 })
-        .eq('id', profile.id);
-    } catch (err) {
-      console.error('Save session error:', err);
+      if (state === 'EXPLAIN_OFFER') {
+        if (yes) {
+          sessionRef.current.state = 'EXPLAINING';
+          setConvState('EXPLAINING');
+          setBioState('thinking');
+          const sys = isES
+            ? 'Eres Jules. YA te presentaste — NO digas nombre ni saludos. Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo, y cómo predice su estado biológico futuro.'
+            : 'You are Jules. Already introduced — do NOT say name or greetings. Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state.';
+          const text = await callCoachAPI(convHistoryRef.current, sys, 80);
+          setBioState('idle');
+          const explanation = text || (isES
+            ? 'BioCycle aprende tus patrones hormonales y biológicos únicos con el tiempo. Con esos datos, puede predecir cómo te sentirás antes de que lo sientas tú.'
+            : "BioCycle learns your unique hormonal and biological patterns over time. With that data, it can predict how you'll feel before you feel it yourself.");
+          addJulesMsg(explanation);
+          speak(explanation, () => {
+            // Auto-advance to money offer after explaining BioCycle
+            const q = getQuestionText('MONEY_OFFER', name, sessionRef.current.slot, isES);
+            sessionRef.current.state = 'MONEY_OFFER';
+            setConvState('MONEY_OFFER');
+            addJulesMsg(q);
+            speak(q);
+          });
+        } else {
+          // Skip → money offer
+          const q = getQuestionText('MONEY_OFFER', name, sessionRef.current.slot, isES);
+          sessionRef.current.state = 'MONEY_OFFER';
+          setConvState('MONEY_OFFER');
+          addJulesMsg(q);
+          speak(q);
+        }
+      } else if (state === 'MONEY_OFFER') {
+        if (yes) {
+          sessionRef.current.state = 'MONEY_EXPLAINING';
+          setConvState('MONEY_EXPLAINING');
+          setBioState('thinking');
+          const sys = isES
+            ? 'Eres Jules. YA te presentaste — NO digas nombre ni saludos. Explica en 1 oración cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos.'
+            : 'You are Jules. Already introduced — do NOT say name or greetings. Explain in 1 sentence how BioCycle Data Traders earn money from their biological data.';
+          const text = await callCoachAPI(convHistoryRef.current, sys, 60);
+          setBioState('idle');
+          const explanation = text || (isES
+            ? 'Los Data Traders de BioCycle ganan dinero cuando sus datos biológicos anonimizados se usan en estudios de investigación.'
+            : 'BioCycle Data Traders earn money when their anonymized biological data is used in research studies.');
+          addJulesMsg(explanation);
+          await markOnboardingComplete();
+          speak(explanation, () => enterFirstDimension());
+        } else {
+          await markOnboardingComplete();
+          enterFirstDimension();
+        }
+      }
+    } finally {
+      isProcessingRef.current = false;
     }
   }
 
-  function extractScore(scores: Record<string, number>, keywords: string[]): number | null {
-    for (const [key, val] of Object.entries(scores)) {
-      const lower = key.toLowerCase();
-      if (keywords.some(k => lower.includes(k))) return val;
-    }
-    return null;
-  }
+  // ── State machine: free ADHOC conversation ────────────────────────────────
 
-  // ── Mount effect — load days, fire __START__ exactly once ────────────────
-  useEffect(() => {
-    if (sessionStartedRef.current) return;
-    sessionStartedRef.current = true;
-
-    let timer: ReturnType<typeof setTimeout>;
-
-    async function init() {
-      const { count } = await supabase
-        .from('conversation_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', profile.id);
-
-      const days = count ?? getDaysOfData(profile);
-      setDaysOfData(days);
-      timer = setTimeout(() => sendMessageFn('__START__', days), 600);
-    }
-
-    init();
-    return () => clearTimeout(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Onboarding YES / NO handler ──────────────────────────────────────────
-  const handleYesNo = useCallback(async (answer: 'yes' | 'no') => {
-    setPendingYesNo(null);
-    const userMsg = answer === 'yes' ? (idioma === 'ES' ? 'Sí' : 'Yes') : 'No';
-    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-
-    const phase = onboardingRef.current;
-
-    if (phase === 'biocycle') {
-      if (answer === 'yes') {
-        await sendMessageFn('__BIOCYCLE_EXPLAIN__');
-      } else {
-        // Skip explanation — go directly to money question
-        const q = idioma === 'ES'
-          ? '¿Quieres saber cómo tus datos pueden generarte dinero?'
-          : 'Want to know about how your data can earn you money?';
-        setTimeout(() => {
-          setMessages(prev => [...prev, { role: 'assistant', content: q }]);
-          onboardingRef.current = 'money';
-          setPendingYesNo('money');
-        }, 400);
-      }
-    } else if (phase === 'money') {
-      if (answer === 'yes') {
-        await sendMessageFn('__MONEY_EXPLAIN__');
-      } else {
-        // Skip money — go directly to first dimension question
-        await sendMessageFn('__FIRST_QUESTION__');
-      }
-    }
-  }, [idioma, sendMessageFn]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Toggle mic ────────────────────────────────────────────────────────────
-  const toggleMic = () => {
-    if (bioState === 'speaking' || bioState === 'thinking') return;
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+  async function handleAdhocMessage(userText: string) {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    try {
+      addUserMsg(userText);
+      setBioState('thinking');
+      const sys = isES
+        ? 'Eres Jules, una compañera de IA cálida de BioCycle. YA te presentaste — NO digas nombre ni saludos. Responde en español. Sé cálida, breve (2–3 oraciones máximo) y directa.'
+        : 'You are Jules, a warm AI companion inside BioCycle. Already introduced — do NOT say name or greetings. Respond in English. Be warm, brief (2–3 sentences max), and direct.';
+      const text = await callCoachAPI(convHistoryRef.current, sys, 150);
       setBioState('idle');
-    } else {
-      startListeningFn();
+      if (!text) return;
+      if (hasCrisisContent(text)) {
+        await logSafetyEvent(profile.id, text, 'ai_response');
+        handleCrisis();
+        return;
+      }
+      addJulesMsg(text);
+      speak(text);
+    } finally {
+      isProcessingRef.current = false;
     }
-  };
+  }
 
-  // ── Send text message ─────────────────────────────────────────────────────
-  const handleSend = () => {
+  // ── Main input dispatcher ─────────────────────────────────────────────────
+
+  async function handleUserInput(raw: string) {
+    const text = raw.trim();
+    if (!text) return;
+    const state = sessionRef.current.state;
+
+    // Crisis check — intercepts all states
+    if (hasCrisisContent(text)) {
+      void logSafetyEvent(profile.id, text, 'user_input');
+      addUserMsg(text);
+      handleCrisis();
+      return;
+    }
+
+    // "How does BioCycle work?" — works in any state
+    const lc = text.toLowerCase();
+    if (
+      state !== 'EXPLAIN_OFFER' && state !== 'MONEY_OFFER' &&
+      (lc.includes('how does biocycle work') || lc.includes('cómo funciona biocycle') || lc.includes('como funciona biocycle'))
+    ) {
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      try {
+        addUserMsg(text);
+        setBioState('thinking');
+        const sys = isES
+          ? 'Eres Jules. Ya te presentaste. Explica BioCycle en exactamente 2 oraciones, sin saludos ni nombre.'
+          : 'You are Jules. Already introduced. Explain BioCycle in exactly 2 sentences, no greetings or name.';
+        const reply = await callCoachAPI(convHistoryRef.current, sys, 80);
+        setBioState('idle');
+        if (reply) { addJulesMsg(reply); speak(reply); }
+      } finally {
+        isProcessingRef.current = false;
+      }
+      return;
+    }
+
+    switch (state) {
+      case 'EXPLAIN_OFFER':
+      case 'MONEY_OFFER':
+        await handleOnboardingChoice(state, text);
+        break;
+      case 'ENERGY_Q':
+      case 'COGNITIVE_Q':
+      case 'STRESS_Q':
+      case 'ANXIETY_Q':
+      case 'SLEEP_Q':
+      case 'CAFFEINE_Q':
+      case 'EMOTIONAL_Q':
+      case 'SOCIAL_Q':
+      case 'SEXUAL_Q':
+      case 'HYDRATION_Q':
+      case 'DAY_RATING_Q':
+      case 'MEMORABLE_Q':
+      case 'ALCOHOL_Q':
+        await processAnswer(state, text);
+        break;
+      case 'ADHOC':
+        await handleAdhocMessage(text);
+        break;
+      default:
+        // ACK / OPENING / transition states — ignore input until Jules finishes
+        break;
+    }
+  }
+
+  // ── Voice recognition ─────────────────────────────────────────────────────
+
+  function startListening() {
+    if (bioState === 'speaking' || bioState === 'thinking') return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    const rec = new SR();
+    rec.lang           = isES ? 'es-ES' : 'en-US';
+    rec.continuous     = true;
+    rec.interimResults = true;
+    rec.onresult = (e: any) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          const t = e.results[i][0].transcript.trim();
+          if (t) { rec.stop(); setIsListening(false); setBioState('idle'); setInputText(t); }
+        }
+      }
+    };
+    rec.onerror = () => { setIsListening(false); setBioState('idle'); };
+    rec.onend   = () => { setIsListening(false); };
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+    setBioState('listening');
+  }
+
+  function stopListening() {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+    setBioState('idle');
+  }
+
+  function handleSend() {
     const text = inputText.trim();
     if (!text) return;
     setInputText('');
-    sendMessageFn(text);
-  };
+    void handleUserInput(text);
+  }
 
-  // ── Mode label ────────────────────────────────────────────────────────────
-  const mode = getCoachingMode(daysOfData ?? 0);
-  const modeLabel = {
-    LEARNING: idioma === 'ES' ? '● APRENDIENDO' : '● LEARNING',
-    CALIBRATION: idioma === 'ES' ? '● CALIBRANDO' : '● CALIBRATING',
-    COMPANION: idioma === 'ES' ? '● COMPAÑERO' : '● COMPANION',
-  }[mode];
-  const modeColor = { LEARNING: '#FFD93D', CALIBRATION: '#7B61FF', COMPANION: '#00C896' }[mode];
+  // ── Mount: interrupted recovery → gap check → opening ────────────────────
 
-  const phase = getCurrentPhase(profile);
-  const phaseLabel = idioma === 'ES' ? phase.displayNameES : phase.displayName;
+  useEffect(() => {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+
+    void (async () => {
+      const today     = new Date().toISOString().split('T')[0];
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
+
+      // 1. Interrupted session recovery
+      const { data: incomplete } = await supabase
+        .from('conversation_sessions')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('session_complete', false)
+        .gte('session_date', yesterday)
+        .not('interrupted_at_state', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (incomplete && incomplete.length > 0) {
+        const partial = incomplete[0];
+        sessionRef.current.id = partial.id; // reuse so upsert updates rather than inserts
+        scoresRef.current = {
+          factor_fisico:      partial.factor_fisico      ?? null,
+          factor_cognitivo:   partial.factor_cognitivo   ?? null,
+          factor_estres:      partial.factor_estres      ?? null,
+          factor_ansiedad:    partial.factor_ansiedad    ?? null,
+          factor_sueno:       partial.factor_sueno       ?? null,
+          factor_cafeina:     partial.factor_cafeina     ?? null,
+          factor_emocional:   partial.factor_emocional   ?? null,
+          factor_social:      partial.factor_social      ?? null,
+          factor_sexual:      partial.factor_sexual      ?? null,
+          factor_hidratacion: partial.factor_hidratacion ?? null,
+          factor_alcohol:     partial.factor_alcohol     ?? null,
+          day_rating:         partial.day_rating         ?? null,
+          day_memory:         partial.day_memory         ?? null,
+        };
+        const savedState = (partial.interrupted_at_state as ConversationState) || 'ENERGY_Q';
+        // If we saved an ACK state, resume from the corresponding Q (ACK not yet spoken)
+        const resumeQ = savedState.endsWith('_ACK')
+          ? (savedState.replace('_ACK', '_Q') as ConversationState)
+          : savedState;
+        const resumeText = isES
+          ? 'Parece que nos cortamos. Sigamos donde quedamos.'
+          : 'Looks like we got cut off. Let me pick up where we left off.';
+        sessionRef.current.state = 'INTERRUPTED_RECOVERY';
+        setConvState('INTERRUPTED_RECOVERY');
+        addJulesMsg(resumeText);
+        speak(resumeText, () => showQuestion(resumeQ));
+        return;
+      }
+
+      // 2. Gap detection (1–6 days since last completed session)
+      const { data: lastSessions } = await supabase
+        .from('conversation_sessions')
+        .select('session_date')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .order('session_date', { ascending: false })
+        .limit(1);
+
+      if (lastSessions && lastSessions.length > 0) {
+        const last = lastSessions[0].session_date;
+        const diff = Math.floor((Date.parse(today) - Date.parse(last)) / 86_400_000);
+        if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
+      }
+
+      // 3. Opening message
+      let openingText = '';
+      const slot = sessionRef.current.slot;
+
+      if (sessionRef.current.isGap) {
+        openingText = isES
+          ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
+          : `Hey ${name} — good to have you back. It's been a few days.`;
+      } else if (daysOfData === 0) {
+        openingText = isES
+          ? `Hola ${name}, soy Jules — me alegra mucho que estés aquí.`
+          : `Hi ${name}, I'm Jules — really glad you're here.`;
+      } else if (daysOfData < 30) {
+        const slotLabel = isES
+          ? (slot === 'morning' ? 'días' : slot === 'afternoon' ? 'tardes' : 'noches')
+          : (slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening');
+        openingText = isES
+          ? `Hola ${name}, buenos ${slotLabel}. Día ${daysOfData} — estás construyendo algo real.`
+          : `Hey ${name}, good ${slotLabel}. Day ${daysOfData} — you're building something real.`;
+      } else {
+        setBioState('thinking');
+        const api = await callOpeningAPI();
+        setBioState('idle');
+        const greeting = isES ? `Hola ${name}. ` : `Hey ${name}. `;
+        openingText = api
+          ? `${greeting}${api}`
+          : (isES
+            ? `Hola ${name}. He estado notando algunos patrones — hagamos el check-in.`
+            : `Hey ${name}. I've been noticing some patterns — let's check in.`);
+      }
+
+      sessionRef.current.state = 'OPENING';
+      setConvState('OPENING');
+      addJulesMsg(openingText);
+
+      speak(openingText, () => {
+        if (sessionRef.current.isGap) {
+          // Gap session: just energy + stress
+          showQuestion('ENERGY_Q');
+        } else if (daysOfData === 0 && !sessionRef.current.onboardingComplete) {
+          // Day 1 onboarding
+          showQuestion('EXPLAIN_OFFER');
+        } else if (slot === 'adhoc') {
+          sessionRef.current.state = 'ADHOC';
+          setConvState('ADHOC');
+        } else {
+          enterFirstDimension();
+        }
+      });
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Derived render values ─────────────────────────────────────────────────
+
+  const inputUI    = getInputUI(convState);
+  const choiceOpts = getChoiceOptions(convState, isES);
+  const isBusy     = bioState === 'speaking' || bioState === 'thinking';
+
+  const phase      = daysOfData < 30 ? 'LEARNING' : daysOfData < 90 ? 'CALIBRATION' : 'COMPANION';
+  const phaseColor = { LEARNING: '#FFD93D', CALIBRATION: '#7B61FF', COMPANION: '#00C896' }[phase];
+  const phaseLabel = isES
+    ? { LEARNING: '● APRENDIENDO', CALIBRATION: '● CALIBRANDO', COMPANION: '● COMPAÑERO' }[phase]
+    : { LEARNING: '● LEARNING',    CALIBRATION: '● CALIBRATING', COMPANION: '● COMPANION'  }[phase];
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={{
-      minHeight: '100vh',
-      width: '100%',
-      maxWidth: '100vw',
-      background: '#0A0A1A',
-      display: 'flex',
-      flexDirection: 'column',
-      fontFamily: 'Inter, system-ui, sans-serif',
-      overflowX: 'hidden',
+      minHeight: '100vh', width: '100%', maxWidth: '100vw',
+      background: '#0A0A1A', display: 'flex', flexDirection: 'column',
+      fontFamily: 'Inter, system-ui, sans-serif', overflowX: 'hidden',
     }}>
+
       {/* Top bar */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '52px 20px 12px',
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         flexShrink: 0,
       }}>
-        <button
-          onClick={onBack}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#4A5568',
-            cursor: 'pointer',
-            fontSize: 20,
-            padding: '4px 8px',
-          }}
-        >
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
           ←
         </button>
-
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <QuantumDNA size={44} state={bioState} />
-          <span style={{
-            fontSize: 9,
-            letterSpacing: '0.1em',
-            color: modeColor,
-            fontFamily: 'JetBrains Mono, monospace',
-          }}>
-            {modeLabel}
+          <span style={{ fontSize: 9, letterSpacing: '0.1em', color: phaseColor, fontFamily: 'JetBrains Mono, monospace' }}>
+            {phaseLabel}
           </span>
         </div>
-
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#4A5568', letterSpacing: '0.05em' }}>
-            {phase.emoji} {phaseLabel}
-          </div>
-          <button
-            onClick={() => setIsMuted(m => !m)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#4A5568',
-              cursor: 'pointer',
-              fontSize: 14,
-              padding: '2px 0',
-            }}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </button>
-        </div>
+        <button onClick={() => setIsMuted(m => !m)} style={{ background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 18, padding: '4px 8px' }}>
+          {isMuted ? '🔇' : '🔊'}
+        </button>
       </div>
 
       {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '16px 16px 8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-      }}>
-        {messages.length === 0 && bioState === 'thinking' && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: '40px 0',
-          }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {messages.length === 0 && isBusy && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
             <QuantumDNA size={80} state="thinking" />
           </div>
         )}
 
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              display: 'flex',
-              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-              alignItems: 'flex-end',
-              gap: 8,
-            }}
-          >
+          <div key={i} style={{ display: 'flex', flexDirection: msg.role === 'user' ? 'row-reverse' : 'row', alignItems: 'flex-end', gap: 8 }}>
             {msg.role === 'assistant' && (
-              <div style={{ flexShrink: 0, marginBottom: 2 }}>
-                <QuantumDNA size={28} state="idle" />
-              </div>
+              <div style={{ flexShrink: 0, marginBottom: 2 }}><QuantumDNA size={28} state="idle" /></div>
             )}
             <div style={{
               maxWidth: '80%',
-              background: msg.role === 'user'
-                ? 'rgba(255,107,107,0.12)'
-                : 'rgba(255,255,255,0.04)',
-              border: msg.role === 'user'
-                ? '1px solid rgba(255,107,107,0.2)'
-                : '1px solid rgba(255,255,255,0.07)',
+              background: msg.role === 'user' ? 'rgba(255,107,107,0.12)' : 'rgba(255,255,255,0.04)',
+              border: msg.role === 'user' ? '1px solid rgba(255,107,107,0.2)' : '1px solid rgba(255,255,255,0.07)',
               borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
               padding: '10px 14px',
             }}>
-              <p style={{
-                color: msg.role === 'user' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)',
-                fontSize: '0.9rem',
-                lineHeight: 1.55,
-                margin: 0,
-              }}>
+              <p style={{ color: msg.role === 'user' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)', fontSize: '0.9rem', lineHeight: 1.55, margin: 0 }}>
                 {msg.content}
               </p>
             </div>
           </div>
         ))}
 
-        {/* Number pad */}
-        {showNumberPad && (
-          <div style={{
-            background: 'rgba(123,97,255,0.06)',
-            border: '1px solid rgba(123,97,255,0.15)',
-            borderRadius: 14,
-            padding: '12px 16px',
-          }}>
-            <p style={{ color: '#7B61FF', fontSize: 11, margin: '0 0 8px', letterSpacing: '0.08em' }}>
-              {idioma === 'ES' ? 'TAP UN NÚMERO' : 'TAP A NUMBER'}
-            </p>
-            <NumberPad onSelect={n => {
-              setShowNumberPad(false);
-              showNumberPadRef.current = false;
-              sendMessageFn(String(n));
-            }} />
+        {/* Thinking indicator */}
+        {isBusy && messages.length > 0 && bioState === 'thinking' && (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+            <QuantumDNA size={28} state="thinking" />
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px 16px 16px 4px', padding: '10px 14px' }}>
+              <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.9rem', margin: 0 }}>···</p>
+            </div>
           </div>
         )}
 
-        {/* Auto choice buttons — coral, full-width row below latest Jules message */}
-        {pendingChoices && (
-          <div style={{
-            display: 'flex',
-            gap: 8,
-            width: '100%',
-          }}>
-            {pendingChoices.map(choice => (
-              <button
-                key={choice}
-                onClick={() => {
-                  setPendingChoices(null);
-                  sendMessageFn(choice);
-                }}
-                style={{
-                  flex: 1,
-                  background: 'rgba(255,107,107,0.12)',
-                  border: '1px solid rgba(255,107,107,0.35)',
-                  borderRadius: 12,
-                  padding: '13px 8px',
-                  color: '#FF6B6B',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                }}
-              >
-                {choice}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Session complete */}
-        {sessionComplete && (
-          <div style={{
-            background: 'rgba(0,200,150,0.08)',
-            border: '1px solid rgba(0,200,150,0.2)',
-            borderRadius: 14,
-            padding: '16px',
-            textAlign: 'center',
-          }}>
+        {/* Session complete card */}
+        {convState === 'SESSION_COMPLETE' && (
+          <div style={{ background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.2)', borderRadius: 14, padding: '16px', textAlign: 'center' }}>
             <p style={{ color: '#00C896', fontSize: '0.9rem', margin: 0, fontWeight: 600 }}>
-              {idioma === 'ES' ? '✓ Sesión guardada' : '✓ Session saved'}
+              {isES ? '✓ Sesión guardada' : '✓ Session saved'}
             </p>
             <p style={{ color: '#4A5568', fontSize: 12, margin: '4px 0 0' }}>
-              {idioma === 'ES' ? 'Tus datos se han registrado.' : 'Your data has been recorded.'}
+              {isES ? 'Tus datos se han registrado.' : 'Your data has been recorded.'}
             </p>
           </div>
         )}
@@ -768,133 +1027,65 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* YES / NO onboarding choice buttons */}
-      {pendingYesNo && (
+      {/* Input area */}
+      {convState !== 'SESSION_COMPLETE' && !isBusy && (
         <div style={{
-          flexShrink: 0,
-          padding: '10px 16px',
-          paddingBottom: 'calc(56px + env(safe-area-inset-bottom) + 10px)',
-          display: 'flex',
-          gap: 10,
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          background: '#0A0A1A',
+          flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)',
+          background: '#0A0A1A', padding: '12px 16px',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
         }}>
-          <button
-            onClick={() => handleYesNo('yes')}
-            style={{
-              flex: 1,
-              background: 'rgba(0,200,150,0.12)',
-              border: '1px solid rgba(0,200,150,0.3)',
-              borderRadius: 12,
-              padding: '14px',
-              color: '#00C896',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'Inter, system-ui, sans-serif',
-            }}
-          >
-            {idioma === 'ES' ? 'Sí' : 'Yes'}
-          </button>
-          <button
-            onClick={() => handleYesNo('no')}
-            style={{
-              flex: 1,
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 12,
-              padding: '14px',
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: '0.95rem',
-              fontWeight: 400,
-              cursor: 'pointer',
-              fontFamily: 'Inter, system-ui, sans-serif',
-            }}
-          >
-            No
-          </button>
+          {inputUI === 'numberpad' && <NumberPad onSelect={n => void handleUserInput(String(n))} />}
+          {inputUI === 'choices' && choiceOpts.length > 0 && <ChoiceButtons options={choiceOpts} onSelect={v => void handleUserInput(v)} />}
+
+          {/* Text input row — always visible as fallback */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: inputUI !== 'none' && inputUI !== 'voice' ? 8 : 0 }}>
+            <button
+              onClick={() => isListening ? stopListening() : startListening()}
+              disabled={isBusy}
+              style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: isListening ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)',
+                border: isListening ? '1px solid rgba(255,107,107,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                cursor: isBusy ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0, opacity: isBusy ? 0.4 : 1,
+              }}
+            >
+              {isListening ? '⏹' : '🎤'}
+            </button>
+            <input
+              type="text"
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
+              placeholder={
+                inputUI === 'numberpad' ? (isES ? 'o escribe un número...' : 'or type a number...') :
+                inputUI === 'choices'   ? (isES ? 'o escribe aquí...'     : 'or type here...') :
+                (isES ? 'Escribe algo...' : 'Type something...')
+              }
+              style={{
+                flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 12, padding: '11px 14px', color: 'white',
+                fontSize: '0.9rem', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
+              }}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!inputText.trim()}
+              style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: inputText.trim() ? '#FF6B6B' : 'rgba(255,255,255,0.06)',
+                border: 'none', cursor: inputText.trim() ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, flexShrink: 0, color: 'white',
+                opacity: inputText.trim() ? 1 : 0.3,
+              }}
+            >
+              ↑
+            </button>
+          </div>
         </div>
       )}
-
-      {/* Input area — hidden during YES/NO onboarding prompts */}
-      {!pendingYesNo && <div style={{
-        flexShrink: 0,
-        padding: '12px 16px',
-        paddingBottom: 'calc(56px + env(safe-area-inset-bottom) + 12px)',
-        borderTop: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex',
-        gap: 10,
-        alignItems: 'center',
-        background: '#0A0A1A',
-      }}>
-        {/* Mic button */}
-        <button
-          onClick={toggleMic}
-          disabled={bioState === 'speaking' || bioState === 'thinking'}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: '50%',
-            background: isListening
-              ? 'rgba(255,107,107,0.2)'
-              : 'rgba(255,255,255,0.06)',
-            border: isListening
-              ? '1px solid rgba(255,107,107,0.5)'
-              : '1px solid rgba(255,255,255,0.1)',
-            cursor: (bioState === 'speaking' || bioState === 'thinking') ? 'default' : 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 20,
-            flexShrink: 0,
-            opacity: (bioState === 'speaking' || bioState === 'thinking') ? 0.4 : 1,
-          }}
-        >
-          {isListening ? '⏹' : '🎤'}
-        </button>
-
-        {/* Text input */}
-        <input
-          type="text"
-          value={inputText}
-          onChange={e => setInputText(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-          placeholder={idioma === 'ES' ? 'Escribe algo...' : 'Type something...'}
-          style={{
-            flex: 1,
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 12,
-            padding: '12px 14px',
-            color: 'white',
-            fontSize: '0.9rem',
-            fontFamily: 'Inter, system-ui, sans-serif',
-            outline: 'none',
-          }}
-        />
-
-        {/* Send button */}
-        <button
-          onClick={handleSend}
-          disabled={!inputText.trim()}
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: '50%',
-            background: inputText.trim() ? '#FF6B6B' : 'rgba(255,255,255,0.06)',
-            border: 'none',
-            cursor: inputText.trim() ? 'pointer' : 'default',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            flexShrink: 0,
-            color: 'white',
-          }}
-        >
-          ↑
-        </button>
-      </div>}
     </div>
   );
 }
