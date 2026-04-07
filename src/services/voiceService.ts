@@ -21,6 +21,9 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
+// Track current playing source so it can be stopped before new audio starts
+let currentSource: AudioBufferSourceNode | null = null;
+
 // Web Speech API fallback
 function speakWithWebSpeech(
   text: string,
@@ -93,15 +96,24 @@ export async function speakWithElevenLabs(
     if (ctx.state === 'suspended') await ctx.resume();
 
     const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+
+    // Stop any currently playing audio before starting new playback
+    if (currentSource) {
+      try { currentSource.stop(); } catch { /* already stopped */ }
+      currentSource = null;
+    }
+
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
+    currentSource = source;
 
     onStart?.();
     source.start(0);
 
     await new Promise<void>((resolve) => {
       source.onended = () => {
+        currentSource = null;
         onEnd?.();
         resolve();
       };
@@ -117,4 +129,8 @@ export async function speakWithElevenLabs(
 
 export function cancelSpeech(): void {
   window.speechSynthesis?.cancel();
+  if (currentSource) {
+    try { currentSource.stop(); } catch { /* already stopped */ }
+    currentSource = null;
+  }
 }

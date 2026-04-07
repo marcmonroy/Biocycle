@@ -187,8 +187,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   const [daysOfData, setDaysOfData] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(false);
 
-  const startedRef = useRef(false);
-  const daysLoadedRef = useRef(false);
+  const sessionStartedRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const showNumberPadRef = useRef(false);
@@ -429,13 +428,14 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     return null;
   }
 
-  // ── Mount effect — load days, fire __START__ ──────────────────────────────
+  // ── Mount effect — load days, fire __START__ exactly once ────────────────
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
+    if (sessionStartedRef.current) return;
+    sessionStartedRef.current = true;
+
+    let timer: ReturnType<typeof setTimeout>;
 
     async function init() {
-      // Count sessions
       const { count } = await supabase
         .from('conversation_sessions')
         .select('*', { count: 'exact', head: true })
@@ -443,14 +443,11 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
       const days = count ?? getDaysOfData(profile);
       setDaysOfData(days);
-      daysLoadedRef.current = true;
-
-      setTimeout(() => {
-        sendMessageFn('__START__', days);
-      }, 600);
+      timer = setTimeout(() => sendMessageFn('__START__', days), 600);
     }
 
     init();
+    return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toggle mic ────────────────────────────────────────────────────────────
