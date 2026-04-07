@@ -97,15 +97,16 @@ function buildSystemPrompt(
 
   const safety = idioma === 'ES' ? SAFETY_SUFFIX_ES : SAFETY_SUFFIX_EN;
 
-  return `You are Jules, a warm and perceptive biological intelligence coach inside BioCycle. You help users understand their hormonal rhythms and build valuable health data.
+  return `CRITICAL RULE: You are Jules. You have already introduced yourself. NEVER say your name again. NEVER say "Hi", "Hello", "Hey", "Welcome", or any greeting after your very first message. NEVER introduce yourself again under any circumstances. Starting from message 2, go directly to your question or response with zero preamble.
+
+You are Jules, a warm and perceptive biological intelligence coach inside BioCycle. You help users understand their hormonal rhythms and build valuable health data.
 
 User: ${profile.nombre ?? 'User'} | Gender: ${profile.genero ?? 'unknown'} | Days of data: ${daysOfData} | Time: ${slot} | Phase: ${phaseName} (${phaseDesc})
 
 ${modeDesc[mode]}
 
 Keep responses to 2–3 sentences maximum. Short, warm, and inviting. Less is more.
-IMPORTANT: Never introduce yourself again after the first message. Never say "Hi", "Hello", or "Welcome" after the opening. Never repeat your name after the first message.
-When collecting data, always ask closed questions with explicit options. For yes/no questions end with "— yes or no?". For sleep quality end with "— restful or restless?". For overall state end with "— good, average, or poor?".
+When asking about hydration always use exactly: "good, average, or poor". When asking yes/no questions always end with "— yes or no?". When asking about sleep quality always use: "restful or restless?". Always use these exact phrases so the choice button UI activates correctly.
 ${lang}${safety}`;
 }
 
@@ -172,6 +173,11 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   const idioma = profile.idioma ?? 'EN';
 
+  // Ref mirror for isMuted — lets speak() always read the live value without
+  // being recreated (avoids stale-closure voice silence on subsequent messages)
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
   // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -183,15 +189,17 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   }, [showNumberPad]);
 
   // ── speak ────────────────────────────────────────────────────────────────
+  // Reads isMuted from ref so this callback is stable across message updates —
+  // prevents voice silence on messages 2+ caused by stale closures.
   const speak = useCallback((text: string) => {
-    if (isMuted) return;
+    if (isMutedRef.current) return;
     cancelSpeech();
     setBioState('speaking');
     speakWithElevenLabs(text, idioma, false, {
       onStart: () => setBioState('speaking'),
       onEnd: () => setBioState('idle'),
     });
-  }, [isMuted, idioma]);
+  }, [idioma]); // stable — isMuted read from ref, not closure
 
   // ── startListening ───────────────────────────────────────────────────────
   const startListeningFn = useCallback(() => {
@@ -322,17 +330,20 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         const prompt = idioma === 'ES'
           ? 'Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo y cómo predice su estado biológico futuro. Solo 2 oraciones, nada más.'
           : 'Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state. Exactly 2 sentences, nothing else.';
-        apiMessages = [{ role: 'user', content: prompt }];
+        // Include history so Jules knows she has already introduced herself
+        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
       } else if (userText === '__MONEY_EXPLAIN__') {
         const prompt = idioma === 'ES'
           ? `Responde con exactamente 1 oración explicando cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos. Luego inmediatamente haz tu primera pregunta de dimensión para el check-in del ${slot}. Máximo 100 tokens en total.`
           : `Respond with exactly 1 sentence explaining how BioCycle Data Traders earn money from their biological data. Then immediately ask your first dimension check-in question for the ${slot} session. Maximum 100 tokens total.`;
-        apiMessages = [{ role: 'user', content: prompt }];
+        // Include history so Jules knows she has already introduced herself
+        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
       } else if (userText === '__FIRST_QUESTION__') {
         const prompt = idioma === 'ES'
           ? `Haz tu primera pregunta de dimensión para el check-in del ${slot}. Solo la pregunta, sin introducción ni explicación.`
           : `Ask your first dimension check-in question for the ${slot} session. Just the question, no preamble.`;
-        apiMessages = [{ role: 'user', content: prompt }];
+        // Include history so Jules knows she has already introduced herself
+        apiMessages = [...updatedMessages, { role: 'user', content: prompt }];
       } else {
         apiMessages = updatedMessages;
       }
@@ -363,14 +374,25 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       speak(reply);
 
       // ── Auto choice buttons for closed questions ────────────────────────
-      if (!pendingYesNo && onboardingRef.current === 'done') {
-        const lower = reply.toLowerCase();
-        if (/— yes or no[?!.]?|yes or no\?/i.test(lower)) {
-          setPendingChoices(idioma === 'ES' ? ['Sí', 'No'] : ['Yes', 'No']);
-        } else if (/restful or restless/i.test(lower)) {
-          setPendingChoices(['Restful', 'Restless']);
-        } else if (/good,?\s*average,?\s*or\s*poor/i.test(lower)) {
+      if (!pendingYesNo) {
+        const lowerResponse = reply.toLowerCase();
+        if (lowerResponse.includes('good') && lowerResponse.includes('average') && lowerResponse.includes('poor')) {
           setPendingChoices(['Good', 'Average', 'Poor']);
+        } else if (
+          lowerResponse.includes('yes or no') ||
+          (lowerResponse.includes('?') && (
+            lowerResponse.includes('did you') ||
+            lowerResponse.includes('do you') ||
+            lowerResponse.includes('would you') ||
+            lowerResponse.includes('have you') ||
+            lowerResponse.includes('are you')
+          ))
+        ) {
+          setPendingChoices(idioma === 'ES' ? ['Sí', 'No'] : ['Yes', 'No']);
+        } else if (lowerResponse.includes('restful') && lowerResponse.includes('restless')) {
+          setPendingChoices(['Restful', 'Restless']);
+        } else {
+          setPendingChoices(null);
         }
       }
 
@@ -692,16 +714,12 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           </div>
         )}
 
-        {/* Auto choice buttons */}
+        {/* Auto choice buttons — coral, full-width row below latest Jules message */}
         {pendingChoices && (
           <div style={{
-            background: 'rgba(123,97,255,0.06)',
-            border: '1px solid rgba(123,97,255,0.15)',
-            borderRadius: 14,
-            padding: '12px 16px',
             display: 'flex',
             gap: 8,
-            flexWrap: 'wrap',
+            width: '100%',
           }}>
             {pendingChoices.map(choice => (
               <button
@@ -712,12 +730,11 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
                 }}
                 style={{
                   flex: 1,
-                  minWidth: 80,
-                  background: 'rgba(123,97,255,0.12)',
-                  border: '1px solid rgba(123,97,255,0.3)',
-                  borderRadius: 10,
-                  padding: '12px 8px',
-                  color: '#7B61FF',
+                  background: 'rgba(255,107,107,0.12)',
+                  border: '1px solid rgba(255,107,107,0.35)',
+                  borderRadius: 12,
+                  padding: '13px 8px',
+                  color: '#FF6B6B',
                   fontSize: '0.9rem',
                   fontWeight: 600,
                   cursor: 'pointer',
