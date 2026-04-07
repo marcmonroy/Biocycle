@@ -423,6 +423,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     if (!stableStates.includes(sessionRef.current.state)) return;
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({
+        date: new Date().toISOString().split('T')[0],
         state: sessionRef.current.state,
         sessionId: sessionRef.current.id,
         slot: sessionRef.current.slot,
@@ -860,25 +861,37 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       if (savedRaw) {
         try {
           const saved = JSON.parse(savedRaw);
-          sessionRef.current.id = saved.sessionId || sessionRef.current.id;
-          if (saved.slot) sessionRef.current.slot = saved.slot;
-          sessionRef.current.isGap = !!saved.isGap;
-          sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
-          if (saved.scores) scoresRef.current = saved.scores;
-          if (saved.messages?.length > 0) {
-            convHistoryRef.current = saved.messages;
-            setMessages(saved.messages);
+          const todayStr = new Date().toISOString().split('T')[0];
+          const isStale  = saved.date !== todayStr
+            || saved.state === 'SESSION_COMPLETE'
+            || !saved.sessionId
+            || !saved.state;
+          if (isStale) {
+            localStorage.removeItem(LS_KEY);
+            // fall through to fresh start
+          } else {
+            sessionRef.current.id = saved.sessionId;
+            if (saved.slot) sessionRef.current.slot = saved.slot;
+            sessionRef.current.isGap = !!saved.isGap;
+            sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
+            if (saved.scores) scoresRef.current = saved.scores;
+            if (saved.messages?.length > 0) {
+              convHistoryRef.current = saved.messages;
+              setMessages(saved.messages);
+            }
+            let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
+            if (restoreState.endsWith('_ACK')) {
+              restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
+            }
+            // Set a neutral state first so input is hidden while Jules speaks
+            sessionRef.current.state = 'INTERRUPTED_RECOVERY';
+            setConvState('INTERRUPTED_RECOVERY');
+            const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
+            addJulesMsg(resumeMsg);
+            // After voice, re-ask the question so user knows exactly where they are
+            speak(resumeMsg, () => showQuestion(restoreState));
+            return; // skip DB queries
           }
-          let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
-          if (restoreState.endsWith('_ACK')) {
-            restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
-          }
-          sessionRef.current.state = restoreState;
-          setConvState(restoreState);
-          const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
-          addJulesMsg(resumeMsg);
-          speak(resumeMsg);
-          return; // skip DB queries
         } catch {
           localStorage.removeItem(LS_KEY);
         }
@@ -946,7 +959,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
       }
 
-      // 3. Opening message
+      // 3. Opening message — always start clean (no stale messages from prior sessions)
+      setMessages([]);
+      convHistoryRef.current = [];
       let openingText = '';
       const slot = sessionRef.current.slot;
 
