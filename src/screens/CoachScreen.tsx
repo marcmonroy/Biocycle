@@ -104,6 +104,8 @@ User: ${profile.nombre ?? 'User'} | Gender: ${profile.genero ?? 'unknown'} | Day
 ${modeDesc[mode]}
 
 Keep responses to 2–3 sentences maximum. Short, warm, and inviting. Less is more.
+IMPORTANT: Never introduce yourself again after the first message. Never say "Hi", "Hello", or "Welcome" after the opening. Never repeat your name after the first message.
+When collecting data, always ask closed questions with explicit options. For yes/no questions end with "— yes or no?". For sleep quality end with "— restful or restless?". For overall state end with "— good, average, or poor?".
 ${lang}${safety}`;
 }
 
@@ -139,40 +141,6 @@ function NumberPad({ onSelect }: { onSelect: (n: number) => void }) {
   );
 }
 
-// ── SpeakerButton ─────────────────────────────────────────────────────────
-function SpeakerButton({
-  text,
-  idioma,
-  disabled,
-}: {
-  text: string;
-  idioma: 'EN' | 'ES';
-  disabled: boolean;
-}) {
-  return (
-    <button
-      disabled={disabled}
-      onClick={() => {
-        cancelSpeech();
-        setTimeout(() => {
-          speakWithElevenLabs(text, idioma, false, {});
-        }, 100);
-      }}
-      style={{
-        background: 'none',
-        border: 'none',
-        cursor: disabled ? 'default' : 'pointer',
-        opacity: disabled ? 0.3 : 0.6,
-        fontSize: 14,
-        padding: '4px 6px',
-        color: '#4A5568',
-        flexShrink: 0,
-      }}
-    >
-      🔊
-    </button>
-  );
-}
 
 // ── Main component ────────────────────────────────────────────────────────
 interface Props {
@@ -200,6 +168,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   const dimensionScoresRef = useRef<Record<string, number>>({});
 
   const [pendingYesNo, setPendingYesNo] = useState<'biocycle' | 'money' | null>(null);
+  const [pendingChoices, setPendingChoices] = useState<string[] | null>(null);
 
   const idioma = profile.idioma ?? 'EN';
 
@@ -296,6 +265,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
     setShowNumberPad(false);
     showNumberPadRef.current = false;
+    setPendingChoices(null);
 
     const isStart = userText === '__START__';
     // Silent triggers don't add a user message to the chat
@@ -355,8 +325,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         apiMessages = [{ role: 'user', content: prompt }];
       } else if (userText === '__MONEY_EXPLAIN__') {
         const prompt = idioma === 'ES'
-          ? 'Explica en exactamente 1 oración cómo los Data Traders de BioCycle generan ingresos con sus datos biológicos.'
-          : 'Explain in exactly 1 sentence how BioCycle Data Traders earn money from their biological data.';
+          ? `Responde con exactamente 1 oración explicando cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos. Luego inmediatamente haz tu primera pregunta de dimensión para el check-in del ${slot}. Máximo 100 tokens en total.`
+          : `Respond with exactly 1 sentence explaining how BioCycle Data Traders earn money from their biological data. Then immediately ask your first dimension check-in question for the ${slot} session. Maximum 100 tokens total.`;
         apiMessages = [{ role: 'user', content: prompt }];
       } else if (userText === '__FIRST_QUESTION__') {
         const prompt = idioma === 'ES'
@@ -392,6 +362,18 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
       speak(reply);
 
+      // ── Auto choice buttons for closed questions ────────────────────────
+      if (!pendingYesNo && onboardingRef.current === 'done') {
+        const lower = reply.toLowerCase();
+        if (/— yes or no[?!.]?|yes or no\?/i.test(lower)) {
+          setPendingChoices(idioma === 'ES' ? ['Sí', 'No'] : ['Yes', 'No']);
+        } else if (/restful or restless/i.test(lower)) {
+          setPendingChoices(['Restful', 'Restless']);
+        } else if (/good,?\s*average,?\s*or\s*poor/i.test(lower)) {
+          setPendingChoices(['Good', 'Average', 'Poor']);
+        }
+      }
+
       // ── Onboarding state machine ────────────────────────────────────────
       if (days === 0 && onboardingRef.current !== 'done') {
         if (onboardingRef.current === 'greeting') {
@@ -415,9 +397,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
             setPendingYesNo('money');
           }, 700);
         } else if (userText === '__MONEY_EXPLAIN__') {
-          // After money explanation, fire first dimension question
+          // Money explanation already includes the first dimension question (combined prompt)
           onboardingRef.current = 'done';
-          setTimeout(() => sendMessageFn('__FIRST_QUESTION__'), 700);
         } else if (userText === '__FIRST_QUESTION__') {
           onboardingRef.current = 'done';
         }
@@ -688,15 +669,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
               }}>
                 {msg.content}
               </p>
-              {msg.role === 'assistant' && (
-                <div style={{ marginTop: 6, display: 'flex', justifyContent: 'flex-end' }}>
-                  <SpeakerButton
-                    text={msg.content}
-                    idioma={idioma}
-                    disabled={bioState === 'speaking'}
-                  />
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -717,6 +689,44 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
               showNumberPadRef.current = false;
               sendMessageFn(String(n));
             }} />
+          </div>
+        )}
+
+        {/* Auto choice buttons */}
+        {pendingChoices && (
+          <div style={{
+            background: 'rgba(123,97,255,0.06)',
+            border: '1px solid rgba(123,97,255,0.15)',
+            borderRadius: 14,
+            padding: '12px 16px',
+            display: 'flex',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}>
+            {pendingChoices.map(choice => (
+              <button
+                key={choice}
+                onClick={() => {
+                  setPendingChoices(null);
+                  sendMessageFn(choice);
+                }}
+                style={{
+                  flex: 1,
+                  minWidth: 80,
+                  background: 'rgba(123,97,255,0.12)',
+                  border: '1px solid rgba(123,97,255,0.3)',
+                  borderRadius: 10,
+                  padding: '12px 8px',
+                  color: '#7B61FF',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                }}
+              >
+                {choice}
+              </button>
+            ))}
           </div>
         )}
 
@@ -746,6 +756,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         <div style={{
           flexShrink: 0,
           padding: '10px 16px',
+          paddingBottom: 'calc(56px + env(safe-area-inset-bottom) + 10px)',
           display: 'flex',
           gap: 10,
           borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -791,7 +802,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       {/* Input area — hidden during YES/NO onboarding prompts */}
       {!pendingYesNo && <div style={{
         flexShrink: 0,
-        padding: '12px 16px 32px',
+        padding: '12px 16px',
+        paddingBottom: 'calc(56px + env(safe-area-inset-bottom) + 12px)',
         borderTop: '1px solid rgba(255,255,255,0.06)',
         display: 'flex',
         gap: 10,

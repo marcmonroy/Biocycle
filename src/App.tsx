@@ -194,19 +194,9 @@ export default function App() {
     );
   }
 
-  // ── Coach screen (full screen, no bottom nav) ─────────────────────────────
-  if (screen === 'coach') {
-    return (
-      <CoachScreen
-        profile={profile}
-        sessionType={coachSessionType}
-        onBack={() => setScreen('home')}
-      />
-    );
-  }
-
   // ── Tab screens with bottom nav ───────────────────────────────────────────
   const activeTab: Tab = screen === 'home' ? 'home'
+    : screen === 'coach' ? 'coach'
     : screen === 'data' ? 'data'
     : screen === 'profile' ? 'profile'
     : 'home';
@@ -217,6 +207,13 @@ export default function App() {
         <DashboardScreen
           profile={profile}
           onStartCoach={handleStartCoach}
+        />
+      )}
+      {screen === 'coach' && (
+        <CoachScreen
+          profile={profile}
+          sessionType={coachSessionType}
+          onBack={() => setScreen('home')}
         />
       )}
       {screen === 'data' && (
