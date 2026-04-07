@@ -58,11 +58,14 @@ export function LandingScreen({ onRegister, onSignIn }: Props) {
   return (
     <div style={{
       minHeight: '100vh',
+      width: '100%',
+      maxWidth: '100vw',
       background: '#0A0A1A',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       fontFamily: 'Inter, system-ui, sans-serif',
+      overflowX: 'hidden',
       overflowY: 'auto',
       paddingBottom: 40,
     }}>

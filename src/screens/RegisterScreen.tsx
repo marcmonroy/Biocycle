@@ -445,7 +445,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p style={{ ...bodyStyle, margin: 0 }}>{isES ? 'Género' : 'Gender'}</p>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {[
                 { val: 'female',    label: isES ? 'Femenino' : 'Female' },
                 { val: 'male',      label: isES ? 'Masculino' : 'Male' },
@@ -606,11 +606,14 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
 // ── Shared styles ─────────────────────────────────────────────────────────
 const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
+  width: '100%',
+  maxWidth: '100vw',
   background: '#0A0A1A',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   fontFamily: 'Inter, system-ui, sans-serif',
+  overflowX: 'hidden',
   paddingBottom: 40,
 };
 

@@ -487,12 +487,13 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   return (
     <div style={{
       minHeight: '100vh',
+      width: '100%',
+      maxWidth: '100vw',
       background: '#0A0A1A',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: 'Inter, system-ui, sans-serif',
-      maxWidth: 430,
-      margin: '0 auto',
+      overflowX: 'hidden',
     }}>
       {/* Top bar */}
       <div style={{

@@ -19,13 +19,13 @@ export function BottomNav({ active, onNavigate }: Props) {
       bottom: 0,
       left: 0,
       right: 0,
-      height: 64,
+      width: '100%',
+      maxWidth: '100vw',
       background: '#0A0A1A',
       borderTop: '1px solid rgba(255,255,255,0.07)',
       display: 'flex',
       zIndex: 40,
-      maxWidth: 430,
-      margin: '0 auto',
+      padding: '0 16px env(safe-area-inset-bottom) 16px',
     }}>
       {tabs.map(tab => {
         const isActive = tab.id === active;
@@ -40,6 +40,7 @@ export function BottomNav({ active, onNavigate }: Props) {
               alignItems: 'center',
               justifyContent: 'center',
               gap: 3,
+              height: 56,
               background: 'none',
               border: 'none',
               cursor: 'pointer',

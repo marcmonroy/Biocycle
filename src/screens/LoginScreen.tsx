@@ -75,12 +75,15 @@ export function LoginScreen({ onRegister }: Props) {
 // ── Styles ────────────────────────────────────────────────────────────────
 const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
+  width: '100%',
+  maxWidth: '100vw',
   background: '#0A0A1A',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
   fontFamily: 'Inter, system-ui, sans-serif',
+  overflowX: 'hidden',
   padding: '24px',
 };
 

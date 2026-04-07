@@ -59,9 +59,12 @@ export function DataHubScreen({ profile }: Props) {
   return (
     <div style={{
       minHeight: '100vh',
+      width: '100%',
+      maxWidth: '100vw',
       background: '#0A0A1A',
       fontFamily: 'Inter, system-ui, sans-serif',
       paddingBottom: 100,
+      overflowX: 'hidden',
       overflowY: 'auto',
     }}>
       {/* Header */}
