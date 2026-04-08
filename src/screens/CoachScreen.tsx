@@ -888,8 +888,19 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
             setConvState('INTERRUPTED_RECOVERY');
             const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
             addJulesMsg(resumeMsg);
-            // After voice, re-ask the question so user knows exactly where they are
-            speak(resumeMsg, () => showQuestion(restoreState));
+            // After voice, re-enter the restored state
+            speak(resumeMsg, () => {
+              if (restoreState === 'ADHOC') {
+                // ADHOC has no question text — prompt directly
+                sessionRef.current.state = 'ADHOC';
+                setConvState('ADHOC');
+                const promptMsg = isES ? '¿Qué tienes en mente?' : "What's on your mind?";
+                addJulesMsg(promptMsg);
+                speak(promptMsg);
+              } else {
+                showQuestion(restoreState);
+              }
+            });
             return; // skip DB queries
           }
         } catch {

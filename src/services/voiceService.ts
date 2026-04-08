@@ -71,11 +71,11 @@ export async function speakWithElevenLabs(
   const voiceId = getVoiceId(language, picardiaMode);
 
   try {
-    console.log('[voiceService] sending TTS request:', {
-      textLength: text?.length,
-      textPreview: text?.slice(0, 30),
-      voiceId: voiceId,
-    });
+    if (!text || text.trim().length === 0) {
+      console.warn('[voiceService] empty text passed to speak — skipping');
+      onEnd?.();
+      return;
+    }
     const response = await fetch('/.netlify/functions/elevenlabs-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
