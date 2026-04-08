@@ -580,6 +580,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   function enterFirstDimension() {
     const slot = sessionRef.current.slot;
+    console.log('[enterFirstDimension] slot:', slot, 'firstQ:', getFirstQForSlot(slot));
     if (slot === 'adhoc') {
       sessionRef.current.state = 'ADHOC';
       setConvState('ADHOC');
@@ -971,6 +972,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       convHistoryRef.current = [];
       let openingText = '';
       const slot = sessionRef.current.slot;
+      console.log('[session init] slot:', slot, 'hour:', new Date().getHours(), 'daysOfData:', daysOfData, 'onboardingComplete:', profile.onboarding_complete);
 
       if (sessionRef.current.isGap) {
         openingText = isES
