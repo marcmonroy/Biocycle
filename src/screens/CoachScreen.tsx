@@ -548,13 +548,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   }
 
   function enterFirstDimension() {
-    const slot = sessionRef.current.slot;
-    if (slot === 'adhoc') {
-      sessionRef.current.state = 'ADHOC';
-      setConvState('ADHOC');
-    } else {
-      showQuestion(getFirstQForSlot(slot));
-    }
+    showQuestion(getFirstQForSlot(sessionRef.current.slot));
   }
 
   // ── State machine: session complete ───────────────────────────────────────
@@ -847,15 +841,15 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
       }
 
+      // 2. Opening message — always start clean
+      setMessages([]);
+      convHistoryRef.current = [];
+
       // If onboarding is complete and user has data — skip opening, go straight to questions
       if (isOnboardingDone && liveDaysOfData > 0 && !sessionRef.current.isGap) {
         enterFirstDimension();
         return;
       }
-
-      // 2. Opening message — always start clean
-      setMessages([]);
-      convHistoryRef.current = [];
       let openingText = '';
       const slot = sessionRef.current.slot;
       if (sessionRef.current.isGap) {
@@ -891,14 +885,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
       speak(openingText, () => {
         if (sessionRef.current.isGap) {
-          // Gap session: just energy + stress
           showQuestion('ENERGY_Q');
-        } else if (liveDaysOfData === 0 && !sessionRef.current.onboardingComplete) {
-          // Day 1 onboarding
+        } else if (!sessionRef.current.onboardingComplete) {
           showQuestion('EXPLAIN_OFFER');
-        } else if (sessionRef.current.onboardingComplete && liveDaysOfData === 0) {
-          // Onboarding just completed this session — go to first dimension
-          enterFirstDimension();
         } else {
           enterFirstDimension();
         }
