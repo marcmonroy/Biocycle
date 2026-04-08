@@ -30,7 +30,7 @@ type ConversationState =
   | 'INTERRUPTED_RECOVERY'
   | 'ADHOC';
 
-type SessionSlot = 'morning' | 'afternoon' | 'night' | 'adhoc';
+type SessionSlot = 'morning' | 'afternoon' | 'night';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -79,18 +79,13 @@ async function logSafetyEvent(userId: string, text: string, ctx: string) {
   } catch { /* never throw */ }
 }
 
-// ── localStorage session persistence key ──────────────────────────────────
-const LS_KEY           = 'biocycle_active_session';
-const LS_RECOVERY_KEY  = 'biocycle_recovery_count';
-
 // ── Session helpers ───────────────────────────────────────────────────────
 
-function getSessionSlot(): SessionSlot {
-  const h = new Date().getHours();
-  if (h >= 5  && h < 12) return 'morning';
-  if (h >= 12 && h < 17) return 'afternoon';
-  if (h >= 17 && h < 24) return 'night';
-  return 'morning'; // midnight–5am fallback — never return adhoc from time detection
+function getSessionSlot(): 'morning' | 'afternoon' | 'night' {
+  const hour = new Date().getHours();
+  if (hour >= 17) return 'night';
+  if (hour >= 12) return 'afternoon';
+  return 'morning';
 }
 
 function getSlotLabel(slot: SessionSlot, isES: boolean): string {
@@ -392,7 +387,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   const sessionRef = useRef({
     id:                 crypto.randomUUID(),
     startTime:          Date.now(),
-    slot:               (sessionType === 'adhoc' ? 'adhoc' : getSessionSlot()) as SessionSlot,
+    slot:               getSessionSlot(),
     state:              'OPENING' as ConversationState,
     isGap:              false,
     onboardingComplete: !!(profile.onboarding_complete),
@@ -408,34 +403,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
-
-  // Persist session to localStorage on every stable state change
-  useEffect(() => {
-    if (messages.length === 0) return;
-    if (convState === 'SESSION_COMPLETE') {
-      localStorage.removeItem(LS_KEY);
-      localStorage.removeItem(LS_RECOVERY_KEY);
-      return;
-    }
-    const stableStates: ConversationState[] = [
-      'ENERGY_Q','COGNITIVE_Q','STRESS_Q','ANXIETY_Q','SLEEP_Q','CAFFEINE_Q',
-      'EMOTIONAL_Q','SOCIAL_Q','SEXUAL_Q','HYDRATION_Q','DAY_RATING_Q','MEMORABLE_Q',
-      'ALCOHOL_Q','ADHOC','EXPLAIN_OFFER','MONEY_OFFER',
-    ];
-    if (!stableStates.includes(sessionRef.current.state)) return;
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify({
-        date: new Date().toISOString().split('T')[0],
-        state: sessionRef.current.state,
-        sessionId: sessionRef.current.id,
-        slot: sessionRef.current.slot,
-        scores: scoresRef.current,
-        messages: messages.slice(-10),
-        isGap: sessionRef.current.isGap,
-        onboardingComplete: sessionRef.current.onboardingComplete,
-      }));
-    } catch { /* storage full */ }
-  }, [convState, messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -593,8 +560,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   // ── State machine: session complete ───────────────────────────────────────
 
   function enterSessionComplete() {
-    localStorage.removeItem(LS_KEY);
-    localStorage.removeItem(LS_RECOVERY_KEY);
     const text = getCompletionText(sessionRef.current.slot, name, isES);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
@@ -848,68 +813,13 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     void handleUserInput(text);
   }
 
-  // ── Mount: interrupted recovery → gap check → opening ────────────────────
+  // ── Mount: gap check → fresh session opening ─────────────────────────────
 
   useEffect(() => {
     if (mountedRef.current) return;
     mountedRef.current = true;
 
     void (async () => {
-      // 0. Fast restore from localStorage (skips DB round-trip on nav back)
-      const savedRaw = localStorage.getItem(LS_KEY);
-      if (savedRaw) {
-        try {
-          const saved    = JSON.parse(savedRaw);
-          const todayStr = new Date().toISOString().split('T')[0];
-          // Fix 3: date check runs FIRST — before any recovery message
-          // Fix 2: never restore an adhoc session — not worth recovering
-          const isStale  = saved.date !== todayStr
-            || saved.state === 'SESSION_COMPLETE'
-            || saved.state === 'ADHOC'
-            || saved.slot  === 'adhoc'
-            || !saved.sessionId
-            || !saved.state;
-          if (isStale) {
-            localStorage.removeItem(LS_KEY);
-            localStorage.removeItem(LS_RECOVERY_KEY);
-            // fall through to fresh start
-          } else {
-            // Fix 1: loop detection — if recovery fires more than once, the save is corrupted
-            const recoveryCount = parseInt(localStorage.getItem(LS_RECOVERY_KEY) ?? '0');
-            if (recoveryCount > 1) {
-              localStorage.removeItem(LS_KEY);
-              localStorage.removeItem(LS_RECOVERY_KEY);
-              // fall through to fresh start
-            } else {
-              localStorage.setItem(LS_RECOVERY_KEY, String(recoveryCount + 1));
-              sessionRef.current.id = saved.sessionId;
-              if (saved.slot) sessionRef.current.slot = saved.slot;
-              sessionRef.current.isGap = !!saved.isGap;
-              sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
-              if (saved.scores) scoresRef.current = saved.scores;
-              if (saved.messages?.length > 0) {
-                convHistoryRef.current = saved.messages;
-                setMessages(saved.messages);
-              }
-              let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
-              if (restoreState.endsWith('_ACK')) {
-                restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
-              }
-              // Set a neutral state first so input is hidden while Jules speaks
-              sessionRef.current.state = 'INTERRUPTED_RECOVERY';
-              setConvState('INTERRUPTED_RECOVERY');
-              const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
-              addJulesMsg(resumeMsg);
-              speak(resumeMsg, () => showQuestion(restoreState));
-              return; // skip DB queries
-            }
-          }
-        } catch {
-          localStorage.removeItem(LS_KEY);
-          localStorage.removeItem(LS_RECOVERY_KEY);
-        }
-      }
-
       // Fetch onboarding_complete and days_of_data fresh — never trust potentially stale prop
       const { data: freshP } = await supabase
         .from('profiles')
@@ -921,54 +831,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       }
       const liveDaysOfData = freshP?.days_of_data ?? daysOfData;
 
-      const today     = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
 
-      // 1. Interrupted session recovery
-      const { data: incomplete } = await supabase
-        .from('conversation_sessions')
-        .select('*')
-        .eq('user_id', profile.id)
-        .eq('session_complete', false)
-        .gte('session_date', yesterday)
-        .not('interrupted_at_state', 'is', null)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (incomplete && incomplete.length > 0) {
-        const partial = incomplete[0];
-        sessionRef.current.id = partial.id; // reuse so upsert updates rather than inserts
-        scoresRef.current = {
-          factor_fisico:      partial.factor_fisico      ?? null,
-          factor_cognitivo:   partial.factor_cognitivo   ?? null,
-          factor_estres:      partial.factor_estres      ?? null,
-          factor_ansiedad:    partial.factor_ansiedad    ?? null,
-          factor_sueno:       partial.factor_sueno       ?? null,
-          factor_cafeina:     partial.factor_cafeina     ?? null,
-          factor_emocional:   partial.factor_emocional   ?? null,
-          factor_social:      partial.factor_social      ?? null,
-          factor_sexual:      partial.factor_sexual      ?? null,
-          factor_hidratacion: partial.factor_hidratacion ?? null,
-          factor_alcohol:     partial.factor_alcohol     ?? null,
-          day_rating:         partial.day_rating         ?? null,
-          day_memory:         partial.day_memory         ?? null,
-        };
-        const savedState = (partial.interrupted_at_state as ConversationState) || 'ENERGY_Q';
-        // If we saved an ACK state, resume from the corresponding Q (ACK not yet spoken)
-        const resumeQ = savedState.endsWith('_ACK')
-          ? (savedState.replace('_ACK', '_Q') as ConversationState)
-          : savedState;
-        const resumeText = isES
-          ? 'Parece que nos cortamos. Sigamos donde quedamos.'
-          : 'Looks like we got cut off. Let me pick up where we left off.';
-        sessionRef.current.state = 'INTERRUPTED_RECOVERY';
-        setConvState('INTERRUPTED_RECOVERY');
-        addJulesMsg(resumeText);
-        speak(resumeText, () => showQuestion(resumeQ));
-        return;
-      }
-
-      // 2. Gap detection (1–6 days since last completed session)
+      // 1. Gap detection (1–6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
         .select('session_date')
@@ -983,7 +848,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
       }
 
-      // 3. Opening message — always start clean (no stale messages from prior sessions)
+      // 2. Opening message — always start clean
       setMessages([]);
       convHistoryRef.current = [];
       let openingText = '';
@@ -1026,13 +891,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         } else if (liveDaysOfData === 0 && !sessionRef.current.onboardingComplete) {
           // Day 1 onboarding
           showQuestion('EXPLAIN_OFFER');
-        } else if (slot === 'adhoc') {
-          // Free conversation — prompt the user so they know what to do
-          const promptMsg = isES ? '¿Qué tienes en mente?' : "What's on your mind?";
-          sessionRef.current.state = 'ADHOC';
-          setConvState('ADHOC');
-          addJulesMsg(promptMsg);
-          speak(promptMsg);
         } else {
           enterFirstDimension();
         }
