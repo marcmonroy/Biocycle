@@ -580,7 +580,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   function enterFirstDimension() {
     const slot = sessionRef.current.slot;
-    console.log('[enterFirstDimension] slot:', slot, 'firstQ:', getFirstQForSlot(slot));
     if (slot === 'adhoc') {
       sessionRef.current.state = 'ADHOC';
       setConvState('ADHOC');
@@ -905,6 +904,17 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         }
       }
 
+      // Fetch onboarding_complete and days_of_data fresh — never trust potentially stale prop
+      const { data: freshP } = await supabase
+        .from('profiles')
+        .select('onboarding_complete, days_of_data')
+        .eq('id', profile.id)
+        .single();
+      if (freshP) {
+        sessionRef.current.onboardingComplete = !!freshP.onboarding_complete;
+      }
+      const liveDaysOfData = freshP?.days_of_data ?? daysOfData;
+
       const today     = new Date().toISOString().split('T')[0];
       const yesterday = new Date(Date.now() - 86_400_000).toISOString().split('T')[0];
 
@@ -972,23 +982,21 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       convHistoryRef.current = [];
       let openingText = '';
       const slot = sessionRef.current.slot;
-      console.log('[session init] slot:', slot, 'hour:', new Date().getHours(), 'daysOfData:', daysOfData, 'onboardingComplete:', profile.onboarding_complete);
-
       if (sessionRef.current.isGap) {
         openingText = isES
           ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
           : `Hey ${name} — good to have you back. It's been a few days.`;
-      } else if (daysOfData === 0) {
+      } else if (liveDaysOfData === 0) {
         openingText = isES
           ? `Hola ${name}, soy Jules — me alegra mucho que estés aquí.`
           : `Hi ${name}, I'm Jules — really glad you're here.`;
-      } else if (daysOfData < 30) {
+      } else if (liveDaysOfData < 30) {
         const slotLabel = isES
           ? (slot === 'morning' ? 'días' : slot === 'afternoon' ? 'tardes' : 'noches')
           : (slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening');
         openingText = isES
-          ? `Hola ${name}, buenos ${slotLabel}. Día ${daysOfData} — estás construyendo algo real.`
-          : `Hey ${name}, good ${slotLabel}. Day ${daysOfData} — you're building something real.`;
+          ? `Hola ${name}, buenos ${slotLabel}. Día ${liveDaysOfData} — estás construyendo algo real.`
+          : `Hey ${name}, good ${slotLabel}. Day ${liveDaysOfData} — you're building something real.`;
       } else {
         setBioState('thinking');
         const api = await callOpeningAPI();
@@ -1009,7 +1017,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         if (sessionRef.current.isGap) {
           // Gap session: just energy + stress
           showQuestion('ENERGY_Q');
-        } else if (daysOfData === 0 && !sessionRef.current.onboardingComplete) {
+        } else if (liveDaysOfData === 0 && !sessionRef.current.onboardingComplete) {
           // Day 1 onboarding
           showQuestion('EXPLAIN_OFFER');
         } else if (slot === 'adhoc') {
