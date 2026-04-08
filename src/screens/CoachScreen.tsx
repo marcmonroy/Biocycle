@@ -826,9 +826,8 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         .select('onboarding_complete, days_of_data')
         .eq('id', profile.id)
         .single();
-      if (freshP) {
-        sessionRef.current.onboardingComplete = !!freshP.onboarding_complete;
-      }
+      const isOnboardingDone = freshP?.onboarding_complete === true;
+      sessionRef.current.onboardingComplete = isOnboardingDone;
       const liveDaysOfData = freshP?.days_of_data ?? daysOfData;
 
       const today = new Date().toISOString().split('T')[0];
@@ -846,6 +845,12 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         const last = lastSessions[0].session_date;
         const diff = Math.floor((Date.parse(today) - Date.parse(last)) / 86_400_000);
         if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
+      }
+
+      // If onboarding is complete and user has data — skip opening, go straight to questions
+      if (isOnboardingDone && liveDaysOfData > 0 && !sessionRef.current.isGap) {
+        enterFirstDimension();
+        return;
       }
 
       // 2. Opening message — always start clean
@@ -891,6 +896,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         } else if (liveDaysOfData === 0 && !sessionRef.current.onboardingComplete) {
           // Day 1 onboarding
           showQuestion('EXPLAIN_OFFER');
+        } else if (sessionRef.current.onboardingComplete && liveDaysOfData === 0) {
+          // Onboarding just completed this session — go to first dimension
+          enterFirstDimension();
         } else {
           enterFirstDimension();
         }
