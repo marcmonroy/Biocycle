@@ -80,7 +80,8 @@ async function logSafetyEvent(userId: string, text: string, ctx: string) {
 }
 
 // ── localStorage session persistence key ──────────────────────────────────
-const LS_KEY = 'biocycle_active_session';
+const LS_KEY           = 'biocycle_active_session';
+const LS_RECOVERY_KEY  = 'biocycle_recovery_count';
 
 // ── Session helpers ───────────────────────────────────────────────────────
 
@@ -413,6 +414,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     if (messages.length === 0) return;
     if (convState === 'SESSION_COMPLETE') {
       localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(LS_RECOVERY_KEY);
       return;
     }
     const stableStates: ConversationState[] = [
@@ -592,6 +594,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   function enterSessionComplete() {
     localStorage.removeItem(LS_KEY);
+    localStorage.removeItem(LS_RECOVERY_KEY);
     const text = getCompletionText(sessionRef.current.slot, name, isES);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
@@ -856,51 +859,54 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       const savedRaw = localStorage.getItem(LS_KEY);
       if (savedRaw) {
         try {
-          const saved = JSON.parse(savedRaw);
+          const saved    = JSON.parse(savedRaw);
           const todayStr = new Date().toISOString().split('T')[0];
+          // Fix 3: date check runs FIRST — before any recovery message
+          // Fix 2: never restore an adhoc session — not worth recovering
           const isStale  = saved.date !== todayStr
             || saved.state === 'SESSION_COMPLETE'
+            || saved.state === 'ADHOC'
+            || saved.slot  === 'adhoc'
             || !saved.sessionId
             || !saved.state;
           if (isStale) {
             localStorage.removeItem(LS_KEY);
+            localStorage.removeItem(LS_RECOVERY_KEY);
             // fall through to fresh start
           } else {
-            sessionRef.current.id = saved.sessionId;
-            if (saved.slot) sessionRef.current.slot = saved.slot;
-            sessionRef.current.isGap = !!saved.isGap;
-            sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
-            if (saved.scores) scoresRef.current = saved.scores;
-            if (saved.messages?.length > 0) {
-              convHistoryRef.current = saved.messages;
-              setMessages(saved.messages);
-            }
-            let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
-            if (restoreState.endsWith('_ACK')) {
-              restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
-            }
-            // Set a neutral state first so input is hidden while Jules speaks
-            sessionRef.current.state = 'INTERRUPTED_RECOVERY';
-            setConvState('INTERRUPTED_RECOVERY');
-            const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
-            addJulesMsg(resumeMsg);
-            // After voice, re-enter the restored state
-            speak(resumeMsg, () => {
-              if (restoreState === 'ADHOC') {
-                // ADHOC has no question text — prompt directly
-                sessionRef.current.state = 'ADHOC';
-                setConvState('ADHOC');
-                const promptMsg = isES ? '¿Qué tienes en mente?' : "What's on your mind?";
-                addJulesMsg(promptMsg);
-                speak(promptMsg);
-              } else {
-                showQuestion(restoreState);
+            // Fix 1: loop detection — if recovery fires more than once, the save is corrupted
+            const recoveryCount = parseInt(localStorage.getItem(LS_RECOVERY_KEY) ?? '0');
+            if (recoveryCount > 1) {
+              localStorage.removeItem(LS_KEY);
+              localStorage.removeItem(LS_RECOVERY_KEY);
+              // fall through to fresh start
+            } else {
+              localStorage.setItem(LS_RECOVERY_KEY, String(recoveryCount + 1));
+              sessionRef.current.id = saved.sessionId;
+              if (saved.slot) sessionRef.current.slot = saved.slot;
+              sessionRef.current.isGap = !!saved.isGap;
+              sessionRef.current.onboardingComplete = !!saved.onboardingComplete;
+              if (saved.scores) scoresRef.current = saved.scores;
+              if (saved.messages?.length > 0) {
+                convHistoryRef.current = saved.messages;
+                setMessages(saved.messages);
               }
-            });
-            return; // skip DB queries
+              let restoreState = (saved.state as ConversationState) || 'ENERGY_Q';
+              if (restoreState.endsWith('_ACK')) {
+                restoreState = restoreState.replace('_ACK', '_Q') as ConversationState;
+              }
+              // Set a neutral state first so input is hidden while Jules speaks
+              sessionRef.current.state = 'INTERRUPTED_RECOVERY';
+              setConvState('INTERRUPTED_RECOVERY');
+              const resumeMsg = isES ? 'Retomemos donde lo dejamos.' : "Let's pick up where we left off.";
+              addJulesMsg(resumeMsg);
+              speak(resumeMsg, () => showQuestion(restoreState));
+              return; // skip DB queries
+            }
           }
         } catch {
           localStorage.removeItem(LS_KEY);
+          localStorage.removeItem(LS_RECOVERY_KEY);
         }
       }
 
