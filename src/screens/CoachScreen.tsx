@@ -86,10 +86,10 @@ const LS_KEY = 'biocycle_active_session';
 
 function getSessionSlot(): SessionSlot {
   const h = new Date().getHours();
-  if (h >= 5 && h < 12) return 'morning';
+  if (h >= 5  && h < 12) return 'morning';
   if (h >= 12 && h < 17) return 'afternoon';
-  if (h >= 17 && h < 23) return 'night';
-  return 'adhoc';
+  if (h >= 17 && h < 24) return 'night';
+  return 'morning'; // midnight–5am fallback — never return adhoc from time detection
 }
 
 function getSlotLabel(slot: SessionSlot, isES: boolean): string {
@@ -456,7 +456,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   // Every Jules message plays voice. onEnd fires even when muted (enables auto-advance).
   function speak(text: string, onEnd?: () => void) {
-    console.log('[speak] called with text:', text.slice(0, 40), 'hasOnEnd:', !!onEnd);
     cancelSpeech();
     if (isMutedRef.current) {
       setBioState('idle');
@@ -466,11 +465,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     setBioState('speaking');
     speakWithElevenLabs(text, idioma, picardiaMode, {
       onStart: () => setBioState('speaking'),
-      onEnd:   () => {
-        console.log('[speak] onEnd fired, current state:', sessionRef.current.state);
-        setBioState('idle');
-        onEnd?.();
-      },
+      onEnd:   () => { setBioState('idle'); onEnd?.(); },
     });
   }
 
@@ -577,17 +572,13 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   function showQuestion(state: ConversationState) {
     const text = getQuestionText(state, name, sessionRef.current.slot, isES);
-    console.log('[showQuestion] state:', state, 'text:', text?.slice(0, 40));
     sessionRef.current.state = state;
     setConvState(state);
-    console.log('[showQuestion] convState set to:', state);
-    console.log('[showQuestion] inputUI should be:', getInputUI(state));
     addJulesMsg(text);
     speak(text); // user answers — no onEnd advance
   }
 
   function enterFirstDimension() {
-    console.log('[enterFirstDimension] slot:', sessionRef.current.slot);
     const slot = sessionRef.current.slot;
     if (slot === 'adhoc') {
       sessionRef.current.state = 'ADHOC';
@@ -1006,7 +997,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       addJulesMsg(openingText);
 
       speak(openingText, () => {
-        console.log('[OPENING onEnd] isGap:', sessionRef.current.isGap, 'daysOfData:', daysOfData, 'onboardingComplete:', sessionRef.current.onboardingComplete, 'slot:', sessionRef.current.slot);
         if (sessionRef.current.isGap) {
           // Gap session: just energy + stress
           showQuestion('ENERGY_Q');
@@ -1014,8 +1004,12 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           // Day 1 onboarding
           showQuestion('EXPLAIN_OFFER');
         } else if (slot === 'adhoc') {
+          // Free conversation — prompt the user so they know what to do
+          const promptMsg = isES ? '¿Qué tienes en mente?' : "What's on your mind?";
           sessionRef.current.state = 'ADHOC';
           setConvState('ADHOC');
+          addJulesMsg(promptMsg);
+          speak(promptMsg);
         } else {
           enterFirstDimension();
         }
