@@ -456,6 +456,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   // Every Jules message plays voice. onEnd fires even when muted (enables auto-advance).
   function speak(text: string, onEnd?: () => void) {
+    console.log('[speak] called with text:', text.slice(0, 40), 'hasOnEnd:', !!onEnd);
     cancelSpeech();
     if (isMutedRef.current) {
       setBioState('idle');
@@ -465,7 +466,11 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     setBioState('speaking');
     speakWithElevenLabs(text, idioma, picardiaMode, {
       onStart: () => setBioState('speaking'),
-      onEnd:   () => { setBioState('idle'); onEnd?.(); },
+      onEnd:   () => {
+        console.log('[speak] onEnd fired, current state:', sessionRef.current.state);
+        setBioState('idle');
+        onEnd?.();
+      },
     });
   }
 
@@ -572,13 +577,17 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
   function showQuestion(state: ConversationState) {
     const text = getQuestionText(state, name, sessionRef.current.slot, isES);
+    console.log('[showQuestion] state:', state, 'text:', text?.slice(0, 40));
     sessionRef.current.state = state;
     setConvState(state);
+    console.log('[showQuestion] convState set to:', state);
+    console.log('[showQuestion] inputUI should be:', getInputUI(state));
     addJulesMsg(text);
     speak(text); // user answers — no onEnd advance
   }
 
   function enterFirstDimension() {
+    console.log('[enterFirstDimension] slot:', sessionRef.current.slot);
     const slot = sessionRef.current.slot;
     if (slot === 'adhoc') {
       sessionRef.current.state = 'ADHOC';
@@ -997,6 +1006,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       addJulesMsg(openingText);
 
       speak(openingText, () => {
+        console.log('[OPENING onEnd] isGap:', sessionRef.current.isGap, 'daysOfData:', daysOfData, 'onboardingComplete:', sessionRef.current.onboardingComplete, 'slot:', sessionRef.current.slot);
         if (sessionRef.current.isGap) {
           // Gap session: just energy + stress
           showQuestion('ENERGY_Q');
