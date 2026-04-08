@@ -691,20 +691,16 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         }
       } else if (state === 'MONEY_OFFER') {
         if (yes) {
+          const explanation = isES
+            ? 'Tus registros diarios construyen un perfil biológico que los investigadores pagan por acceder. Cuanto más constante seas, más vale tu información.'
+            : 'Your daily check-ins build a biological dataset that researchers pay to access. The more consistent you are, the more your data is worth.';
           sessionRef.current.state = 'MONEY_EXPLAINING';
           setConvState('MONEY_EXPLAINING');
-          setBioState('thinking');
-          const sys = isES
-            ? `${noIntro}Eres Jules. Explica en 1 oración cómo los Data Traders de BioCycle ganan dinero con sus datos biológicos.`
-            : `${noIntro}You are Jules. Explain in 1 sentence how BioCycle Data Traders earn money from their biological data.`;
-          const text = await callCoachAPI(convHistoryRef.current, sys, 60);
-          setBioState('idle');
-          const explanation = text || (isES
-            ? 'Los Data Traders de BioCycle ganan dinero cuando sus datos biológicos anonimizados se usan en estudios de investigación.'
-            : 'BioCycle Data Traders earn money when their anonymized biological data is used in research studies.');
           addJulesMsg(explanation);
           await markOnboardingComplete();
+          isProcessingRef.current = false; // reset before callback so first question is answerable
           speak(explanation, () => enterFirstDimension());
+          return; // skip finally-reset (already done above)
         } else {
           await markOnboardingComplete();
           isProcessingRef.current = false; // reset before entering dimension so answers aren't blocked
