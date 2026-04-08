@@ -27,7 +27,6 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [screen, setScreen] = useState<Screen>('landing');
-  const [coachSessionType, setCoachSessionType] = useState<'scheduled' | 'adhoc'>('adhoc');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
   // Ref so the onAuthStateChange closure can read the live screen value
@@ -93,7 +92,6 @@ export default function App() {
 
     // Check if this is a scheduled session via URL
     if (_urlParams.get('session') === 'scheduled') {
-      setCoachSessionType('scheduled');
       setScreen('coach');
       window.history.replaceState({}, '', window.location.pathname);
     }
@@ -102,15 +100,10 @@ export default function App() {
   // ── Navigation ────────────────────────────────────────────────────────────
   function handleNavigate(tab: Tab) {
     if (!profile) return;
-    // If navigating to coach manually, it's adhoc
-    if (tab === 'coach') {
-      setCoachSessionType('adhoc');
-    }
     setScreen(tab);
   }
 
   function handleStartCoach() {
-    setCoachSessionType('adhoc');
     setScreen('coach');
   }
 
@@ -212,7 +205,6 @@ export default function App() {
       {screen === 'coach' && (
         <CoachScreen
           profile={profile}
-          sessionType={coachSessionType}
           onBack={() => setScreen('home')}
         />
       )}
