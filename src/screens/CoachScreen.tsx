@@ -82,10 +82,10 @@ async function logSafetyEvent(userId: string, text: string, ctx: string) {
 // ── Session helpers ───────────────────────────────────────────────────────
 
 function getSessionSlot(): 'morning' | 'afternoon' | 'night' {
-  const hour = new Date().getHours();
-  if (hour >= 17) return 'night';
-  if (hour >= 12) return 'afternoon';
-  return 'morning';
+  const h = new Date().getHours();
+  if (h >= 17) return 'night';
+  if (h >= 12) return 'afternoon';
+  return 'morning'; // covers hours 0-11, no exceptions, no adhoc ever
 }
 
 function getSlotLabel(slot: SessionSlot, isES: boolean): string {
@@ -376,7 +376,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   const [isMuted, setIsMuted]         = useState(false);
 
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
-  const mountedRef      = useRef(false);
   const isProcessingRef = useRef(false);
   const isMutedRef      = useRef(false);
   const recognitionRef  = useRef<any>(null);
@@ -548,7 +547,14 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   }
 
   function enterFirstDimension() {
-    showQuestion(getFirstQForSlot(sessionRef.current.slot));
+    const slot = sessionRef.current.slot;
+    if (slot === 'afternoon') {
+      showQuestion('EMOTIONAL_Q');
+    } else if (slot === 'night') {
+      showQuestion('DAY_RATING_Q');
+    } else {
+      showQuestion('ENERGY_Q'); // morning — always
+    }
   }
 
   // ── State machine: session complete ───────────────────────────────────────
@@ -741,8 +747,40 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
 
     switch (state) {
       case 'EXPLAIN_OFFER':
+        if (text === 'Yes' || text === 'Sí' || text === 'yes' || text === 'si') {
+          const explainText = isES
+            ? 'BioCycle aprende tus patrones biológicos a través de conversaciones diarias. Con el tiempo predigo cómo te sentirás antes de que suceda.'
+            : 'BioCycle learns your biological patterns through daily conversations. Over time I predict how you will feel before it happens.';
+          addJulesMsg(explainText);
+          isProcessingRef.current = false;
+          speak(explainText, () => {
+            showQuestion('MONEY_OFFER');
+          });
+        } else {
+          // NO — skip explanation, go to money offer
+          showQuestion('MONEY_OFFER');
+        }
+        break;
+
       case 'MONEY_OFFER':
-        await handleOnboardingChoice(state, text);
+        if (text === 'Yes' || text === 'Sí' || text === 'yes' || text === 'si') {
+          const moneyText = isES
+            ? 'Tus registros diarios construyen un perfil biológico que los investigadores pagan por acceder. Cuanto más constante seas, más vale tu información.'
+            : 'Your daily check-ins build a biological dataset that researchers pay to access. The more consistent you are, the more your data is worth.';
+          addJulesMsg(moneyText);
+          isProcessingRef.current = false;
+          // Mark onboarding complete in Supabase
+          void supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
+          sessionRef.current.onboardingComplete = true;
+          speak(moneyText, () => {
+            enterFirstDimension();
+          });
+        } else {
+          // NO — skip money, mark onboarding complete, go to first dimension
+          void supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
+          sessionRef.current.onboardingComplete = true;
+          enterFirstDimension();
+        }
         break;
       case 'ENERGY_Q':
       case 'COGNITIVE_Q':
@@ -807,26 +845,32 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     void handleUserInput(text);
   }
 
-  // ── Mount: gap check → fresh session opening ─────────────────────────────
+  // ── Mount: fresh session opening ─────────────────────────────────────────
 
   useEffect(() => {
-    if (mountedRef.current) return;
-    mountedRef.current = true;
+    let cancelled = false;
 
-    void (async () => {
-      // Fetch onboarding_complete and days_of_data fresh — never trust potentially stale prop
-      const { data: freshP } = await supabase
+    (async () => {
+      // ── 1. Clear screen
+      setMessages([]);
+      convHistoryRef.current = [];
+
+      // ── 2. Load fresh profile data from Supabase
+      const { data: freshProfile } = await supabase
         .from('profiles')
-        .select('onboarding_complete, days_of_data')
+        .select('days_of_data, onboarding_complete')
         .eq('id', profile.id)
         .single();
-      const isOnboardingDone = freshP?.onboarding_complete === true;
-      sessionRef.current.onboardingComplete = isOnboardingDone;
-      const liveDaysOfData = freshP?.days_of_data ?? daysOfData;
 
+      if (cancelled) return;
+
+      const liveDays = freshProfile?.days_of_data ?? 0;
+      const onboardingDone = freshProfile?.onboarding_complete === true;
+
+      sessionRef.current.onboardingComplete = onboardingDone;
+
+      // ── 3. Check for gap (1-6 days since last completed session)
       const today = new Date().toISOString().split('T')[0];
-
-      // 1. Gap detection (1–6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
         .select('session_date')
@@ -835,64 +879,76 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         .order('session_date', { ascending: false })
         .limit(1);
 
+      if (cancelled) return;
+
+      let isGap = false;
       if (lastSessions && lastSessions.length > 0) {
-        const last = lastSessions[0].session_date;
-        const diff = Math.floor((Date.parse(today) - Date.parse(last)) / 86_400_000);
-        if (diff >= 1 && diff <= 6) sessionRef.current.isGap = true;
+        const diff = Math.floor(
+          (Date.parse(today) - Date.parse(lastSessions[0].session_date)) / 86_400_000
+        );
+        if (diff >= 1 && diff <= 6) isGap = true;
       }
 
-      // 2. Opening message — always start clean
-      setMessages([]);
-      convHistoryRef.current = [];
+      sessionRef.current.isGap = isGap;
 
-      // If onboarding is complete and user has data — skip opening, go straight to questions
-      if (isOnboardingDone && liveDaysOfData > 0 && !sessionRef.current.isGap) {
-        enterFirstDimension();
-        return;
-      }
-      let openingText = '';
+      // ── 4. Build opening message
       const slot = sessionRef.current.slot;
-      if (sessionRef.current.isGap) {
+      const slotWord = isES
+        ? (slot === 'morning' ? 'días' : slot === 'afternoon' ? 'tardes' : 'noches')
+        : (slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening');
+
+      let openingText = '';
+
+      if (isGap) {
         openingText = isES
           ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
           : `Hey ${name} — good to have you back. It's been a few days.`;
-      } else if (liveDaysOfData === 0) {
+      } else if (liveDays === 0 && !onboardingDone) {
+        // Day 1 — first ever session
         openingText = isES
           ? `Hola ${name}, soy Jules — me alegra mucho que estés aquí.`
           : `Hi ${name}, I'm Jules — really glad you're here.`;
-      } else if (liveDaysOfData < 30) {
-        const slotLabel = isES
-          ? (slot === 'morning' ? 'días' : slot === 'afternoon' ? 'tardes' : 'noches')
-          : (slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening');
+      } else if (liveDays < 30) {
         openingText = isES
-          ? `Hola ${name}, buenos ${slotLabel}. Día ${liveDaysOfData} — estás construyendo algo real.`
-          : `Hey ${name}, good ${slotLabel}. Day ${liveDaysOfData} — you're building something real.`;
+          ? `Hola ${name}, buenos ${slotWord}. Día ${liveDays} — estás construyendo algo real.`
+          : `Hey ${name}, good ${slotWord}. Day ${liveDays} — you're building something real.`;
+      } else if (liveDays < 90) {
+        openingText = isES
+          ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
+          : `Hey ${name}. I've been noticing some patterns — let's check in.`;
       } else {
-        setBioState('thinking');
-        const api = await callOpeningAPI();
-        setBioState('idle');
-        const greeting = isES ? `Hola ${name}. ` : `Hey ${name}. `;
-        openingText = api
-          ? `${greeting}${api}`
-          : (isES
-            ? `Hola ${name}. He estado notando algunos patrones — hagamos el check-in.`
-            : `Hey ${name}. I've been noticing some patterns — let's check in.`);
+        openingText = isES
+          ? `Hola ${name}. Buenos ${slotWord}.`
+          : `Hey ${name}. Good ${slotWord}.`;
       }
 
+      // ── 5. Show opening and speak it
       sessionRef.current.state = 'OPENING';
       setConvState('OPENING');
       addJulesMsg(openingText);
 
       speak(openingText, () => {
-        if (sessionRef.current.isGap) {
+        if (cancelled) return;
+
+        // ── 6. After opening — decide what comes next
+        if (isGap) {
+          // Gap: abbreviated check-in, just energy
           showQuestion('ENERGY_Q');
-        } else if (!sessionRef.current.onboardingComplete) {
-          showQuestion('EXPLAIN_OFFER');
-        } else {
-          enterFirstDimension();
+          return;
         }
+
+        if (liveDays === 0 && !onboardingDone) {
+          // Day 1: show onboarding
+          showQuestion('EXPLAIN_OFFER');
+          return;
+        }
+
+        // All other cases: go straight to first dimension
+        enterFirstDimension();
       });
     })();
+
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Derived render values ─────────────────────────────────────────────────
