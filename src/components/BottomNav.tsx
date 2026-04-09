@@ -21,8 +21,8 @@ export function BottomNav({ active, onNavigate }: Props) {
       right: 0,
       width: '100%',
       maxWidth: '100vw',
-      background: '#0A0A1A',
-      borderTop: '1px solid rgba(255,255,255,0.07)',
+      background: '#0D0D1F',
+      borderTop: '1px solid rgba(255,255,255,0.12)',
       display: 'flex',
       zIndex: 40,
       padding: '0 16px env(safe-area-inset-bottom) 16px',
@@ -44,7 +44,7 @@ export function BottomNav({ active, onNavigate }: Props) {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: isActive ? '#FF6B6B' : '#4A5568',
+              color: isActive ? '#FF6B6B' : '#8A9BB0',
               transition: 'color 0.15s',
             }}
           >
