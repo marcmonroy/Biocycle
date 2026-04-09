@@ -158,12 +158,21 @@ function getCompletionText(slot: SessionSlot, name: string, isES: boolean): stri
 type InputUI = 'numberpad' | 'choices' | 'voice' | 'none';
 
 function getInputUI(state: ConversationState): InputUI {
-  const numpad:   ConversationState[] = ['ENERGY_Q','COGNITIVE_Q','STRESS_Q','ANXIETY_Q','EMOTIONAL_Q','SOCIAL_Q','SEXUAL_Q','DAY_RATING_Q'];
-  const choices:  ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
+  const NUMBERPAD_STATES = [
+    'ENERGY_Q', 'COGNITIVE_Q', 'STRESS_Q', 'ANXIETY_Q',
+    'EMOTIONAL_Q', 'SOCIAL_Q', 'SEXUAL_Q', 'DAY_RATING_Q'
+  ];
+  if (NUMBERPAD_STATES.includes(state)) {
+    const result: InputUI = 'numberpad';
+    console.log('[getInputUI] state:', state, 'result:', result);
+    setDebug('inputUI', result);
+    return result;
+  }
+  const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
   let result: InputUI = 'none';
-  if (numpad.includes(state))  result = 'numberpad';
-  else if (choices.includes(state)) result = 'choices';
+  if (choices.includes(state)) result = 'choices';
   else if (state === 'MEMORABLE_Q' || state === 'ADHOC') result = 'voice';
+  console.log('[getInputUI] state:', state, 'result:', result);
   setDebug('inputUI', result);
   return result;
 }
@@ -926,7 +935,7 @@ export function CoachScreen({ profile, onBack }: Props) {
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 16px 200px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && isBusy && (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
             <QuantumDNA size={80} state="thinking" />
@@ -964,7 +973,7 @@ export function CoachScreen({ profile, onBack }: Props) {
 
         {/* Session complete card */}
         {convState === 'SESSION_COMPLETE' && (
-          <div style={{ background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.2)', borderRadius: 14, padding: '16px', textAlign: 'center' }}>
+          <div style={{ background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.2)', borderRadius: 14, padding: '16px', textAlign: 'center', marginBottom: 80 }}>
             <p style={{ color: '#00C896', fontSize: '0.9rem', margin: 0, fontWeight: 600 }}>
               {isES ? '✓ Sesión guardada' : '✓ Session saved'}
             </p>
