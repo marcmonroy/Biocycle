@@ -503,41 +503,64 @@ export function CoachScreen({ profile, onBack }: Props) {
     } catch { /* non-blocking */ }
   }
 
-  async function saveComplete() {
+  async function saveSession() {
     try {
-      const duration = Math.floor((Date.now() - sessionRef.current.startTime) / 1000);
-      await supabase.from('conversation_sessions').upsert({
-        id: sessionRef.current.id,
-        user_id: profile.id,
-        session_date: new Date().toISOString().split('T')[0],
-        time_slot: dbSlot(),
-        phase_at_session: `day_${daysOfData}`,
-        personality_mode: picardiaMode ? 'sienna' : 'jules',
-        session_complete: true,
-        manual_entry: false,
-        session_duration_seconds: duration,
-        interrupted_at_state: null,
-        ...scoresRef.current,
-      });
-      // Only increment days_of_data on the first completed session per calendar day.
-      // Exclude the session we just saved so the check is: "did any OTHER session
-      // complete today?" — if not, this is the first, so increment.
       const today = new Date().toISOString().split('T')[0];
+      console.log('[saveSession] saving for user:', profile.id, 'date:', today, 'slot:', sessionRef.current.slot);
+
+      const { error } = await supabase.from('conversation_sessions').insert({
+        user_id:           profile.id,
+        session_date:      today,
+        session_complete:  true,
+        time_slot:         dbSlot(),
+        factor_fisico:     scoresRef.current.factor_fisico     ?? null,
+        factor_cognitivo:  scoresRef.current.factor_cognitivo  ?? null,
+        factor_estres:     scoresRef.current.factor_estres     ?? null,
+        factor_ansiedad:   scoresRef.current.factor_ansiedad   ?? null,
+        factor_sueno:      scoresRef.current.factor_sueno      ?? null,
+        factor_cafeina:    scoresRef.current.factor_cafeina    ?? null,
+        factor_emocional:  scoresRef.current.factor_emocional  ?? null,
+        factor_social:     scoresRef.current.factor_social     ?? null,
+        factor_sexual:     scoresRef.current.factor_sexual     ?? null,
+        factor_hidratacion:scoresRef.current.factor_hidratacion?? null,
+        factor_alcohol:    scoresRef.current.factor_alcohol    ?? null,
+        day_rating:        scoresRef.current.day_rating        ?? null,
+        day_memory:        scoresRef.current.day_memory        ?? null,
+      });
+
+      if (error) {
+        console.error('[saveSession] ERROR:', error.message, error.details);
+        setDebug('lastError', error.message);
+        return;
+      }
+
+      console.log('[saveSession] saved successfully');
+
+      // Only increment days_of_data once per calendar day.
+      // After insert, query returns 1 if this is the first session today.
       const { data: existingToday } = await supabase
         .from('conversation_sessions')
         .select('id')
         .eq('user_id', profile.id)
         .eq('session_complete', true)
-        .eq('session_date', today)
-        .neq('id', sessionRef.current.id)
-        .limit(1);
-      if (!existingToday || existingToday.length === 0) {
-        await supabase.from('profiles').update({
-          days_of_data: (profile.days_of_data ?? 0) + 1,
-        }).eq('id', profile.id);
+        .eq('session_date', today);
+
+      console.log('[saveSession] sessions today:', existingToday?.length);
+
+      if (existingToday && existingToday.length === 1) {
+        // Exactly 1 = the one we just inserted = first completed session today
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ days_of_data: (profile.days_of_data ?? 0) + 1 })
+          .eq('id', profile.id);
+        if (profileError) {
+          console.error('[saveSession] profile update ERROR:', profileError.message);
+        } else {
+          console.log('[saveSession] days_of_data incremented');
+        }
       }
     } catch (err) {
-      console.error('saveComplete error:', err);
+      console.error('[saveSession] unexpected error:', err);
       setDebug('lastError', (err as Error)?.message ?? String(err));
     }
   }
@@ -570,7 +593,7 @@ export function CoachScreen({ profile, onBack }: Props) {
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
     addJulesMsg(text);
-    speak(text, () => void saveComplete());
+    speak(text, () => void saveSession());
   }
 
   // ── State machine: crisis ─────────────────────────────────────────────────
