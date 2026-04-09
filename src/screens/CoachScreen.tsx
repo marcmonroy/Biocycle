@@ -516,7 +516,19 @@ export function CoachScreen({ profile, onBack }: Props) {
         interrupted_at_state: null,
         ...scoresRef.current,
       });
-      await supabase.from('profiles').update({ days_of_data: daysOfData + 1 }).eq('id', profile.id);
+      // Only increment days_of_data if this is the first completed session today
+      const today = new Date().toISOString().split('T')[0];
+      const { data: todaySessions } = await supabase
+        .from('conversation_sessions')
+        .select('id')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .eq('session_date', today);
+      if (!todaySessions || todaySessions.length === 0) {
+        await supabase.from('profiles').update({
+          days_of_data: (profile.days_of_data ?? 0) + 1,
+        }).eq('id', profile.id);
+      }
     } catch (err) {
       console.error('saveComplete error:', err);
       setDebug('lastError', (err as Error)?.message ?? String(err));
