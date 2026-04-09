@@ -15,17 +15,19 @@ const tabs: { id: Tab; label: string; labelES: string; icon: string }[] = [
 export function BottomNav({ active, onNavigate }: Props) {
   return (
     <nav style={{
+      width: '100%',
+      maxWidth: 430,
       position: 'fixed',
       bottom: 0,
-      left: 0,
-      right: 0,
-      width: '100%',
-      maxWidth: '100vw',
+      left: '50%',
+      transform: 'translateX(-50%)',
       background: '#0D0D1F',
       borderTop: '1px solid rgba(255,255,255,0.12)',
       display: 'flex',
-      zIndex: 40,
-      padding: '0 16px env(safe-area-inset-bottom) 16px',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      height: 64,
+      zIndex: 100,
     }}>
       {tabs.map(tab => {
         const isActive = tab.id === active;
