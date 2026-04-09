@@ -171,7 +171,8 @@ function getInputUI(state: ConversationState): InputUI {
   const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
   let result: InputUI = 'none';
   if (choices.includes(state)) result = 'choices';
-  else if (state === 'MEMORABLE_Q' || state === 'ADHOC') result = 'voice';
+  else if (state === 'ADHOC') result = 'voice';
+  // MEMORABLE_Q returns 'none' → text input row only, no mic auto-activation
   console.log('[getInputUI] state:', state, 'result:', result);
   setDebug('inputUI', result);
   return result;
@@ -593,11 +594,13 @@ export function CoachScreen({ profile, onBack }: Props) {
 
       addJulesMsg(ackText);
       speak(ackText, () => {
-        if (nextQ === 'SESSION_COMPLETE') {
-          enterSessionComplete();
-        } else {
-          showQuestion(nextQ as ConversationState);
-        }
+        setTimeout(() => {
+          if (nextQ === 'SESSION_COMPLETE') {
+            enterSessionComplete();
+          } else {
+            showQuestion(nextQ as ConversationState);
+          }
+        }, 800); // 800ms pause after Jules finishes speaking
       });
     } finally {
       isProcessingRef.current = false;
@@ -1018,8 +1021,9 @@ export function CoachScreen({ profile, onBack }: Props) {
               onChange={e => setInputText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
               placeholder={
-                inputUI === 'numberpad' ? (isES ? 'o escribe un número...' : 'or type a number...') :
-                inputUI === 'choices'   ? (isES ? 'o escribe aquí...'     : 'or type here...') :
+                inputUI === 'numberpad'       ? (isES ? 'o escribe un número...' : 'or type a number...') :
+                inputUI === 'choices'         ? (isES ? 'o escribe aquí...'     : 'or type here...') :
+                convState === 'MEMORABLE_Q'   ? (isES ? 'Escribe un momento de hoy...' : 'Type a moment from today...') :
                 (isES ? 'Escribe algo...' : 'Type something...')
               }
               style={{
