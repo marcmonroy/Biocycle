@@ -519,15 +519,19 @@ export function CoachScreen({ profile, onBack }: Props) {
         interrupted_at_state: null,
         ...scoresRef.current,
       });
-      // Only increment days_of_data if this is the first completed session today
+      // Only increment days_of_data on the first completed session per calendar day.
+      // Exclude the session we just saved so the check is: "did any OTHER session
+      // complete today?" — if not, this is the first, so increment.
       const today = new Date().toISOString().split('T')[0];
-      const { data: todaySessions } = await supabase
+      const { data: existingToday } = await supabase
         .from('conversation_sessions')
         .select('id')
         .eq('user_id', profile.id)
         .eq('session_complete', true)
-        .eq('session_date', today);
-      if (!todaySessions || todaySessions.length === 0) {
+        .eq('session_date', today)
+        .neq('id', sessionRef.current.id)
+        .limit(1);
+      if (!existingToday || existingToday.length === 0) {
         await supabase.from('profiles').update({
           days_of_data: (profile.days_of_data ?? 0) + 1,
         }).eq('id', profile.id);
