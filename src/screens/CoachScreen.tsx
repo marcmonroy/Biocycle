@@ -155,7 +155,7 @@ function getCompletionText(slot: SessionSlot, name: string, isES: boolean): stri
 
 // ── Input UI — driven by state, not text scanning ─────────────────────────
 
-type InputUI = 'numberpad' | 'choices' | 'voice' | 'none';
+type InputUI = 'numberpad' | 'choices' | 'text' | 'none';
 
 function getInputUI(state: ConversationState): InputUI {
   const NUMBERPAD_STATES = [
@@ -168,11 +168,14 @@ function getInputUI(state: ConversationState): InputUI {
     setDebug('inputUI', result);
     return result;
   }
+  if (state === 'MEMORABLE_Q') {
+    console.log('[getInputUI] state:', state, 'result: text');
+    setDebug('inputUI', 'text');
+    return 'text';
+  }
   const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
-  let result: InputUI = 'none';
-  if (choices.includes(state)) result = 'choices';
-  else if (state === 'ADHOC') result = 'voice';
-  // MEMORABLE_Q returns 'none' → text input row only, no mic auto-activation
+  const result: InputUI = choices.includes(state) ? 'choices' : 'none';
+  // ADHOC and all ACK/transition states → 'none' (shows mic + text fallback)
   console.log('[getInputUI] state:', state, 'result:', result);
   setDebug('inputUI', result);
   return result;
@@ -1001,64 +1004,91 @@ export function CoachScreen({ profile, onBack }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* INPUT AREA — only one type at a time, never combined */}
       {convState !== 'SESSION_COMPLETE' && !isBusy && (
         <div style={{
-          flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)',
-          background: '#0A0A1A', padding: '12px 16px',
+          flexShrink: 0, background: '#0A0A1A',
+          borderTop: '1px solid rgba(255,255,255,0.07)',
+          padding: '12px 16px',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 76px)',
         }}>
-          {inputUI === 'numberpad' && <NumberPad onSelect={n => void handleUserInput(String(n))} />}
-          {inputUI === 'choices' && choiceOpts.length > 0 && <ChoiceButtons options={choiceOpts} onSelect={v => void handleUserInput(v)} />}
 
-          {/* Text input row — always visible as fallback */}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: inputUI !== 'none' && inputUI !== 'voice' ? 8 : 0 }}>
-            <button
-              onClick={() => isListening ? stopListening() : startListening()}
-              disabled={isBusy}
-              style={{
-                width: 44, height: 44, borderRadius: '50%',
-                background: isListening ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)',
-                border: isListening ? '1px solid rgba(255,107,107,0.5)' : '1px solid rgba(255,255,255,0.1)',
-                cursor: isBusy ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0, opacity: isBusy ? 0.4 : 1,
-              }}
-            >
-              {isListening ? '⏹' : '🎤'}
-            </button>
-            <input
-              type="text"
-              value={inputText}
-              onChange={e => setInputText(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
-              placeholder={
-                inputUI === 'numberpad'       ? (isES ? 'o escribe un número...' : 'or type a number...') :
-                inputUI === 'choices'         ? (isES ? 'o escribe aquí...'     : 'or type here...') :
-                convState === 'MEMORABLE_Q'   ? (isES ? 'Escribe un momento de hoy...' : 'Type a moment from today...') :
-                (isES ? 'Escribe algo...' : 'Type something...')
-              }
-              style={{
-                flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 12, padding: '11px 14px', color: 'white',
-                fontSize: '0.9rem', fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
-              }}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!inputText.trim()}
-              style={{
-                width: 44, height: 44, borderRadius: '50%',
-                background: inputText.trim() ? '#FF6B6B' : 'rgba(255,255,255,0.06)',
-                border: 'none', cursor: inputText.trim() ? 'pointer' : 'default',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18, flexShrink: 0, color: 'white',
-                opacity: inputText.trim() ? 1 : 0.3,
-              }}
-            >
-              ↑
-            </button>
-          </div>
+          {/* NUMBER PAD — only for numeric Q states */}
+          {inputUI === 'numberpad' && (
+            <NumberPad onSelect={(n) => void handleUserInput(String(n))} />
+          )}
+
+          {/* CHOICE BUTTONS — only for choice Q states */}
+          {inputUI === 'choices' && (
+            <ChoiceButtons options={choiceOpts} onSelect={v => void handleUserInput(v)} />
+          )}
+
+          {/* TEXT INPUT — MEMORABLE_Q only */}
+          {inputUI === 'text' && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                placeholder={isES ? 'Escribe un momento de hoy...' : 'Type a moment from today...'}
+                value={inputText}
+                onChange={e => setInputText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
+                style={{
+                  flex: 1, background: '#1A1A2E', border: '1px solid #4A5568',
+                  borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 15,
+                  fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleSend}
+                style={{
+                  background: '#FF6B6B', border: 'none', borderRadius: 8,
+                  padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer',
+                }}
+              >
+                ↑
+              </button>
+            </div>
+          )}
+
+          {/* FALLBACK — ACK / ADHOC / transition states: mic + text */}
+          {inputUI === 'none' && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={() => isListening ? stopListening() : startListening()}
+                style={{
+                  background: 'transparent', border: '1px solid #4A5568',
+                  borderRadius: '50%', width: 40, height: 40,
+                  color: isListening ? '#FF6B6B' : '#4A5568',
+                  fontSize: 18, cursor: 'pointer', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {isListening ? '⏹' : '🎤'}
+              </button>
+              <input
+                type="text"
+                placeholder={isES ? 'o escribe aquí...' : 'or type here...'}
+                value={inputText}
+                onChange={e => setInputText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
+                style={{
+                  flex: 1, background: '#1A1A2E', border: '1px solid #4A5568',
+                  borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 15,
+                  fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleSend}
+                style={{
+                  background: '#FF6B6B', border: 'none', borderRadius: 8,
+                  padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer',
+                }}
+              >
+                ↑
+              </button>
+            </div>
+          )}
+
         </div>
       )}
     </div>
