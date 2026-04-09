@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
+import { setDebug } from '../components/DebugOverlay';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -159,10 +160,12 @@ type InputUI = 'numberpad' | 'choices' | 'voice' | 'none';
 function getInputUI(state: ConversationState): InputUI {
   const numpad:   ConversationState[] = ['ENERGY_Q','COGNITIVE_Q','STRESS_Q','ANXIETY_Q','EMOTIONAL_Q','SOCIAL_Q','SEXUAL_Q','DAY_RATING_Q'];
   const choices:  ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
-  if (numpad.includes(state))  return 'numberpad';
-  if (choices.includes(state)) return 'choices';
-  if (state === 'MEMORABLE_Q' || state === 'ADHOC') return 'voice';
-  return 'none';
+  let result: InputUI = 'none';
+  if (numpad.includes(state))  result = 'numberpad';
+  else if (choices.includes(state)) result = 'choices';
+  else if (state === 'MEMORABLE_Q' || state === 'ADHOC') result = 'voice';
+  setDebug('inputUI', result);
+  return result;
 }
 
 function getChoiceOptions(state: ConversationState, isES: boolean): string[] {
@@ -403,6 +406,9 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
   // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
 
+  // Debug: track conversation state
+  useEffect(() => { setDebug('coachState', convState); }, [convState]);
+
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -526,6 +532,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       await supabase.from('profiles').update({ days_of_data: daysOfData + 1 }).eq('id', profile.id);
     } catch (err) {
       console.error('saveComplete error:', err);
+      setDebug('lastError', (err as Error)?.message ?? String(err));
     }
   }
 
@@ -890,6 +897,15 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       }
 
       sessionRef.current.isGap = isGap;
+
+      // Debug snapshot after all data is loaded
+      setDebug('daysOfData', liveDays);
+      setDebug('onboardingComplete', onboardingDone);
+      setDebug('isGap', isGap);
+      setDebug('slot', sessionRef.current.slot);
+      setDebug('hour', new Date().getHours());
+      setDebug('idioma', profile.idioma);
+      setDebug('picardia', profile.picardia_mode);
 
       // ── 4. Build opening message
       const slot = sessionRef.current.slot;

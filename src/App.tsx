@@ -12,6 +12,7 @@ import { ProfileScreen } from './screens/ProfileScreen';
 import { DataHubScreen } from './screens/DataHubScreen';
 import { BottomNav } from './components/BottomNav';
 import type { Tab } from './components/BottomNav';
+import { DebugOverlay, setDebug } from './components/DebugOverlay';
 
 // ── URL param: clear adhoc session storage if ?session=scheduled ──────────
 const _urlParams = new URLSearchParams(window.location.search);
@@ -34,6 +35,9 @@ export default function App() {
 
   // Keep screenRef in sync so the auth listener closure always sees the live screen
   useEffect(() => { screenRef.current = screen; }, [screen]);
+
+  // Debug: track active screen
+  useEffect(() => { setDebug('screen', screen); }, [screen]);
 
   // ── Auth state ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -223,6 +227,7 @@ export default function App() {
         active={activeTab}
         onNavigate={handleNavigate}
       />
+      <DebugOverlay />
     </div>
   );
 }
