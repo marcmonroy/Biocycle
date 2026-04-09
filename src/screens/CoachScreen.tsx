@@ -1004,23 +1004,19 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
             {phaseLabel}
           </span>
         </div>
-        <div style={{ width: 44 }} />
+        <button
+          onClick={() => setIsMuted(m => !m)}
+          style={{
+            background: 'none',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: '50%', width: 40, height: 40,
+            cursor: 'pointer', fontSize: 18, color: 'white',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          {isMuted ? '🔇' : '🔊'}
+        </button>
       </div>
-
-      {/* Floating mute button — fixed so it's always accessible */}
-      <button
-        onClick={() => setIsMuted(m => !m)}
-        style={{
-          position: 'fixed', top: 16, right: 16, zIndex: 100,
-          background: 'rgba(10,10,26,0.85)',
-          border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: '50%', width: 40, height: 40,
-          cursor: 'pointer', fontSize: 18, color: 'white',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        {isMuted ? '🔇' : '🔊'}
-      </button>
 
       {/* Messages */}
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '16px 16px 8px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1079,7 +1075,7 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
         <div style={{
           flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.06)',
           background: '#0A0A1A', padding: '12px 16px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 76px)',
         }}>
           {inputUI === 'numberpad' && <NumberPad onSelect={n => void handleUserInput(String(n))} />}
           {inputUI === 'choices' && choiceOpts.length > 0 && <ChoiceButtons options={choiceOpts} onSelect={v => void handleUserInput(v)} />}
