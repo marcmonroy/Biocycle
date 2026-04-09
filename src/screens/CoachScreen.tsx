@@ -218,12 +218,6 @@ function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: bool
   }
 }
 
-function getFirstQForSlot(slot: SessionSlot): ConversationState {
-  if (slot === 'afternoon') return 'EMOTIONAL_Q';
-  if (slot === 'night')     return 'DAY_RATING_Q';
-  return 'ENERGY_Q';
-}
-
 // ── Score application ─────────────────────────────────────────────────────
 
 function applyScore(state: ConversationState, raw: string, scores: SessionScores): void {
@@ -354,11 +348,10 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
 
 interface Props {
   profile: Profile;
-  sessionType: 'scheduled' | 'adhoc';
   onBack: () => void;
 }
 
-export function CoachScreen({ profile, sessionType, onBack }: Props) {
+export function CoachScreen({ profile, onBack }: Props) {
   // Stable constants — derived from props once, never stale
   const idioma       = profile.idioma ?? 'EN';
   const isES         = idioma === 'ES';
@@ -471,22 +464,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
 
-  async function callOpeningAPI(): Promise<string> {
-    if (daysOfData >= 90 && profile.pattern_summary) {
-      const sys = isES
-        ? `${noIntro}Eres Jules. Una oración de pronóstico biológico para los próximos 3–7 días basado en fase actual. Sé específica y confiada. Máximo 25 palabras. Patrones: ${profile.pattern_summary}`
-        : `${noIntro}You are Jules. One biological forecast sentence for next 3–7 days based on current phase. Be specific and confident. Max 25 words. Patterns: ${profile.pattern_summary}`;
-      return await callCoachAPI([{ role: 'user', content: 'Generate forecast.' }], sys, 50);
-    }
-    if (daysOfData >= 30) {
-      const sys = isES
-        ? `${noIntro}Eres Jules. El usuario tiene ${daysOfData} días de datos. Una oración de observación de patrón. Empieza con "He notado..." Máximo 20 palabras.`
-        : `${noIntro}You are Jules. The user has ${daysOfData} days of data. One pattern observation sentence. Frame as "I've been noticing..." Max 20 words.`;
-      return await callCoachAPI([{ role: 'user', content: 'Generate observation.' }], sys, 40);
-    }
-    return '';
-  }
-
   // ── DB helpers ────────────────────────────────────────────────────────────
 
   function dbSlot(): 'morning' | 'afternoon' | 'night' {
@@ -534,13 +511,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
       console.error('saveComplete error:', err);
       setDebug('lastError', (err as Error)?.message ?? String(err));
     }
-  }
-
-  async function markOnboardingComplete() {
-    sessionRef.current.onboardingComplete = true;
-    try {
-      await supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
-    } catch { /* non-blocking */ }
   }
 
   // ── State machine: question display ───────────────────────────────────────
@@ -620,69 +590,6 @@ export function CoachScreen({ profile, sessionType, onBack }: Props) {
           showQuestion(nextQ as ConversationState);
         }
       });
-    } finally {
-      isProcessingRef.current = false;
-    }
-  }
-
-  // ── State machine: onboarding yes/no ──────────────────────────────────────
-
-  async function handleOnboardingChoice(state: ConversationState, choice: string) {
-    if (isProcessingRef.current) return;
-    isProcessingRef.current = true;
-    try {
-      const yes = choice === 'Yes' || choice === 'Sí' || choice === 'Si';
-      addUserMsg(choice);
-
-      if (state === 'EXPLAIN_OFFER') {
-        if (yes) {
-          sessionRef.current.state = 'EXPLAINING';
-          setConvState('EXPLAINING');
-          setBioState('thinking');
-          const sys = isES
-            ? `${noIntro}Eres Jules. Explica BioCycle en exactamente 2 oraciones: qué aprende sobre el usuario con el tiempo, y cómo predice su estado biológico futuro.`
-            : `${noIntro}You are Jules. Explain BioCycle in exactly 2 sentences: what it learns about the user over time, and how it predicts their future biological state.`;
-          const text = await callCoachAPI(convHistoryRef.current, sys, 80);
-          setBioState('idle');
-          const explanation = text || (isES
-            ? 'BioCycle aprende tus patrones hormonales y biológicos únicos con el tiempo. Con esos datos, puede predecir cómo te sentirás antes de que lo sientas tú.'
-            : "BioCycle learns your unique hormonal and biological patterns over time. With that data, it can predict how you'll feel before you feel it yourself.");
-          addJulesMsg(explanation);
-          speak(explanation, () => {
-            // Auto-advance to money offer after explaining BioCycle
-            const q = getQuestionText('MONEY_OFFER', name, sessionRef.current.slot, isES);
-            sessionRef.current.state = 'MONEY_OFFER';
-            setConvState('MONEY_OFFER');
-            addJulesMsg(q);
-            speak(q);
-          });
-        } else {
-          // Skip → money offer
-          const q = getQuestionText('MONEY_OFFER', name, sessionRef.current.slot, isES);
-          sessionRef.current.state = 'MONEY_OFFER';
-          setConvState('MONEY_OFFER');
-          addJulesMsg(q);
-          speak(q);
-        }
-      } else if (state === 'MONEY_OFFER') {
-        if (yes) {
-          const explanation = isES
-            ? 'Tus registros diarios construyen un perfil biológico que los investigadores pagan por acceder. Cuanto más constante seas, más vale tu información.'
-            : 'Your daily check-ins build a biological dataset that researchers pay to access. The more consistent you are, the more your data is worth.';
-          sessionRef.current.state = 'MONEY_EXPLAINING';
-          setConvState('MONEY_EXPLAINING');
-          addJulesMsg(explanation);
-          await markOnboardingComplete();
-          isProcessingRef.current = false; // reset before callback so first question is answerable
-          speak(explanation, () => enterFirstDimension());
-          return; // skip finally-reset (already done above)
-        } else {
-          await markOnboardingComplete();
-          isProcessingRef.current = false; // reset before entering dimension so answers aren't blocked
-          enterFirstDimension();
-          return; // skip finally-reset (already done above)
-        }
-      }
     } finally {
       isProcessingRef.current = false;
     }
