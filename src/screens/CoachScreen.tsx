@@ -8,6 +8,7 @@ import type { Profile } from '../lib/supabase';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { setDebug } from '../components/DebugOverlay';
+import { BottomNav } from '../components/BottomNav';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,7 @@ interface Message {
 }
 
 interface SessionScores {
-  factor_fisico: number | null;
+  factor_energia: number | null;
   factor_cognitivo: number | null;
   factor_estres: number | null;
   factor_ansiedad: number | null;
@@ -122,7 +123,7 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
       case 'HYDRATION_Q':    return '¿Cómo está tu hidratación hoy — bien, regular o mal?';
       case 'DAY_RATING_Q':   return '¿Cómo calificarías el día de hoy en general — del 1 al 10?';
       case 'MEMORABLE_Q':    return '¿Cuál fue un momento del día que te llamó la atención?';
-      case 'ALCOHOL_Q':      return '¿Tomaste alcohol hoy — sí o no?';
+      case 'ALCOHOL_Q':      return 'Última pregunta — ¿tomaste algo de alcohol hoy?';
       default: return '';
     }
   }
@@ -141,7 +142,7 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
     case 'HYDRATION_Q':    return 'How is your hydration today — good, average, or poor?';
     case 'DAY_RATING_Q':   return 'How would you rate today overall — 1 to 10?';
     case 'MEMORABLE_Q':    return "What's one moment from today that stood out?";
-    case 'ALCOHOL_Q':      return 'Did you have any alcohol today — yes or no?';
+    case 'ALCOHOL_Q':      return 'Last one — any alcohol today?';
     default: return '';
   }
 }
@@ -236,7 +237,7 @@ function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: bool
 function applyScore(state: ConversationState, raw: string, scores: SessionScores): void {
   const n = parseInt(raw, 10);
   switch (state) {
-    case 'ENERGY_Q':    scores.factor_fisico    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'ENERGY_Q':    scores.factor_energia   = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'COGNITIVE_Q': scores.factor_cognitivo = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'STRESS_Q':    scores.factor_estres    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'ANXIETY_Q':   scores.factor_ansiedad  = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
@@ -362,9 +363,10 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
 interface Props {
   profile: Profile;
   onBack: () => void;
+  onNavigate?: (tab: string) => void;
 }
 
-export function CoachScreen({ profile, onBack }: Props) {
+export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   // Stable constants — derived from props once, never stale
   const idioma       = profile.idioma ?? 'EN';
   const isES         = idioma === 'ES';
@@ -402,7 +404,7 @@ export function CoachScreen({ profile, onBack }: Props) {
   });
 
   const scoresRef = useRef<SessionScores>({
-    factor_fisico: null, factor_cognitivo: null, factor_estres: null,
+    factor_energia: null, factor_cognitivo: null, factor_estres: null,
     factor_ansiedad: null, factor_sueno: null, factor_cafeina: null,
     factor_emocional: null, factor_social: null, factor_sexual: null,
     factor_hidratacion: null, factor_alcohol: null,
@@ -498,7 +500,19 @@ export function CoachScreen({ profile, onBack }: Props) {
         session_complete: false,
         manual_entry: false,
         interrupted_at_state: state,
-        ...scoresRef.current,
+        factor_energia:     scoresRef.current.factor_energia     ?? null,
+        factor_cognitivo:   scoresRef.current.factor_cognitivo   ?? null,
+        factor_estres:      scoresRef.current.factor_estres      ?? null,
+        factor_ansiedad:    scoresRef.current.factor_ansiedad    ?? null,
+        factor_sueno:       scoresRef.current.factor_sueno       ?? null,
+        factor_cafeina:     scoresRef.current.factor_cafeina     ?? null,
+        factor_emocional:   scoresRef.current.factor_emocional   ?? null,
+        factor_social:      scoresRef.current.factor_social      ?? null,
+        factor_sexual:      scoresRef.current.factor_sexual      ?? null,
+        factor_hidratacion: scoresRef.current.factor_hidratacion ?? null,
+        factor_alcohol:     scoresRef.current.factor_alcohol     ?? null,
+        day_rating:         scoresRef.current.day_rating         ?? null,
+        day_memory:         scoresRef.current.day_memory         ?? null,
       });
     } catch { /* non-blocking */ }
   }
@@ -513,7 +527,7 @@ export function CoachScreen({ profile, onBack }: Props) {
         session_date:      today,
         session_complete:  true,
         time_slot:         dbSlot(),
-        factor_fisico:     scoresRef.current.factor_fisico     ?? null,
+        factor_energia:    scoresRef.current.factor_energia     ?? null,
         factor_cognitivo:  scoresRef.current.factor_cognitivo  ?? null,
         factor_estres:     scoresRef.current.factor_estres     ?? null,
         factor_ansiedad:   scoresRef.current.factor_ansiedad   ?? null,
@@ -636,7 +650,9 @@ export function CoachScreen({ profile, onBack }: Props) {
 
       addJulesMsg(ackText);
       speak(ackText, () => {
+        setBioState('thinking'); // keep input area hidden during pause
         setTimeout(() => {
+          setBioState('idle');
           if (nextQ === 'SESSION_COMPLETE') {
             enterSessionComplete();
           } else {
@@ -1037,7 +1053,7 @@ export function CoachScreen({ profile, onBack }: Props) {
           flexShrink: 0, background: '#0A0A1A',
           borderTop: '1px solid rgba(255,255,255,0.07)',
           padding: '12px 16px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 76px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)',
         }}>
 
           {/* NUMBER PAD — only for numeric Q states */}
@@ -1118,6 +1134,12 @@ export function CoachScreen({ profile, onBack }: Props) {
 
         </div>
       )}
+
+      <BottomNav active="coach" onNavigate={(tab) => {
+        cancelSpeech();
+        if (onNavigate) onNavigate(tab);
+        else onBack();
+      }} />
     </div>
   );
 }
