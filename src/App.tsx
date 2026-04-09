@@ -199,7 +199,14 @@ export default function App() {
     : 'home';
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{
+      maxWidth: 430,
+      margin: '0 auto',
+      minHeight: '100vh',
+      position: 'relative',
+      background: '#0A0A1A',
+      overflow: 'hidden',
+    }}>
       {screen === 'home' && (
         <DashboardScreen
           profile={profile}
