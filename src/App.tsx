@@ -200,6 +200,7 @@ export default function App() {
 
   return (
     <div style={{
+      width: '100%',
       maxWidth: 430,
       margin: '0 auto',
       minHeight: '100vh',
