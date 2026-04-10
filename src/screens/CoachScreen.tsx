@@ -401,6 +401,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     state:              'OPENING' as ConversationState,
     isGap:              false,
     onboardingComplete: !!(profile.onboarding_complete),
+    sessionContext:     '',
   });
 
   const scoresRef = useRef<SessionScores>({
@@ -472,9 +473,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   async function callAckAPI(qState: ConversationState, userValue: string): Promise<string> {
     const dimLabel = getDimLabel(qState, isES);
+    const ctx = sessionRef.current.sessionContext
+      ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
+      : '';
     const sys = isES
-      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.`
-      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.`;
+      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.${ctx}`
+      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.${ctx}`;
     const text = await callCoachAPI(convHistoryRef.current, sys, 60);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
@@ -586,7 +590,10 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     sessionRef.current.state = state;
     setConvState(state);
     addJulesMsg(text);
-    speak(text); // user answers — no onEnd advance
+    speak(text, state === 'MEMORABLE_Q' ? () => {
+      // Auto-listen after Jules finishes speaking the memorable question
+      setTimeout(() => startListening(), 1500);
+    } : undefined);
   }
 
   function enterFirstDimension() {
@@ -673,9 +680,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     try {
       addUserMsg(userText);
       setBioState('thinking');
+      const ctx = sessionRef.current.sessionContext
+        ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
+        : '';
       const sys = isES
-        ? `${noIntro}Eres Jules, una compañera de IA cálida de BioCycle. Responde en español. Sé cálida, breve (2–3 oraciones máximo) y directa.`
-        : `${noIntro}You are Jules, a warm AI companion inside BioCycle. Respond in English. Be warm, brief (2–3 sentences max), and direct.`;
+        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC.\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nResponde en 2-3 oraciones máximo. Sé cálida y directa.${ctx}`
+        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE.\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns across cycles, life events colored by biological state, dreams and sleep quality, stress sources and physical response.\nSteering technique: if user goes off-topic, acknowledge then bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment, medical advice.\nRespond in 2-3 sentences maximum. Be warm and direct.${ctx}`;
       const text = await callCoachAPI(convHistoryRef.current, sys, 150);
       setBioState('idle');
       if (!text) return;
@@ -853,8 +863,56 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
       sessionRef.current.onboardingComplete = onboardingDone;
 
-      // ── 3. Check for gap (1-6 days since last completed session)
+      // ── 3. Slot locking — if this slot already completed today, show locked
       const today = new Date().toISOString().split('T')[0];
+      const { data: completedToday } = await supabase
+        .from('conversation_sessions')
+        .select('time_slot')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .eq('session_date', today);
+
+      if (cancelled) return;
+
+      const completedSlots = completedToday?.map((s: { time_slot: string }) => s.time_slot) ?? [];
+      const currentSlot = sessionRef.current.slot;
+
+      if (completedSlots.includes(currentSlot)) {
+        const nextTime = currentSlot === 'morning'
+          ? (isES ? 'esta tarde' : 'this afternoon')
+          : currentSlot === 'afternoon'
+          ? (isES ? 'esta noche' : 'tonight')
+          : (isES ? 'mañana por la mañana' : 'tomorrow morning');
+        const lockedMsg = isES
+          ? `Ya completaste tu sesión de esta ${getSlotLabel(currentSlot, true)}, ${name}. Nos vemos ${nextTime}.`
+          : `You already completed your ${getSlotLabel(currentSlot, false)} check-in, ${name}. See you ${nextTime}.`;
+        setMessages([]);
+        convHistoryRef.current = [];
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        addJulesMsg(lockedMsg);
+        speak(lockedMsg);
+        return;
+      }
+
+      // ── 4. Session memory — last 3 completed sessions with summaries
+      const { data: recentSessions } = await supabase
+        .from('conversation_sessions')
+        .select('session_summary, session_date, time_slot')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .not('session_summary', 'is', null)
+        .order('session_date', { ascending: false })
+        .limit(3);
+
+      if (cancelled) return;
+
+      sessionRef.current.sessionContext = recentSessions
+        ?.map((s: { session_date: string; time_slot: string; session_summary: string }) =>
+          `[${s.session_date} ${s.time_slot}]: ${s.session_summary}`)
+        .join('\n') ?? '';
+
+      // ── 5. Check for gap (1-6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
         .select('session_date')

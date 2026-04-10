@@ -336,14 +336,22 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   // ── Step 6 ───────────────────────────────────────────────────────────────
   const handleStep6 = async () => {
     setLoading(true);
+    const updates: Record<string, unknown> = {
+      checkin_times: {
+        morning:   { hour: 8,  label: 'Morning' },
+        afternoon: { hour: 13, label: 'Afternoon' },
+        night:     { hour: 20, label: 'Night' },
+      },
+    };
     if (gender === 'female' && cycleStartDate) {
-      const { error: cycleError } = await supabase
-        .from('profiles')
-        .update({ cycle_start_date: cycleStartDate })
-        .eq('id', userIdRef.current);
-      if (cycleError) {
-        console.error('[RegisterScreen] cycle_start_date update error:', cycleError.message);
-      }
+      updates.cycle_start_date = cycleStartDate;
+    }
+    const { error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userIdRef.current);
+    if (error) {
+      console.error('[RegisterScreen] step6 update error:', error.message);
     }
     setLoading(false);
     onComplete();

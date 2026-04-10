@@ -44,6 +44,13 @@ export interface Profile {
   last_period_date: string | null;
   cycle_length: number | null;
 
+  // Check-in schedule
+  checkin_times: {
+    morning: { hour: number; label: string };
+    afternoon: { hour: number; label: string };
+    night: { hour: number; label: string };
+  } | null;
+
   // System
   pattern_summary: string | null;
   pattern_updated_at: string | null;
@@ -80,7 +87,7 @@ export interface ConversationSession {
   session_duration_seconds: number | null;
   manual_entry: boolean;
   session_summary: string | null;
-  factor_fisico: number | null;
+  factor_energia: number | null;
   factor_cognitivo: number | null;
   factor_estres: number | null;
   factor_ansiedad: number | null;

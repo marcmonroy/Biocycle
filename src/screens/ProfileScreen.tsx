@@ -112,6 +112,12 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
   // Sexual partner
   const [sexualPartner, setSexualPartner] = useState<boolean | null>(profile.has_sexual_partner ?? null);
 
+  // Check-in times
+  const defaultTimes = profile.checkin_times ?? { morning: { hour: 8, label: 'Morning' }, afternoon: { hour: 13, label: 'Afternoon' }, night: { hour: 20, label: 'Night' } };
+  const [checkinMorning, setCheckinMorning]     = useState(defaultTimes.morning.hour);
+  const [checkinAfternoon, setCheckinAfternoon] = useState(defaultTimes.afternoon.hour);
+  const [checkinNight, setCheckinNight]         = useState(defaultTimes.night.hour);
+
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
   const isES = idioma === 'ES';
@@ -176,6 +182,11 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       current_medications: currentMeds.length ? currentMeds : null,
       family_history:     familyHistory.length ? familyHistory : null,
       has_sexual_partner: sexualPartner,
+      checkin_times: {
+        morning:   { hour: checkinMorning,   label: 'Morning' },
+        afternoon: { hour: checkinAfternoon, label: 'Afternoon' },
+        night:     { hour: checkinNight,     label: 'Night' },
+      },
     };
 
     if (isFemale) {
@@ -564,6 +575,33 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
             ))}
           </div>
         </div>
+      </Section>
+
+      {/* ── Section 7: Check-in times ───────────────────────────────────────── */}
+      <Section label={L('Check-in Times', 'Horarios de Check-in')}>
+        {[
+          { label: L('Morning', 'Mañana'),   val: checkinMorning,   set: setCheckinMorning },
+          { label: L('Afternoon', 'Tarde'),  val: checkinAfternoon, set: setCheckinAfternoon },
+          { label: L('Night', 'Noche'),      val: checkinNight,     set: setCheckinNight },
+        ].map(({ label, val, set }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <FieldLabel>{label}</FieldLabel>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={val}
+                onChange={e => set(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                style={{ ...inputStyle, width: 64, textAlign: 'center', padding: '8px 6px' }}
+              />
+              <span style={{ color: '#4A5568', fontSize: 13 }}>{L('h', 'h')}</span>
+            </div>
+          </div>
+        ))}
+        <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
+          {L('Hour in 24h format. Used for WhatsApp session reminders.', 'Hora en formato 24h. Usado para recordatorios de sesión por WhatsApp.')}
+        </p>
       </Section>
 
       {/* ── Save button ─────────────────────────────────────────────────────── */}

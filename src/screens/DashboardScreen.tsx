@@ -70,32 +70,16 @@ function DataQualityArc({ score }: { score: number }) {
   );
 }
 
-function TierBadge({ days }: { days: number }) {
-  let label: string;
-  let color: string;
-  let bg: string;
+function getTier(streak: number, quality: number, foundingTrader: boolean): { label: string; color: string; bg: string } {
+  if (foundingTrader)                           return { label: 'FOUNDING TRADER', color: '#FFD93D', bg: 'rgba(255,217,61,0.15)' };
+  if (streak >= 180 && quality >= 90)           return { label: 'ELITE',           color: '#7B61FF', bg: 'rgba(123,97,255,0.15)' };
+  if (streak >= 90  && quality >= 80)           return { label: 'PREMIUM',         color: '#00C896', bg: 'rgba(0,200,150,0.1)'   };
+  if (streak >= 30  && quality >= 60)           return { label: 'STANDARD',        color: '#FFD93D', bg: 'rgba(255,217,61,0.1)'  };
+  return                                               { label: 'NEW',             color: '#4A5568', bg: 'rgba(74,85,104,0.15)' };
+}
 
-  if (days < 7) {
-    label = 'SEED';
-    color = '#4A5568';
-    bg = 'rgba(74,85,104,0.15)';
-  } else if (days < 30) {
-    label = 'SPROUT';
-    color = '#00C896';
-    bg = 'rgba(0,200,150,0.1)';
-  } else if (days < 90) {
-    label = 'TRADER';
-    color = '#FFD93D';
-    bg = 'rgba(255,217,61,0.1)';
-  } else if (days < 180) {
-    label = 'ANALYST';
-    color = '#7B61FF';
-    bg = 'rgba(123,97,255,0.1)';
-  } else {
-    label = 'FOUNDING TRADER';
-    color = '#FFD93D';
-    bg = 'rgba(255,217,61,0.15)';
-  }
+function TierBadge({ streak, quality, foundingTrader }: { streak: number; quality: number; foundingTrader: boolean }) {
+  const { label, color, bg } = getTier(streak, quality, foundingTrader);
 
   return (
     <div style={{
@@ -152,11 +136,12 @@ function StreakBar({ streak, idioma }: { streak: number; idioma: 'EN' | 'ES' }) 
 export function DashboardScreen({ profile, onStartCoach }: Props) {
   const [streak, setStreak] = useState(0);
   const [qualityScore, setQualityScore] = useState(0);
+  const [portfolioValue, setPortfolioValue] = useState(1.0);
+  const [foundingTrader, setFoundingTrader] = useState(false);
   const hasAnimated = useRef(false);
 
+  const animatedValue = useCountUp(portfolioValue, 1200);
   const daysOfData = getDaysOfData(profile);
-  const portfolioValue = Math.max(1.0, daysOfData * 0.15);
-  const animatedValue = useCountUp(hasAnimated.current ? portfolioValue : portfolioValue, 1200);
 
   const phase = getCurrentPhase(profile);
   const card = getCardForUser(profile);
@@ -168,44 +153,87 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
 
   useEffect(() => {
     async function loadStats() {
-      const { data, error } = await supabase
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const dims = ['factor_energia','factor_cognitivo','factor_estres','factor_ansiedad',
+        'factor_sueno','factor_cafeina','factor_emocional','factor_social','factor_sexual',
+        'factor_hidratacion','day_rating','day_memory','factor_alcohol'];
+
+      // Fetch last 90 sessions for streak + last 30 for quality
+      const { data: allSessions } = await supabase
         .from('conversation_sessions')
-        .select('session_date, session_complete, integrity_score')
+        .select(['session_date', ...dims].join(','))
         .eq('user_id', profile.id)
+        .eq('session_complete', true)
         .order('session_date', { ascending: false })
         .limit(90);
 
-      if (error || !data) return;
+      if (!allSessions) return;
 
-      // Calculate streak
+      // ── Streak: consecutive calendar days with ≥1 completed session
+      const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
+      const todayStr = new Date().toISOString().split('T')[0];
       let currentStreak = 0;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const seenDates = new Set(data.map(r => r.session_date));
-
-      for (let i = 0; i < 365; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split('T')[0];
-        if (seenDates.has(key)) {
+      let checkDate = todayStr;
+      for (const date of uniqueDates) {
+        if (date === checkDate) {
           currentStreak++;
-        } else if (i > 0) {
+          const prev = new Date(checkDate);
+          prev.setDate(prev.getDate() - 1);
+          checkDate = prev.toISOString().split('T')[0];
+        } else {
           break;
         }
       }
       setStreak(currentStreak);
 
-      // Calculate quality score based on complete sessions and integrity
-      const complete = data.filter(r => r.session_complete);
-      const avgIntegrity = complete.length > 0
-        ? complete.reduce((sum, r) => sum + (r.integrity_score ?? 70), 0) / complete.length
-        : 0;
-      const completionRate = data.length > 0 ? (complete.length / data.length) * 100 : 0;
-      const quality = Math.round((avgIntegrity * 0.6) + (completionRate * 0.4));
-      setQualityScore(Math.min(100, quality));
+      // ── Data quality (0–100)
+      const last30 = allSessions.filter((s: any) =>
+        s.session_date >= thirtyDaysAgo.toISOString().split('T')[0]
+      );
+      let quality = 0;
+      if (last30.length > 0) {
+        const depositFreq = Math.min(40, (last30.length / 30) * 40);
+        const dates30 = [...new Set(last30.map((s: any) => s.session_date as string))].sort();
+        let hasGap = false;
+        for (let i = 1; i < dates30.length; i++) {
+          const diff = (Date.parse(dates30[i]) - Date.parse(dates30[i - 1])) / 86_400_000;
+          if (diff > 2) { hasGap = true; break; }
+        }
+        const consistency = hasGap ? 15 : 30;
+        const totalFields = last30.length * dims.length;
+        const filledFields = last30.reduce((acc: number, s: any) =>
+          acc + dims.filter(d => s[d] !== null && s[d] !== undefined).length, 0);
+        const completeness = (filledFields / totalFields) * 20;
+        const depth = Math.min(10, (daysOfData / 90) * 10);
+        quality = Math.min(100, Math.round(depositFreq + consistency + completeness + depth));
+      }
+      setQualityScore(quality);
+
+      // ── Founding trader flag
+      const { data: userState } = await supabase
+        .from('user_state')
+        .select('founding_trader')
+        .eq('user_id', profile.id)
+        .maybeSingle();
+      const isFoundingTrader = userState?.founding_trader === true;
+      setFoundingTrader(isFoundingTrader);
+
+      // ── Portfolio value — full spec formula
+      let value = daysOfData * 0.15;
+      value *= (quality / 100) || 0.01;
+      if (profile.height_cm && profile.weight_kg && profile.exercise_frequency) value += 5;
+      if (profile.known_conditions?.length && profile.current_medications?.length) value += 8;
+      if (profile.blood_type) value += 3;
+      if (profile.fecha_nacimiento) {
+        const age = new Date().getFullYear() - new Date(profile.fecha_nacimiento).getFullYear();
+        if (age >= 40) value *= 1.3;
+      }
+      if (profile.wearable_connected) value += 10;
+      setPortfolioValue(Math.max(1.0, value));
     }
     loadStats();
-  }, [profile.id]);
+  }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nombre = profile.nombre ?? (idioma === 'ES' ? 'Trader' : 'Trader');
   const greeting = idioma === 'ES'
@@ -253,7 +281,7 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
             </span>
           </div>
         </div>
-        <TierBadge days={daysOfData} />
+        <TierBadge streak={streak} quality={qualityScore} foundingTrader={foundingTrader} />
       </div>
 
       {/* Portfolio Hero */}
@@ -295,7 +323,7 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
             fontSize: 11,
             margin: '4px 0 0',
           }}>
-            {daysOfData} {idioma === 'ES' ? 'días de datos' : 'days of data'} · $0.15/day
+            {daysOfData} {idioma === 'ES' ? 'días de datos' : 'days of data'} · {idioma === 'ES' ? `Calidad: ${qualityScore}%` : `Quality: ${qualityScore}%`}
           </p>
 
           {/* Stats row */}
