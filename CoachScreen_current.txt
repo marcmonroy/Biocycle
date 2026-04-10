@@ -8,8 +8,6 @@ import type { Profile } from '../lib/supabase';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { setDebug } from '../components/DebugOverlay';
-import { BottomNav } from '../components/BottomNav';
-import type { Tab } from '../components/BottomNav';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -41,7 +39,7 @@ interface Message {
 }
 
 interface SessionScores {
-  factor_energia: number | null;
+  factor_fisico: number | null;
   factor_cognitivo: number | null;
   factor_estres: number | null;
   factor_ansiedad: number | null;
@@ -124,7 +122,7 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
       case 'HYDRATION_Q':    return '¿Cómo está tu hidratación hoy — bien, regular o mal?';
       case 'DAY_RATING_Q':   return '¿Cómo calificarías el día de hoy en general — del 1 al 10?';
       case 'MEMORABLE_Q':    return '¿Cuál fue un momento del día que te llamó la atención?';
-      case 'ALCOHOL_Q':      return 'Última pregunta — ¿tomaste algo de alcohol hoy?';
+      case 'ALCOHOL_Q':      return '¿Tomaste alcohol hoy — sí o no?';
       default: return '';
     }
   }
@@ -143,7 +141,7 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
     case 'HYDRATION_Q':    return 'How is your hydration today — good, average, or poor?';
     case 'DAY_RATING_Q':   return 'How would you rate today overall — 1 to 10?';
     case 'MEMORABLE_Q':    return "What's one moment from today that stood out?";
-    case 'ALCOHOL_Q':      return 'Last one — any alcohol today?';
+    case 'ALCOHOL_Q':      return 'Did you have any alcohol today — yes or no?';
     default: return '';
   }
 }
@@ -238,7 +236,7 @@ function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: bool
 function applyScore(state: ConversationState, raw: string, scores: SessionScores): void {
   const n = parseInt(raw, 10);
   switch (state) {
-    case 'ENERGY_Q':    scores.factor_energia   = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
+    case 'ENERGY_Q':    scores.factor_fisico    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'COGNITIVE_Q': scores.factor_cognitivo = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'STRESS_Q':    scores.factor_estres    = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
     case 'ANXIETY_Q':   scores.factor_ansiedad  = isNaN(n) ? null : Math.min(10, Math.max(1, n)); break;
@@ -364,10 +362,9 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
 interface Props {
   profile: Profile;
   onBack: () => void;
-  onNavigate?: (tab: Tab) => void;
 }
 
-export function CoachScreen({ profile, onBack, onNavigate }: Props) {
+export function CoachScreen({ profile, onBack }: Props) {
   // Stable constants — derived from props once, never stale
   const idioma       = profile.idioma ?? 'EN';
   const isES         = idioma === 'ES';
@@ -376,7 +373,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
     : 'CRITICAL: You have already introduced yourself. NEVER say your name. NEVER say "I\'m Jules". NEVER greet. Start every response directly with the content.\n\n';
   const picardiaMode = profile.picardia_mode ?? false;
-
+  const daysOfData   = profile.days_of_data ?? 0;
   const name         = profile.nombre ?? '';
 
   // ── React state (display only) ───────────────────────────────────────────
@@ -390,7 +387,6 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
   const isProcessingRef = useRef(false);
   const isMutedRef      = useRef(false);
-  const liveDaysRef     = useRef(profile.days_of_data ?? 0);
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
   const convHistoryRef  = useRef<Message[]>([]);
@@ -403,11 +399,10 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     state:              'OPENING' as ConversationState,
     isGap:              false,
     onboardingComplete: !!(profile.onboarding_complete),
-    sessionContext:     '',
   });
 
   const scoresRef = useRef<SessionScores>({
-    factor_energia: null, factor_cognitivo: null, factor_estres: null,
+    factor_fisico: null, factor_cognitivo: null, factor_estres: null,
     factor_ansiedad: null, factor_sueno: null, factor_cafeina: null,
     factor_emocional: null, factor_social: null, factor_sexual: null,
     factor_hidratacion: null, factor_alcohol: null,
@@ -475,12 +470,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   async function callAckAPI(qState: ConversationState, userValue: string): Promise<string> {
     const dimLabel = getDimLabel(qState, isES);
-    const ctx = sessionRef.current.sessionContext
-      ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
-      : '';
     const sys = isES
-      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.${ctx}`
-      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.${ctx}`;
+      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.`
+      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.`;
     const text = await callCoachAPI(convHistoryRef.current, sys, 60);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
@@ -501,24 +493,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         user_id: profile.id,
         session_date: new Date().toISOString().split('T')[0],
         time_slot: dbSlot(),
-        phase_at_session: `day_${liveDaysRef.current}`,
+        phase_at_session: `day_${daysOfData}`,
         personality_mode: picardiaMode ? 'sienna' : 'jules',
         session_complete: false,
         manual_entry: false,
         interrupted_at_state: state,
-        factor_energia:     scoresRef.current.factor_energia     ?? null,
-        factor_cognitivo:   scoresRef.current.factor_cognitivo   ?? null,
-        factor_estres:      scoresRef.current.factor_estres      ?? null,
-        factor_ansiedad:    scoresRef.current.factor_ansiedad    ?? null,
-        factor_sueno:       scoresRef.current.factor_sueno       ?? null,
-        factor_cafeina:     scoresRef.current.factor_cafeina     ?? null,
-        factor_emocional:   scoresRef.current.factor_emocional   ?? null,
-        factor_social:      scoresRef.current.factor_social      ?? null,
-        factor_sexual:      scoresRef.current.factor_sexual      ?? null,
-        factor_hidratacion: scoresRef.current.factor_hidratacion ?? null,
-        factor_alcohol:     scoresRef.current.factor_alcohol     ?? null,
-        day_rating:         scoresRef.current.day_rating         ?? null,
-        day_memory:         scoresRef.current.day_memory         ?? null,
+        ...scoresRef.current,
       });
     } catch { /* non-blocking */ }
   }
@@ -533,7 +513,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         session_date:      today,
         session_complete:  true,
         time_slot:         dbSlot(),
-        factor_energia:    scoresRef.current.factor_energia     ?? null,
+        factor_fisico:     scoresRef.current.factor_fisico     ?? null,
         factor_cognitivo:  scoresRef.current.factor_cognitivo  ?? null,
         factor_estres:     scoresRef.current.factor_estres     ?? null,
         factor_ansiedad:   scoresRef.current.factor_ansiedad   ?? null,
@@ -592,10 +572,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     sessionRef.current.state = state;
     setConvState(state);
     addJulesMsg(text);
-    speak(text, state === 'MEMORABLE_Q' ? () => {
-      // Auto-listen after Jules finishes speaking the memorable question
-      setTimeout(() => startListening(), 1500);
-    } : undefined);
+    speak(text); // user answers — no onEnd advance
   }
 
   function enterFirstDimension() {
@@ -659,9 +636,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
       addJulesMsg(ackText);
       speak(ackText, () => {
-        setBioState('thinking'); // keep input area hidden during pause
         setTimeout(() => {
-          setBioState('idle');
           if (nextQ === 'SESSION_COMPLETE') {
             enterSessionComplete();
           } else {
@@ -682,12 +657,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     try {
       addUserMsg(userText);
       setBioState('thinking');
-      const ctx = sessionRef.current.sessionContext
-        ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
-        : '';
       const sys = isES
-        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC.\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nResponde en 2-3 oraciones máximo. Sé cálida y directa.${ctx}`
-        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE.\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns across cycles, life events colored by biological state, dreams and sleep quality, stress sources and physical response.\nSteering technique: if user goes off-topic, acknowledge then bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment, medical advice.\nRespond in 2-3 sentences maximum. Be warm and direct.${ctx}`;
+        ? `${noIntro}Eres Jules, una compañera de IA cálida de BioCycle. Responde en español. Sé cálida, breve (2–3 oraciones máximo) y directa.`
+        : `${noIntro}You are Jules, a warm AI companion inside BioCycle. Respond in English. Be warm, brief (2–3 sentences max), and direct.`;
       const text = await callCoachAPI(convHistoryRef.current, sys, 150);
       setBioState('idle');
       if (!text) return;
@@ -861,61 +833,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       if (cancelled) return;
 
       const liveDays = freshProfile?.days_of_data ?? 0;
-      liveDaysRef.current = liveDays;
       const onboardingDone = freshProfile?.onboarding_complete === true;
 
       sessionRef.current.onboardingComplete = onboardingDone;
 
-      // ── 3. Slot locking — if this slot already completed today, show locked
+      // ── 3. Check for gap (1-6 days since last completed session)
       const today = new Date().toISOString().split('T')[0];
-      const { data: completedToday } = await supabase
-        .from('conversation_sessions')
-        .select('time_slot')
-        .eq('user_id', profile.id)
-        .eq('session_complete', true)
-        .eq('session_date', today);
-
-      if (cancelled) return;
-
-      const completedSlots = completedToday?.map((s: { time_slot: string }) => s.time_slot) ?? [];
-      const currentSlot = sessionRef.current.slot;
-
-      if (completedSlots.includes(currentSlot)) {
-        const nextTime = currentSlot === 'morning'
-          ? (isES ? 'esta tarde' : 'this afternoon')
-          : currentSlot === 'afternoon'
-          ? (isES ? 'esta noche' : 'tonight')
-          : (isES ? 'mañana por la mañana' : 'tomorrow morning');
-        const lockedMsg = isES
-          ? `Ya completaste tu sesión de esta ${getSlotLabel(currentSlot, true)}, ${name}. Nos vemos ${nextTime}.`
-          : `You already completed your ${getSlotLabel(currentSlot, false)} check-in, ${name}. See you ${nextTime}.`;
-        setMessages([]);
-        convHistoryRef.current = [];
-        sessionRef.current.state = 'SESSION_COMPLETE';
-        setConvState('SESSION_COMPLETE');
-        addJulesMsg(lockedMsg);
-        speak(lockedMsg);
-        return;
-      }
-
-      // ── 4. Session memory — last 3 completed sessions with summaries
-      const { data: recentSessions } = await supabase
-        .from('conversation_sessions')
-        .select('session_summary, session_date, time_slot')
-        .eq('user_id', profile.id)
-        .eq('session_complete', true)
-        .not('session_summary', 'is', null)
-        .order('session_date', { ascending: false })
-        .limit(3);
-
-      if (cancelled) return;
-
-      sessionRef.current.sessionContext = recentSessions
-        ?.map((s: { session_date: string; time_slot: string; session_summary: string }) =>
-          `[${s.session_date} ${s.time_slot}]: ${s.session_summary}`)
-        .join('\n') ?? '';
-
-      // ── 5. Check for gap (1-6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
         .select('session_date')
@@ -1011,7 +934,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   const choiceOpts = getChoiceOptions(convState, isES);
   const isBusy     = bioState === 'speaking' || bioState === 'thinking';
 
-  const phase      = liveDaysRef.current < 30 ? 'LEARNING' : liveDaysRef.current < 90 ? 'CALIBRATION' : 'COMPANION';
+  const phase      = daysOfData < 30 ? 'LEARNING' : daysOfData < 90 ? 'CALIBRATION' : 'COMPANION';
   const phaseColor = { LEARNING: '#FFD93D', CALIBRATION: '#7B61FF', COMPANION: '#00C896' }[phase];
   const phaseLabel = isES
     ? { LEARNING: '● APRENDIENDO', CALIBRATION: '● CALIBRANDO', COMPANION: '● COMPAÑERO' }[phase]
@@ -1108,13 +1031,13 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA — only renders when there is actual input needed */}
-      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || convState === 'ADHOC') && !isBusy && (
+      {/* INPUT AREA — only one type at a time, never combined */}
+      {convState !== 'SESSION_COMPLETE' && !isBusy && (
         <div style={{
           flexShrink: 0, background: '#0A0A1A',
           borderTop: '1px solid rgba(255,255,255,0.07)',
           padding: '12px 16px',
-          paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom) + 76px)',
         }}>
 
           {/* NUMBER PAD — only for numeric Q states */}
@@ -1154,8 +1077,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
             </div>
           )}
 
-          {/* FALLBACK mic + text — ONLY for ADHOC free conversation */}
-          {convState === 'ADHOC' && (
+          {/* FALLBACK — ACK / ADHOC / transition states: mic + text */}
+          {inputUI === 'none' && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <button
                 onClick={() => isListening ? stopListening() : startListening()}
@@ -1183,7 +1106,10 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
               />
               <button
                 onClick={handleSend}
-                style={{ background: '#FF6B6B', border: 'none', borderRadius: 8, padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer' }}
+                style={{
+                  background: '#FF6B6B', border: 'none', borderRadius: 8,
+                  padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer',
+                }}
               >
                 ↑
               </button>
@@ -1192,12 +1118,6 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
         </div>
       )}
-
-      <BottomNav active="coach" onNavigate={(tab) => {
-        cancelSpeech();
-        if (onNavigate) onNavigate(tab);
-        else onBack();
-      }} />
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getLang } from '../lib/lang';
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface Props {
   onComplete: () => void;
@@ -58,14 +58,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [codeExpired, setCodeExpired] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // Step 6
-  const [cycleStartDate, setCycleStartDate] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const isES = language === 'ES';
-  const progress = (step / 6) * 100;
+  const progress = (step / 5) * 100;
 
   // ── Auto-send code when resuming at step 5 after login ────────────────────
   const autoSentRef = useRef(false);
@@ -307,8 +304,16 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       console.error('[RegisterScreen] user_state upsert error (step 5):', stateError5.message);
     }
 
+    await supabase.from('profiles').update({
+      checkin_times: {
+        morning:   { hour: 8,  label: '8am' },
+        afternoon: { hour: 13, label: '1pm' },
+        night:     { hour: 20, label: '8pm' },
+      },
+    }).eq('id', userIdRef.current);
+
     setLoading(false);
-    setStep(6);
+    onComplete();
   };
 
   const handleResend = async () => {
@@ -332,30 +337,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }
 
     startResendCooldown();
-  };
-
-  // ── Step 6 ───────────────────────────────────────────────────────────────
-  const handleStep6 = async () => {
-    setLoading(true);
-    const updates: Record<string, unknown> = {
-      checkin_times: {
-        morning:   { hour: 8,  label: 'Morning' },
-        afternoon: { hour: 13, label: 'Afternoon' },
-        night:     { hour: 20, label: 'Night' },
-      },
-    };
-    if (gender === 'female' && cycleStartDate) {
-      updates.cycle_start_date = cycleStartDate;
-    }
-    const { error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userIdRef.current);
-    if (error) {
-      console.error('[RegisterScreen] step6 update error:', error.message);
-    }
-    setLoading(false);
-    onComplete();
   };
 
   // ── Under-age hard block ──────────────────────────────────────────────────
@@ -391,7 +372,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           }} />
         </div>
         <p style={{ color: '#4A5568', fontSize: 12, margin: '8px 0 0', letterSpacing: '0.08em' }}>
-          {isES ? `Paso ${step} de 6` : `Step ${step} of 6`}
+          {isES ? `Paso ${step} de 5` : `Step ${step} of 5`}
         </p>
       </div>
 
@@ -600,36 +581,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
                 : (isES ? 'Reenviar código' : 'Resend code')}
             </button>
           )}
-        </>)}
-
-        {/* STEP 6 */}
-        {step === 6 && (<>
-          <h2 style={headingStyle}>
-            {isES ? 'Tu ciclo' : 'Your cycle'}
-          </h2>
-          {gender === 'female' ? (<>
-            <p style={bodyStyle}>
-              {isES
-                ? '¿Cuándo comenzó tu último período?'
-                : 'When did your last period start?'}
-            </p>
-            <input style={inputStyle} type="date" value={cycleStartDate}
-              onChange={e => setCycleStartDate(e.target.value)}
-              max={new Date().toISOString().split('T')[0]} />
-          </>) : (
-            <p style={bodyStyle}>
-              {isES
-                ? 'Jules rastreará tu ritmo hormonal diario automáticamente.'
-                : 'Jules will track your daily hormonal rhythm automatically.'}
-            </p>
-          )}
-          <button
-            style={btnStyle}
-            onClick={handleStep6}
-            disabled={loading || (gender === 'female' && !cycleStartDate)}
-          >
-            {loading ? '...' : (isES ? 'Conoce a Jules →' : 'Meet Jules →')}
-          </button>
         </>)}
 
       </div>

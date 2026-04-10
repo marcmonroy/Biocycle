@@ -89,6 +89,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
   const [saved, setSaved] = useState(false);
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
@@ -239,6 +241,31 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
   async function handleLogout() {
     await supabase.auth.signOut();
     onLogout();
+  }
+
+  async function handleDeleteAccount() {
+    setDeleting(true);
+    try {
+      const uid = profile.id;
+      await supabase.from('whatsapp_verification_codes').delete().eq('user_id', uid);
+      await supabase.from('relationship_interactions').delete().eq('user_id', uid);
+      await supabase.from('relationships').delete().eq('user_id', uid);
+      await supabase.from('safety_events').delete().eq('user_id', uid);
+      await supabase.from('validation_scores').delete().eq('user_id', uid);
+      await supabase.from('conversation_sessions').delete().eq('user_id', uid);
+      await supabase.from('user_state').delete().eq('user_id', uid);
+      await supabase.from('profiles').delete().eq('id', uid);
+      await fetch('/.netlify/functions/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid }),
+      });
+      await supabase.auth.signOut();
+      onLogout();
+    } catch {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   }
 
   return (
@@ -693,8 +720,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         )}
       </div>
 
-      {/* ── Logout ──────────────────────────────────────────────────────────── */}
-      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px 24px' }}>
+      {/* ── Logout + Delete ─────────────────────────────────────────────────── */}
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button
           onClick={() => setShowLogoutConfirm(true)}
           style={{
@@ -710,6 +737,22 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           }}
         >
           {L('Sign out', 'Cerrar sesión')}
+        </button>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          style={{
+            width: '100%',
+            background: 'none',
+            border: '1px solid rgba(255,107,107,0.2)',
+            borderRadius: 14,
+            padding: '14px',
+            color: 'rgba(255,107,107,0.5)',
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}
+        >
+          {L('Delete account', 'Eliminar cuenta')}
         </button>
       </div>
 
@@ -745,6 +788,26 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
             </ModalBtn>
             <ModalBtn onClick={handleLogout} variant="ghost">
               {L('Sign out', 'Cerrar sesión')}
+            </ModalBtn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Delete account confirm modal ─────────────────────────────────────── */}
+      {showDeleteConfirm && (
+        <Modal>
+          <h3 style={modalHeadingStyle}>{L('Delete account?', '¿Eliminar cuenta?')}</h3>
+          <p style={modalBodyStyle}>
+            {isES
+              ? `Eliminar tu cuenta borra permanentemente todos tus datos biológicos. Tu portafolio — actualmente valorado en $${Math.max(1.0, daysOfData * 0.15).toFixed(2)} — se perderá para siempre. Esto no se puede deshacer.`
+              : `Deleting your account permanently removes all your biological data. Your portfolio — currently worth $${Math.max(1.0, daysOfData * 0.15).toFixed(2)} — will be gone forever. This cannot be undone.`}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <ModalBtn onClick={() => setShowDeleteConfirm(false)} variant="coral">
+              {L('Keep my account', 'Conservar mi cuenta')}
+            </ModalBtn>
+            <ModalBtn onClick={handleDeleteAccount} variant="ghost">
+              {deleting ? '...' : L('Delete everything', 'Eliminar todo')}
             </ModalBtn>
           </div>
         </Modal>
