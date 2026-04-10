@@ -7,7 +7,7 @@ interface Props {
   profile: Profile;
   onProfileUpdate: (updated: Profile) => void;
   onLogout: () => void;
-  onProfileSaved?: () => void;
+  onComplete?: () => void;
 }
 
 // ── Check-in time helpers ───────────────────────────────────────────────────
@@ -84,14 +84,11 @@ function toggleMulti(prev: string[], val: string): string[] {
   return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
 }
 
-export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSaved }: Props) {
+export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showStartCoach, setShowStartCoach] = useState(false);
-  // Capture at mount whether this is a first-time setup (no checkin_times yet)
-  const [isFirstTimeSave] = useState(!profile.checkin_times);
 
   // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
@@ -236,7 +233,6 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSav
       onProfileUpdate(data as Profile);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-      if (isFirstTimeSave && !showStartCoach) setShowStartCoach(true);
     }
   }
 
@@ -318,6 +314,51 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSav
         />
         <ReadRow label={L('Language', 'Idioma')} value={profile.idioma} />
         <ReadRow label="WhatsApp" value={profile.whatsapp_phone ?? '—'} />
+      </Section>
+
+      {/* ── Check-in times (first and most important for new users) ────────── */}
+      <Section label={L('Check-in Times', 'Horarios de Check-in')}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Morning check-in', 'Check-in Mañana')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.morning.map(h => (
+                <button key={h} onClick={() => setCheckinMorning(h)} style={slotPillStyle(checkinMorning === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Afternoon check-in', 'Check-in Tarde')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.afternoon.map(h => (
+                <button key={h} onClick={() => setCheckinAfternoon(h)} style={slotPillStyle(checkinAfternoon === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Night check-in', 'Check-in Noche')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.night.map(h => (
+                <button key={h} onClick={() => setCheckinNight(h)} style={slotPillStyle(checkinNight === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
+            {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
+          </p>
+        </div>
       </Section>
 
       {/* ── Section 2: Body metrics ─────────────────────────────────────────── */}
@@ -608,51 +649,6 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSav
         </div>
       </Section>
 
-      {/* ── Section 7: Check-in times ───────────────────────────────────────── */}
-      <Section label={L('Check-in Times', 'Horarios de Check-in')}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Morning check-in', 'Check-in Mañana')}
-            </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.morning.map(h => (
-                <button key={h} onClick={() => setCheckinMorning(h)} style={slotPillStyle(checkinMorning === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Afternoon check-in', 'Check-in Tarde')}
-            </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.afternoon.map(h => (
-                <button key={h} onClick={() => setCheckinAfternoon(h)} style={slotPillStyle(checkinAfternoon === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Night check-in', 'Check-in Noche')}
-            </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.night.map(h => (
-                <button key={h} onClick={() => setCheckinNight(h)} style={slotPillStyle(checkinNight === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
-            {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
-          </p>
-        </div>
-      </Section>
-
       {/* ── Save button ─────────────────────────────────────────────────────── */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '8px 24px 16px' }}>
         <button
@@ -675,24 +671,24 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSav
           {saved ? L('Saved ✓', 'Guardado ✓') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
         </button>
 
-        {showStartCoach && onProfileSaved && (
+        {profile.days_of_data === 0 && onComplete && (
           <button
-            onClick={onProfileSaved}
+            onClick={onComplete}
             style={{
               width: '100%',
               marginTop: 12,
-              background: 'rgba(0,200,150,0.12)',
-              border: '1px solid rgba(0,200,150,0.35)',
+              background: '#FF6B6B',
+              border: 'none',
               borderRadius: 14,
-              padding: '16px',
-              color: '#00C896',
+              padding: '18px',
+              color: 'white',
               fontSize: '1rem',
               fontWeight: 600,
               cursor: 'pointer',
               fontFamily: 'Inter, system-ui, sans-serif',
             }}
           >
-            {L('Start talking to Jules →', 'Comenzar con Jules →')}
+            {idioma === 'ES' ? 'Conoce a Jules →' : 'Meet Jules →'}
           </button>
         )}
       </div>

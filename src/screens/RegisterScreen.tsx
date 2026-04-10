@@ -36,6 +36,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   // Step 1
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [existingAccount, setExistingAccount] = useState(false);
 
   // Step 2
@@ -402,9 +403,34 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           <input style={inputStyle} type="email" placeholder="Email address"
             value={email} onChange={e => { setEmail(e.target.value); setError(''); setExistingAccount(false); }}
             autoComplete="email" />
-          <input style={inputStyle} type="password" placeholder="Password (min 8 chars)"
-            value={password} onChange={e => { setPassword(e.target.value); setError(''); }}
-            autoComplete="new-password" />
+          <div style={{ position: 'relative' }}>
+            <input
+              style={{ ...inputStyle, paddingRight: 48 }}
+              type={showPassword ? 'text' : 'password'}
+              placeholder="Password (min 8 chars)"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(p => !p)}
+              style={{
+                position: 'absolute',
+                right: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                color: '#4A5568',
+                cursor: 'pointer',
+                fontSize: 16,
+                padding: 0,
+              }}
+            >
+              {showPassword ? '🙈' : '👁'}
+            </button>
+          </div>
           {error && (
             <p style={errorStyle}>
               {error}

@@ -113,20 +113,10 @@ export default function App() {
 
   async function handleRegisterComplete() {
     if (session) {
-      // Peek at profile to check if checkin_times is set (first-time user)
-      const { data } = await supabase
-        .from('profiles')
-        .select('checkin_times')
-        .eq('id', session.user.id)
-        .maybeSingle();
-
       setAuthLoading(true);
       await loadProfile(session.user.id);
-
-      // First-time user: send to profile to complete setup
-      if (!data?.checkin_times) {
-        setScreen('profile');
-      }
+      // Route to profile for first-time setup regardless of what loadProfile set
+      setScreen('profile');
     } else {
       setScreen('profile');
     }
@@ -241,7 +231,7 @@ export default function App() {
           profile={profile}
           onProfileUpdate={handleProfileUpdate}
           onLogout={handleLogout}
-          onProfileSaved={() => setScreen('coach')}
+          onComplete={() => setScreen('coach')}
         />
       )}
 
