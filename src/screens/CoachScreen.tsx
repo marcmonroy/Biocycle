@@ -9,6 +9,7 @@ import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { setDebug } from '../components/DebugOverlay';
 import { BottomNav } from '../components/BottomNav';
+import type { Tab } from '../components/BottomNav';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -363,7 +364,7 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
 interface Props {
   profile: Profile;
   onBack: () => void;
-  onNavigate?: (tab: string) => void;
+  onNavigate?: (tab: Tab) => void;
 }
 
 export function CoachScreen({ profile, onBack, onNavigate }: Props) {

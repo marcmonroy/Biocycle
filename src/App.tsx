@@ -219,6 +219,7 @@ export default function App() {
         <CoachScreen
           profile={profile}
           onBack={() => setScreen('home')}
+          onNavigate={handleNavigate}
         />
       )}
       {screen === 'data' && (
