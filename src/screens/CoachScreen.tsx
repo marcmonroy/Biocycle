@@ -376,7 +376,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
     : 'CRITICAL: You have already introduced yourself. NEVER say your name. NEVER say "I\'m Jules". NEVER greet. Start every response directly with the content.\n\n';
   const picardiaMode = profile.picardia_mode ?? false;
-  const daysOfData   = profile.days_of_data ?? 0;
+
   const name         = profile.nombre ?? '';
 
   // ── React state (display only) ───────────────────────────────────────────
@@ -390,6 +390,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
   const isProcessingRef = useRef(false);
   const isMutedRef      = useRef(false);
+  const liveDaysRef     = useRef(profile.days_of_data ?? 0);
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
   const convHistoryRef  = useRef<Message[]>([]);
@@ -500,7 +501,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         user_id: profile.id,
         session_date: new Date().toISOString().split('T')[0],
         time_slot: dbSlot(),
-        phase_at_session: `day_${daysOfData}`,
+        phase_at_session: `day_${liveDaysRef.current}`,
         personality_mode: picardiaMode ? 'sienna' : 'jules',
         session_complete: false,
         manual_entry: false,
@@ -860,6 +861,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       if (cancelled) return;
 
       const liveDays = freshProfile?.days_of_data ?? 0;
+      liveDaysRef.current = liveDays;
       const onboardingDone = freshProfile?.onboarding_complete === true;
 
       sessionRef.current.onboardingComplete = onboardingDone;
@@ -1009,7 +1011,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   const choiceOpts = getChoiceOptions(convState, isES);
   const isBusy     = bioState === 'speaking' || bioState === 'thinking';
 
-  const phase      = daysOfData < 30 ? 'LEARNING' : daysOfData < 90 ? 'CALIBRATION' : 'COMPANION';
+  const phase      = liveDaysRef.current < 30 ? 'LEARNING' : liveDaysRef.current < 90 ? 'CALIBRATION' : 'COMPANION';
   const phaseColor = { LEARNING: '#FFD93D', CALIBRATION: '#7B61FF', COMPANION: '#00C896' }[phase];
   const phaseLabel = isES
     ? { LEARNING: '● APRENDIENDO', CALIBRATION: '● CALIBRANDO', COMPANION: '● COMPAÑERO' }[phase]
