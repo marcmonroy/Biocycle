@@ -10,6 +10,8 @@ import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { setDebug } from '../components/DebugOverlay';
 import { BottomNav } from '../components/BottomNav';
 import type { Tab } from '../components/BottomNav';
+import { getCurrentPhase } from '../lib/phaseEngine';
+import { RelationshipCategorySelector } from '../components/RelationshipCategorySelector';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,8 @@ type ConversationState =
   | 'DAY_RATING_Q' | 'DAY_RATING_ACK'
   | 'MEMORABLE_Q' | 'MEMORABLE_ACK'
   | 'ALCOHOL_Q' | 'ALCOHOL_ACK'
+  | 'RELATIONSHIP_NAME_Q' | 'RELATIONSHIP_CATEGORY'
+  | 'RELATIONSHIP_SCORE_Q' | 'RELATIONSHIP_SCORE_ACK'
   | 'SESSION_COMPLETE'
   | 'INTERRUPTED_RECOVERY'
   | 'ADHOC';
@@ -157,12 +161,13 @@ function getCompletionText(slot: SessionSlot, name: string, isES: boolean): stri
 
 // ── Input UI — driven by state, not text scanning ─────────────────────────
 
-type InputUI = 'numberpad' | 'choices' | 'text' | 'none';
+type InputUI = 'numberpad' | 'choices' | 'text' | 'relationship_category' | 'none';
 
 function getInputUI(state: ConversationState): InputUI {
   const NUMBERPAD_STATES = [
     'ENERGY_Q', 'COGNITIVE_Q', 'STRESS_Q', 'ANXIETY_Q',
-    'EMOTIONAL_Q', 'SOCIAL_Q', 'SEXUAL_Q', 'DAY_RATING_Q'
+    'EMOTIONAL_Q', 'SOCIAL_Q', 'SEXUAL_Q', 'DAY_RATING_Q',
+    'RELATIONSHIP_SCORE_Q',
   ];
   if (NUMBERPAD_STATES.includes(state)) {
     const result: InputUI = 'numberpad';
@@ -175,6 +180,8 @@ function getInputUI(state: ConversationState): InputUI {
     setDebug('inputUI', 'text');
     return 'text';
   }
+  if (state === 'RELATIONSHIP_NAME_Q') { setDebug('inputUI', 'text'); return 'text'; }
+  if (state === 'RELATIONSHIP_CATEGORY') { setDebug('inputUI', 'relationship_category'); return 'relationship_category'; }
   const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
   const result: InputUI = choices.includes(state) ? 'choices' : 'none';
   // ADHOC and all ACK/transition states → 'none' (shows mic + text fallback)
@@ -397,13 +404,19 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   // Single ref for all mutable session state
   const sessionRef = useRef({
-    id:                 crypto.randomUUID(),
-    startTime:          Date.now(),
-    slot:               getSessionSlot(),
-    state:              'OPENING' as ConversationState,
-    isGap:              false,
-    onboardingComplete: !!(profile.onboarding_complete),
-    sessionContext:     '',
+    id:                     crypto.randomUUID(),
+    startTime:              Date.now(),
+    slot:                   getSessionSlot(),
+    state:                  'OPENING' as ConversationState,
+    isGap:                  false,
+    onboardingComplete:     !!(profile.onboarding_complete),
+    sessionContext:         '',
+    // Session 3 — Relationship Circle
+    totalSessions:          0,
+    relationshipsCollected: 0,
+    collectedThisSession:   false,
+    pendingRelationshipName:'',
+    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean } | null,
   });
 
   const scoresRef = useRef<SessionScores>({
@@ -613,7 +626,102 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   // ── State machine: session complete ───────────────────────────────────────
 
+  // ── Session 3 — Relationship Circle ────────────────────────────────────────
+
   function enterSessionComplete() {
+    void maybeScoreRelationship();
+  }
+
+  async function maybeScoreRelationship() {
+    // Only score in morning or afternoon sessions
+    if (sessionRef.current.slot === 'night') {
+      _enterNameCollectionOrClose();
+      return;
+    }
+
+    const { data: topRelationships } = await supabase
+      .from('relationships')
+      .select('id, name, rank, intimacy')
+      .eq('user_id', profile.id)
+      .order('rank', { ascending: true })
+      .limit(2);
+
+    if (!topRelationships || topRelationships.length === 0) {
+      _enterNameCollectionOrClose();
+      return;
+    }
+
+    const rel = topRelationships[0] as { id: string; name: string; rank: number; intimacy: boolean };
+    sessionRef.current.scoringRelationship = rel;
+
+    const questionText = isES
+      ? `¿Cómo estuvo tu tiempo con ${rel.name} hoy? Del 1 al 10.`
+      : `How was your time with ${rel.name} today? 1 to 10.`;
+
+    sessionRef.current.state = 'RELATIONSHIP_SCORE_Q';
+    setConvState('RELATIONSHIP_SCORE_Q');
+    addJulesMsg(questionText);
+    speak(questionText);
+    // handleUserInput RELATIONSHIP_SCORE_Q case calls _enterNameCollectionOrClose()
+  }
+
+  function _enterNameCollectionOrClose() {
+    if (shouldCollectRelationship()) {
+      collectRelationshipName();
+    } else {
+      _doSessionComplete();
+    }
+  }
+
+  function shouldCollectRelationship(): boolean {
+    if (sessionRef.current.totalSessions < 2) return false;
+    if (sessionRef.current.relationshipsCollected >= 7) return false;
+    if (sessionRef.current.collectedThisSession) return false;
+    return true;
+  }
+
+  function collectRelationshipName() {
+    const questionText = isES
+      ? `Antes de cerrar — ¿con quién pasas más tiempo? Solo su nombre.`
+      : `Before we close — who do you spend the most time with? Just their first name.`;
+    sessionRef.current.state = 'RELATIONSHIP_NAME_Q';
+    setConvState('RELATIONSHIP_NAME_Q');
+    addJulesMsg(questionText);
+    speak(questionText);
+  }
+
+  async function handleRelationshipCategorySelect(category: string, intimacy: boolean) {
+    const personName = sessionRef.current.pendingRelationshipName;
+    const newRank = sessionRef.current.relationshipsCollected + 1;
+
+    void supabase.from('relationships').insert({
+      user_id: profile.id,
+      rank: newRank,
+      name: personName,
+      category,
+      intimacy,
+    });
+
+    sessionRef.current.relationshipsCollected = newRank;
+    sessionRef.current.collectedThisSession = true;
+    sessionRef.current.pendingRelationshipName = '';
+
+    addUserMsg(`${category}${intimacy ? ' ♥' : ''}`);
+
+    const thankMsg = isES
+      ? `Gracias. Eso me ayuda a entender mejor tu vida.`
+      : `Got it. That helps me understand your life better.`;
+    addJulesMsg(thankMsg);
+
+    sessionRef.current.state = 'SESSION_COMPLETE';
+    setConvState('SESSION_COMPLETE');
+
+    speak(thankMsg, () => {
+      _doSessionComplete();
+    });
+  }
+
+  function _doSessionComplete() {
     const text = getCompletionText(sessionRef.current.slot, name, isES);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
@@ -793,6 +901,45 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       case 'ALCOHOL_Q':
         await processAnswer(state, text);
         break;
+      case 'RELATIONSHIP_NAME_Q': {
+        const personName = text.trim();
+        if (!personName) break;
+        addUserMsg(personName);
+        sessionRef.current.pendingRelationshipName = personName;
+        sessionRef.current.state = 'RELATIONSHIP_CATEGORY';
+        setConvState('RELATIONSHIP_CATEGORY');
+        const ackMsg = isES
+          ? `${personName}. ¿Cuál es tu relación con ${personName}?`
+          : `${personName}. What's your relationship with ${personName}?`;
+        addJulesMsg(ackMsg);
+        speak(ackMsg);
+        break;
+      }
+
+      case 'RELATIONSHIP_SCORE_Q': {
+        const score = parseInt(text, 10);
+        if (isNaN(score) || score < 1 || score > 10) break;
+        addUserMsg(text);
+        const rel = sessionRef.current.scoringRelationship;
+        if (rel) {
+          void supabase.from('relationship_interactions').insert({
+            user_id: profile.id,
+            relationship_id: rel.id,
+            interaction_date: new Date().toISOString().split('T')[0],
+            connection_score: score,
+            phase: getCurrentPhase(profile).phase,
+          });
+        }
+        const ackMsg = isES ? 'Anotado.' : 'Got it.';
+        addJulesMsg(ackMsg);
+        sessionRef.current.state = 'RELATIONSHIP_SCORE_ACK';
+        setConvState('RELATIONSHIP_SCORE_ACK');
+        speak(ackMsg, () => {
+          _enterNameCollectionOrClose();
+        });
+        break;
+      }
+
       case 'ADHOC':
         await handleAdhocMessage(text);
         break;
@@ -935,6 +1082,23 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       }
 
       sessionRef.current.isGap = isGap;
+
+      // ── 6. Session count + relationship count (Session 3 features)
+      const { count: sessCount } = await supabase
+        .from('conversation_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id)
+        .eq('session_complete', true);
+
+      const { count: relCount } = await supabase
+        .from('relationships')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', profile.id);
+
+      if (cancelled) return;
+
+      sessionRef.current.totalSessions = sessCount ?? 0;
+      sessionRef.current.relationshipsCollected = relCount ?? 0;
 
       // Debug snapshot after all data is loaded
       setDebug('daysOfData', liveDays);
@@ -1109,7 +1273,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       </div>
 
       {/* INPUT AREA — only renders when there is actual input needed */}
-      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || convState === 'ADHOC') && (
+      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || convState === 'ADHOC') && (
         <div style={{
           flexShrink: 0, background: '#0A0A1A',
           borderTop: '1px solid rgba(255,255,255,0.07)',
@@ -1132,7 +1296,11 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 type="text"
-                placeholder={isES ? 'Escribe un momento de hoy...' : 'Type a moment from today...'}
+                placeholder={
+                  convState === 'RELATIONSHIP_NAME_Q'
+                    ? (isES ? 'Escribe su nombre...' : 'Type their name...')
+                    : (isES ? 'Escribe un momento de hoy...' : 'Type a moment from today...')
+                }
                 value={inputText}
                 onChange={e => setInputText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
@@ -1152,6 +1320,15 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
                 ↑
               </button>
             </div>
+          )}
+
+          {/* RELATIONSHIP CATEGORY — after name is entered */}
+          {inputUI === 'relationship_category' && (
+            <RelationshipCategorySelector
+              name={sessionRef.current.pendingRelationshipName}
+              isES={isES}
+              onSelect={(category, intimacy) => void handleRelationshipCategorySelect(category, intimacy)}
+            />
           )}
 
           {/* FALLBACK mic + text — ONLY for ADHOC free conversation */}

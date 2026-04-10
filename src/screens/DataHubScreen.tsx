@@ -14,9 +14,27 @@ interface SessionRow {
   integrity_score: number | null;
 }
 
+interface RelationshipWithScore {
+  id: string;
+  name: string;
+  rank: number;
+  category: string;
+  intimacy: boolean;
+  avgScore: number | null;
+  trend: 'up' | 'down' | 'flat' | null;
+}
+
+function getRankColor(rank: number): string {
+  if (rank === 1) return '#FFD93D';
+  if (rank === 2) return '#FF6B6B';
+  if (rank === 3) return '#00C896';
+  return '#4A5568';
+}
+
 export function DataHubScreen({ profile }: Props) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relationships, setRelationships] = useState<RelationshipWithScore[]>([]);
 
   const idioma = profile.idioma ?? 'EN';
   const L = (en: string, es: string) => idioma === 'ES' ? es : en;
@@ -46,6 +64,62 @@ export function DataHubScreen({ profile }: Props) {
       setLoading(false);
     }
     load();
+  }, [profile.id]);
+
+  useEffect(() => {
+    async function loadRelationships() {
+      const { data: rels } = await supabase
+        .from('relationships')
+        .select('id, name, rank, category, intimacy')
+        .eq('user_id', profile.id)
+        .order('rank', { ascending: true });
+
+      if (!rels || rels.length === 0) { setRelationships([]); return; }
+
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+      const enriched = await Promise.all(rels.map(async (rel) => {
+        const { data: recent } = await supabase
+          .from('relationship_interactions')
+          .select('connection_score, interaction_date')
+          .eq('relationship_id', rel.id)
+          .gte('interaction_date', sevenDaysAgo.toISOString().split('T')[0]);
+
+        const { data: previous } = await supabase
+          .from('relationship_interactions')
+          .select('connection_score, interaction_date')
+          .eq('relationship_id', rel.id)
+          .gte('interaction_date', fourteenDaysAgo.toISOString().split('T')[0])
+          .lt('interaction_date', sevenDaysAgo.toISOString().split('T')[0]);
+
+        const avgRecent = recent && recent.length > 0
+          ? recent.reduce((s: number, r: { connection_score: number | null }) => s + (r.connection_score ?? 0), 0) / recent.length
+          : null;
+
+        const avgPrevious = previous && previous.length > 0
+          ? previous.reduce((s: number, r: { connection_score: number | null }) => s + (r.connection_score ?? 0), 0) / previous.length
+          : null;
+
+        let trend: 'up' | 'down' | 'flat' | null = null;
+        if (avgRecent !== null && avgPrevious !== null) {
+          if (avgRecent > avgPrevious + 0.5) trend = 'up';
+          else if (avgRecent < avgPrevious - 0.5) trend = 'down';
+          else trend = 'flat';
+        }
+
+        return {
+          ...rel,
+          avgScore: avgRecent !== null ? Math.round(avgRecent * 10) / 10 : null,
+          trend,
+        } as RelationshipWithScore;
+      }));
+
+      setRelationships(enriched);
+    }
+    loadRelationships();
   }, [profile.id]);
 
   // Build streak calendar — last 14 days
@@ -277,29 +351,72 @@ export function DataHubScreen({ profile }: Props) {
 
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', height: 1, background: 'rgba(255,255,255,0.05)' }} />
 
-      {/* My Circle (empty state) */}
+      {/* My Circle */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '24px 24px 20px' }}>
-        <p style={{ color: '#4A5568', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 14px' }}>
+        <p style={{ color: '#4A5568', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '0 0 16px' }}>
           {L('My Circle', 'Mi Círculo')}
         </p>
-        <div style={{
-          background: 'rgba(255,255,255,0.02)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 14,
-          padding: '28px 20px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>👥</div>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', margin: '0 0 4px' }}>
-            {L('Coming soon', 'Próximamente')}
-          </p>
-          <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
-            {L(
-              'Compare your patterns with people you trust. See how your cycles align.',
-              'Compara tus patrones con personas de confianza. Ve cómo se alinean tus ciclos.'
-            )}
-          </p>
-        </div>
+
+        {relationships.length === 0 ? (
+          <div style={{
+            background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 14, padding: '28px 20px', textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>👥</div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', margin: '0 0 4px' }}>
+              {L(
+                'Jules will start learning about the people in your life after your third session.',
+                'Jules comenzará a aprender sobre las personas en tu vida después de tu tercera sesión.'
+              )}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {relationships.map(rel => (
+              <div key={rel.id} style={{
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 12, padding: '14px 16px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: `${getRankColor(rel.rank)}22`,
+                    border: `2px solid ${getRankColor(rel.rank)}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 16, fontWeight: 700,
+                    color: getRankColor(rel.rank),
+                  }}>
+                    {rel.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ color: 'white', fontSize: 14, fontWeight: 600 }}>{rel.name}</div>
+                    <div style={{ color: '#4A5568', fontSize: 11 }}>
+                      {rel.category}{rel.intimacy ? ' · ♥' : ''}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {rel.avgScore !== null && (
+                    <div style={{
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: 18, fontWeight: 700,
+                      color: rel.avgScore >= 7 ? '#00C896' : rel.avgScore >= 4 ? '#FFD93D' : '#FF6B6B',
+                    }}>
+                      {rel.avgScore}
+                    </div>
+                  )}
+                  {rel.trend === 'up'   && <span style={{ color: '#00C896', fontSize: 16 }}>↑</span>}
+                  {rel.trend === 'down' && <span style={{ color: '#FF6B6B', fontSize: 16 }}>↓</span>}
+                  {rel.trend === 'flat' && <span style={{ color: '#4A5568', fontSize: 16 }}>→</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', height: 1, background: 'rgba(255,255,255,0.05)' }} />
