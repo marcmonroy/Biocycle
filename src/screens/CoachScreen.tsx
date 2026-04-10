@@ -33,6 +33,7 @@ type ConversationState =
   | 'ALCOHOL_Q' | 'ALCOHOL_ACK'
   | 'RELATIONSHIP_NAME_Q' | 'RELATIONSHIP_CATEGORY'
   | 'RELATIONSHIP_SCORE_Q' | 'RELATIONSHIP_SCORE_ACK'
+  | 'INSTRUMENT_INTRO' | 'INSTRUMENT_Q' | 'INSTRUMENT_COMPLETE'
   | 'SESSION_COMPLETE'
   | 'INTERRUPTED_RECOVERY'
   | 'ADHOC';
@@ -161,7 +162,7 @@ function getCompletionText(slot: SessionSlot, name: string, isES: boolean): stri
 
 // ── Input UI — driven by state, not text scanning ─────────────────────────
 
-type InputUI = 'numberpad' | 'choices' | 'text' | 'relationship_category' | 'none';
+type InputUI = 'numberpad' | 'choices' | 'text' | 'relationship_category' | 'instrument_pad' | 'none';
 
 function getInputUI(state: ConversationState): InputUI {
   const NUMBERPAD_STATES = [
@@ -182,6 +183,7 @@ function getInputUI(state: ConversationState): InputUI {
   }
   if (state === 'RELATIONSHIP_NAME_Q') { setDebug('inputUI', 'text'); return 'text'; }
   if (state === 'RELATIONSHIP_CATEGORY') { setDebug('inputUI', 'relationship_category'); return 'relationship_category'; }
+  if (state === 'INSTRUMENT_Q') { setDebug('inputUI', 'instrument_pad'); return 'instrument_pad'; }
   const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
   const result: InputUI = choices.includes(state) ? 'choices' : 'none';
   // ADHOC and all ACK/transition states → 'none' (shows mic + text fallback)
@@ -366,6 +368,126 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
   );
 }
 
+// ── Validated Instrument Data ─────────────────────────────────────────────
+
+const INSTRUMENT_QUESTIONS: Record<string, { en: string[]; es: string[] }> = {
+  PHQ9: {
+    en: [
+      'Little interest or pleasure in doing things — 0 to 3.',
+      'Feeling down, depressed, or hopeless — 0 to 3.',
+      'Trouble falling or staying asleep, or sleeping too much — 0 to 3.',
+      'Feeling tired or having little energy — 0 to 3.',
+      'Poor appetite or overeating — 0 to 3.',
+      'Feeling bad about yourself — or that you are a failure — 0 to 3.',
+      'Trouble concentrating on things — 0 to 3.',
+      'Moving or speaking so slowly that others noticed — or the opposite — 0 to 3.',
+      'Thoughts of being better off dead or of hurting yourself — 0 to 3.',
+    ],
+    es: [
+      'Poco interés o placer en hacer las cosas — del 0 al 3.',
+      'Sentirse decaído, deprimido o sin esperanza — del 0 al 3.',
+      'Problemas para dormir o dormir demasiado — del 0 al 3.',
+      'Sentirse cansado o con poca energía — del 0 al 3.',
+      'Poco apetito o comer en exceso — del 0 al 3.',
+      'Sentirse mal consigo mismo — del 0 al 3.',
+      'Dificultad para concentrarse — del 0 al 3.',
+      'Moverse o hablar lento que otros lo notaron — del 0 al 3.',
+      'Pensamientos de que estarías mejor muerto — del 0 al 3.',
+    ],
+  },
+  GAD7: {
+    en: [
+      'Feeling nervous, anxious, or on edge — 0 to 3.',
+      'Not being able to stop or control worrying — 0 to 3.',
+      'Worrying too much about different things — 0 to 3.',
+      'Trouble relaxing — 0 to 3.',
+      'Being so restless it is hard to sit still — 0 to 3.',
+      'Becoming easily annoyed or irritable — 0 to 3.',
+      'Feeling afraid as if something awful might happen — 0 to 3.',
+    ],
+    es: [
+      'Sentirse nervioso, ansioso o al límite — del 0 al 3.',
+      'No poder dejar de preocuparse — del 0 al 3.',
+      'Preocuparse demasiado por diferentes cosas — del 0 al 3.',
+      'Dificultad para relajarse — del 0 al 3.',
+      'Estar tan inquieto que es difícil quedarse quieto — del 0 al 3.',
+      'Irritarse o enojarse fácilmente — del 0 al 3.',
+      'Sentir miedo como si algo terrible pudiera pasar — del 0 al 3.',
+    ],
+  },
+  PSQI: {
+    en: [
+      'Rate your overall sleep quality this past month — 0 very good, 1 fairly good, 2 fairly bad, 3 very bad.',
+      'How often could not fall asleep within 30 minutes — 0 not at all, 1 less than once a week, 2 once or twice, 3 three or more times.',
+      'How often woke up in the middle of the night — 0 not at all to 3 three or more times a week.',
+      'How often heat, cold, or bad dreams disrupted sleep — 0 not at all to 3 three or more times.',
+      'How often had trouble staying awake during the day — 0 not at all to 3 three or more times.',
+      'How much of a problem keeping enthusiasm for things — 0 no problem to 3 very big problem.',
+      'Overall sleep quality this past month — 0 very good to 3 very bad.',
+    ],
+    es: [
+      'Califica tu calidad de sueño del último mes — 0 muy buena, 1 bastante buena, 2 bastante mala, 3 muy mala.',
+      'Con qué frecuencia tardaste más de 30 minutos en dormir — 0 nunca, 1 menos de una vez, 2 una o dos veces, 3 tres o más.',
+      'Con qué frecuencia te despertaste en la noche — 0 nunca a 3 tres o más veces.',
+      'Con qué frecuencia el calor, frío o malos sueños interrumpieron tu sueño — 0 nunca a 3 tres o más veces.',
+      'Con qué frecuencia tuviste somnolencia de día — 0 nunca a 3 tres o más veces.',
+      'Qué tan problemático fue mantener el entusiasmo — 0 ningún problema a 3 muy grande.',
+      'En general calidad de sueño del último mes — 0 muy buena a 3 muy mala.',
+    ],
+  },
+  PSS: {
+    en: [
+      'In the last month how often felt unable to control important things — 0 never to 4 very often.',
+      'How often felt confident handling personal problems — 0 never to 4 very often.',
+      'How often felt things were going your way — 0 never to 4 very often.',
+      'How often felt difficulties were piling up so high you could not overcome them — 0 never to 4 very often.',
+    ],
+    es: [
+      'En el último mes con qué frecuencia no podías controlar cosas importantes — 0 nunca a 4 muy seguido.',
+      'Con qué frecuencia te sentiste seguro para manejar problemas — 0 nunca a 4 muy seguido.',
+      'Con qué frecuencia sentiste que las cosas iban bien — 0 nunca a 4 muy seguido.',
+      'Con qué frecuencia las dificultades se acumulaban tanto que no podías superarlas — 0 nunca a 4 muy seguido.',
+    ],
+  },
+};
+
+function calculateInstrumentScore(instrument: string, responses: number[]): number {
+  switch (instrument) {
+    case 'PHQ9': return responses.reduce((a, b) => a + b, 0);
+    case 'GAD7': return responses.reduce((a, b) => a + b, 0);
+    case 'PSQI': return responses.reduce((a, b) => a + b, 0);
+    case 'PSS':  return responses[0] + responses[3] + (4 - responses[1]) + (4 - responses[2]);
+    default:     return 0;
+  }
+}
+
+function InstrumentPad({ maxValue, onSelect }: { maxValue: 3 | 4; onSelect: (n: number) => void }) {
+  const options = Array.from({ length: maxValue + 1 }, (_, i) => i);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${maxValue + 1}, 1fr)`, gap: 8, padding: '8px 0' }}>
+      {options.map(n => (
+        <button
+          key={n}
+          onClick={() => onSelect(n)}
+          style={{
+            background: 'rgba(0,200,150,0.1)',
+            border: '1px solid rgba(0,200,150,0.25)',
+            borderRadius: 10,
+            padding: '14px 0',
+            color: '#00C896',
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '1.1rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────
 
 interface Props {
@@ -417,6 +539,11 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     collectedThisSession:   false,
     pendingRelationshipName:'',
     scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean } | null,
+    // Session 5 — Validated Instruments
+    instrumentPending:       null as string | null,
+    instrumentResponses:     [] as number[],
+    instrumentQuestionIndex: 0,
+    instrumentSessionId:     '',
   });
 
   const scoresRef = useRef<SessionScores>({
@@ -625,6 +752,129 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       // Auto-listen after Jules finishes speaking the memorable question
       setTimeout(() => startListening(), 1500);
     } : undefined);
+  }
+
+  // ── Validated Instruments ────────────────────────────────────────────────
+
+  function startInstrumentSession() {
+    const introText = isES
+      ? 'Cada 30 días te hago un conjunto de preguntas validadas clínicamente junto con nuestro check-in regular. Me ayudan a entender tus patrones con más precisión.'
+      : 'Every 30 days I ask you a set of clinically validated questions alongside our regular check-in. These help me understand your patterns more accurately.';
+
+    sessionRef.current.state = 'INSTRUMENT_INTRO';
+    setConvState('INSTRUMENT_INTRO');
+    sessionRef.current.instrumentResponses = [];
+    sessionRef.current.instrumentQuestionIndex = 0;
+    addJulesMsg(introText);
+
+    speak(introText, () => {
+      showInstrumentQuestion();
+    });
+  }
+
+  function showInstrumentQuestion() {
+    const instrument = sessionRef.current.instrumentPending!;
+    const idx = sessionRef.current.instrumentQuestionIndex;
+    const questions = INSTRUMENT_QUESTIONS[instrument];
+    const qList = isES ? questions.es : questions.en;
+
+    if (idx >= qList.length) {
+      void finishInstrument();
+      return;
+    }
+
+    const qText = qList[idx];
+    sessionRef.current.state = 'INSTRUMENT_Q';
+    setConvState('INSTRUMENT_Q');
+    addJulesMsg(qText);
+    speak(qText);
+  }
+
+  async function handleInstrumentAnswer(value: number) {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    try {
+      addUserMsg(String(value));
+
+      sessionRef.current.instrumentResponses.push(value);
+      sessionRef.current.instrumentQuestionIndex++;
+
+      // PHQ-9 Q9 safety check (index 8)
+      if (
+        sessionRef.current.instrumentPending === 'PHQ9' &&
+        sessionRef.current.instrumentQuestionIndex - 1 === 8 &&
+        value >= 2
+      ) {
+        void logSafetyEvent(profile.id, `PHQ9 Q9 score: ${value}`, 'phq9_q9');
+        handleCrisis();
+        isProcessingRef.current = false;
+        return;
+      }
+
+      const ackOptions = isES
+        ? ['Anotado.', 'Gracias.', 'Entendido.', 'Bien.']
+        : ['Got it.', 'Thank you.', 'Noted.', 'Understood.'];
+      const ackText = ackOptions[Math.floor(Math.random() * ackOptions.length)];
+
+      addJulesMsg(ackText);
+      speak(ackText, () => {
+        setTimeout(() => { showInstrumentQuestion(); }, 300);
+      });
+    } finally {
+      isProcessingRef.current = false;
+    }
+  }
+
+  async function finishInstrument() {
+    const instrument = sessionRef.current.instrumentPending!;
+    const responses = sessionRef.current.instrumentResponses;
+    const score = calculateInstrumentScore(instrument, responses);
+    const today = new Date().toISOString().split('T')[0];
+
+    try {
+      await supabase.from('validation_scores').insert({
+        user_id:      profile.id,
+        session_date: today,
+        instrument,
+        score,
+        responses,
+        session_id:   sessionRef.current.id,
+      });
+    } catch (err) {
+      console.error('[finishInstrument] save error:', err);
+    }
+
+    const sequence = ['PHQ9', 'GAD7', 'PSQI', 'PSS'];
+    const currentIdx = sequence.indexOf(instrument);
+    const nextInstrument = currentIdx < sequence.length - 1 ? sequence[currentIdx + 1] : null;
+
+    if (nextInstrument) {
+      sessionRef.current.instrumentPending = nextInstrument;
+      sessionRef.current.instrumentResponses = [];
+      sessionRef.current.instrumentQuestionIndex = 0;
+
+      const bridgeText = isES ? 'Perfecto. Ahora el siguiente conjunto.' : 'Perfect. Now the next set.';
+      addJulesMsg(bridgeText);
+      speak(bridgeText, () => { showInstrumentQuestion(); });
+    } else {
+      sessionRef.current.instrumentPending = null;
+
+      const nextDue = new Date();
+      nextDue.setDate(nextDue.getDate() + 30);
+      await supabase.from('profiles')
+        .update({ validation_due_date: nextDue.toISOString().split('T')[0] })
+        .eq('id', profile.id);
+
+      const completeText = isES
+        ? 'Listo. Eso es todo para las preguntas de hoy. Ahora sigamos con tu check-in.'
+        : "Done. That is all for today's clinical questions. Now let's continue with your check-in.";
+
+      sessionRef.current.state = 'INSTRUMENT_COMPLETE';
+      setConvState('INSTRUMENT_COMPLETE');
+      addJulesMsg(completeText);
+      speak(completeText, () => { enterFirstDimension(); });
+    }
   }
 
   function enterFirstDimension() {
@@ -954,6 +1204,14 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         break;
       }
 
+      case 'INSTRUMENT_Q': {
+        const n = parseInt(text, 10);
+        const maxVal = sessionRef.current.instrumentPending === 'PSS' ? 4 : 3;
+        if (isNaN(n) || n < 0 || n > maxVal) break;
+        await handleInstrumentAnswer(n);
+        break;
+      }
+
       case 'ADHOC':
         await handleAdhocMessage(text);
         break;
@@ -1015,7 +1273,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       // ── 2. Load fresh profile data from Supabase
       const { data: freshProfile } = await supabase
         .from('profiles')
-        .select('days_of_data, onboarding_complete')
+        .select('days_of_data, onboarding_complete, validation_due_date')
         .eq('id', profile.id)
         .single();
 
@@ -1114,6 +1372,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       sessionRef.current.totalSessions = sessCount ?? 0;
       sessionRef.current.relationshipsCollected = relCount ?? 0;
 
+      // ── 7. Check if validated instruments are due
+      const validationDue = freshProfile?.validation_due_date;
+      if (validationDue && validationDue <= today && liveDays >= 30) {
+        sessionRef.current.instrumentPending = 'PHQ9';
+      }
+
       // Debug snapshot after all data is loaded
       setDebug('daysOfData', liveDays);
       setDebug('onboardingComplete', onboardingDone);
@@ -1172,6 +1436,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         if (liveDays === 0 && !onboardingDone) {
           // Day 1: show onboarding
           showQuestion('EXPLAIN_OFFER');
+          return;
+        }
+
+        // Instruments due — deliver before regular check-in
+        if (sessionRef.current.instrumentPending) {
+          startInstrumentSession();
           return;
         }
 
@@ -1287,7 +1557,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       </div>
 
       {/* INPUT AREA — only renders when there is actual input needed */}
-      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || convState === 'ADHOC') && (
+      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
         <div style={{
           flexShrink: 0, background: '#0A0A1A',
           borderTop: '1px solid rgba(255,255,255,0.07)',
@@ -1334,6 +1604,14 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
                 ↑
               </button>
             </div>
+          )}
+
+          {/* INSTRUMENT PAD — 0-3 or 0-4 for validated instruments */}
+          {inputUI === 'instrument_pad' && (
+            <InstrumentPad
+              maxValue={sessionRef.current.instrumentPending === 'PSS' ? 4 : 3}
+              onSelect={(n) => void handleInstrumentAnswer(n)}
+            />
           )}
 
           {/* RELATIONSHIP CATEGORY — after name is entered */}
