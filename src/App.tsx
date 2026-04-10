@@ -111,13 +111,24 @@ export default function App() {
     setScreen('coach');
   }
 
-  function handleRegisterComplete() {
-    // Re-fetch profile so whatsapp_verified is fresh; loadProfile routes to 'home'
+  async function handleRegisterComplete() {
     if (session) {
+      // Peek at profile to check if checkin_times is set (first-time user)
+      const { data } = await supabase
+        .from('profiles')
+        .select('checkin_times')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
       setAuthLoading(true);
-      loadProfile(session.user.id);
+      await loadProfile(session.user.id);
+
+      // First-time user: send to profile to complete setup
+      if (!data?.checkin_times) {
+        setScreen('profile');
+      }
     } else {
-      setScreen('home');
+      setScreen('profile');
     }
   }
 
@@ -230,6 +241,7 @@ export default function App() {
           profile={profile}
           onProfileUpdate={handleProfileUpdate}
           onLogout={handleLogout}
+          onProfileSaved={() => setScreen('coach')}
         />
       )}
 

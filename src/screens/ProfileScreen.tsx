@@ -7,7 +7,34 @@ interface Props {
   profile: Profile;
   onProfileUpdate: (updated: Profile) => void;
   onLogout: () => void;
+  onProfileSaved?: () => void;
 }
+
+// ── Check-in time helpers ───────────────────────────────────────────────────
+const SLOT_HOURS = {
+  morning:   [5, 6, 7, 8, 9, 10, 11],
+  afternoon: [12, 13, 14, 15, 16],
+  night:     [17, 18, 19, 20, 21, 22, 23],
+};
+
+function formatHour(h: number): string {
+  if (h === 0) return '12am';
+  if (h === 12) return '12pm';
+  return h < 12 ? `${h}am` : `${h - 12}pm`;
+}
+
+const slotPillStyle = (active: boolean): React.CSSProperties => ({
+  background: active ? 'rgba(255,107,107,0.2)' : 'transparent',
+  border: `1px solid ${active ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`,
+  borderRadius: 20,
+  padding: '5px 11px',
+  color: active ? '#FF6B6B' : '#8A9BB0',
+  fontSize: 12,
+  fontWeight: active ? 600 : 400,
+  cursor: 'pointer',
+  fontFamily: 'Inter, system-ui, sans-serif',
+  whiteSpace: 'nowrap' as const,
+});
 
 // ── Option sets ────────────────────────────────────────────────────────────
 const EXERCISE_FREQ_OPTIONS = ['Sedentary', '1-2x week', '3-4x week', '5+ week', 'Daily'];
@@ -57,11 +84,14 @@ function toggleMulti(prev: string[], val: string): string[] {
   return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
 }
 
-export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
+export function ProfileScreen({ profile, onProfileUpdate, onLogout, onProfileSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showStartCoach, setShowStartCoach] = useState(false);
+  // Capture at mount whether this is a first-time setup (no checkin_times yet)
+  const [isFirstTimeSave] = useState(!profile.checkin_times);
 
   // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
@@ -183,9 +213,9 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       family_history:     familyHistory.length ? familyHistory : null,
       has_sexual_partner: sexualPartner,
       checkin_times: {
-        morning:   { hour: checkinMorning,   label: 'Morning' },
-        afternoon: { hour: checkinAfternoon, label: 'Afternoon' },
-        night:     { hour: checkinNight,     label: 'Night' },
+        morning:   { hour: checkinMorning,   label: formatHour(checkinMorning) },
+        afternoon: { hour: checkinAfternoon, label: formatHour(checkinAfternoon) },
+        night:     { hour: checkinNight,     label: formatHour(checkinNight) },
       },
     };
 
@@ -206,6 +236,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
       onProfileUpdate(data as Profile);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      if (isFirstTimeSave && !showStartCoach) setShowStartCoach(true);
     }
   }
 
@@ -579,29 +610,47 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
 
       {/* ── Section 7: Check-in times ───────────────────────────────────────── */}
       <Section label={L('Check-in Times', 'Horarios de Check-in')}>
-        {[
-          { label: L('Morning', 'Mañana'),   val: checkinMorning,   set: setCheckinMorning },
-          { label: L('Afternoon', 'Tarde'),  val: checkinAfternoon, set: setCheckinAfternoon },
-          { label: L('Night', 'Noche'),      val: checkinNight,     set: setCheckinNight },
-        ].map(({ label, val, set }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <FieldLabel>{label}</FieldLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={val}
-                onChange={e => set(Math.min(23, Math.max(0, parseInt(e.target.value, 10) || 0)))}
-                style={{ ...inputStyle, width: 64, textAlign: 'center', padding: '8px 6px' }}
-              />
-              <span style={{ color: '#4A5568', fontSize: 13 }}>{L('h', 'h')}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Morning check-in', 'Check-in Mañana')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.morning.map(h => (
+                <button key={h} onClick={() => setCheckinMorning(h)} style={slotPillStyle(checkinMorning === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
             </div>
           </div>
-        ))}
-        <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
-          {L('Hour in 24h format. Used for WhatsApp session reminders.', 'Hora en formato 24h. Usado para recordatorios de sesión por WhatsApp.')}
-        </p>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Afternoon check-in', 'Check-in Tarde')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.afternoon.map(h => (
+                <button key={h} onClick={() => setCheckinAfternoon(h)} style={slotPillStyle(checkinAfternoon === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+              {L('Night check-in', 'Check-in Noche')}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {SLOT_HOURS.night.map(h => (
+                <button key={h} onClick={() => setCheckinNight(h)} style={slotPillStyle(checkinNight === h)}>
+                  {formatHour(h)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
+            {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
+          </p>
+        </div>
       </Section>
 
       {/* ── Save button ─────────────────────────────────────────────────────── */}
@@ -625,6 +674,27 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout }: Props) {
         >
           {saved ? L('Saved ✓', 'Guardado ✓') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
         </button>
+
+        {showStartCoach && onProfileSaved && (
+          <button
+            onClick={onProfileSaved}
+            style={{
+              width: '100%',
+              marginTop: 12,
+              background: 'rgba(0,200,150,0.12)',
+              border: '1px solid rgba(0,200,150,0.35)',
+              borderRadius: 14,
+              padding: '16px',
+              color: '#00C896',
+              fontSize: '1rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'Inter, system-ui, sans-serif',
+            }}
+          >
+            {L('Start talking to Jules →', 'Comenzar con Jules →')}
+          </button>
+        )}
       </div>
 
       {/* ── Logout ──────────────────────────────────────────────────────────── */}
