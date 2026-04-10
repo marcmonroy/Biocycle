@@ -1,5 +1,5 @@
 import type { Profile } from './supabase';
-import { getCurrentTimeSlot, getDaysOfData } from './phaseEngine';
+import { getCurrentTimeSlot, getDaysOfData, getCurrentPhase } from './phaseEngine';
 
 export interface Card {
   id: string;
@@ -163,6 +163,116 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
   ],
 
+  // Perimenopause female (40+)
+  female_peri_morning: [
+    {
+      id: 'f_peri_bio_morning',
+      imageUrl: null,
+      headline: 'Your hormones are recalibrating.',
+      copyText: 'Perimenopause is not a decline — it is a transition. Your estrogen patterns are becoming more variable and Jules is tracking exactly what that means for your energy, sleep, and mood day by day.',
+      phaseTag: 'Perimenopause',
+      phaseEmoji: '🔥',
+      pillar: 'biology',
+    },
+    {
+      id: 'f_peri_life_morning',
+      imageUrl: null,
+      headline: 'This phase has its own intelligence.',
+      copyText: 'Pretty soon Jules will know which days your clarity and focus peak — even in perimenopause. Many women find their most decisive thinking happens in unexpected windows. Jules finds yours.',
+      phaseTag: 'Life',
+      phaseEmoji: '✨',
+      pillar: 'life',
+    },
+  ],
+  female_peri_midday: [
+    {
+      id: 'f_peri_fin_midday',
+      imageUrl: null,
+      headline: 'Your data is more valuable at 40+.',
+      copyText: 'Researchers pay a 30% premium for perimenopausal data. Your biological patterns during this transition are among the most scientifically valuable datasets that exist. You are building something rare.',
+      phaseTag: 'Portfolio',
+      phaseEmoji: '💰',
+      pillar: 'financial',
+    },
+  ],
+  female_peri_evening: [
+    {
+      id: 'f_peri_bio_evening',
+      imageUrl: null,
+      headline: 'Sleep is your most important metric.',
+      copyText: 'Perimenopausal sleep disruption affects everything — mood, cognition, relationships. Jules tracks your sleep quality every single morning because in this phase, sleep data is your most predictive variable.',
+      phaseTag: 'Biology',
+      phaseEmoji: '🌙',
+      pillar: 'biology',
+    },
+  ],
+  female_peri_night: [
+    {
+      id: 'f_peri_life_night',
+      imageUrl: null,
+      headline: 'You know yourself better than ever.',
+      copyText: 'At this stage you have lived through enough cycles to recognize your patterns. Jules accelerates that self-knowledge by giving it a data foundation. Knowing yourself pays — literally.',
+      phaseTag: 'Wisdom',
+      phaseEmoji: '🔮',
+      pillar: 'life',
+    },
+  ],
+
+  // Andropause male (40+)
+  male_andro_morning: [
+    {
+      id: 'm_andro_bio_morning',
+      imageUrl: null,
+      headline: 'Your testosterone curve is changing.',
+      copyText: 'After 40 testosterone declines gradually — but the pace varies enormously by individual. Jules tracks your energy, cognition, and drive patterns to show you exactly where you are on your personal curve.',
+      phaseTag: 'Andropause',
+      phaseEmoji: '⚖️',
+      pillar: 'biology',
+    },
+    {
+      id: 'm_andro_life_morning',
+      imageUrl: null,
+      headline: 'Quality over quantity.',
+      copyText: 'Pretty soon Jules will know which mornings you are genuinely sharp and which require a slower start. At this phase that distinction matters more than ever. Plan your highest-stakes work accordingly.',
+      phaseTag: 'Life',
+      phaseEmoji: '🎯',
+      pillar: 'life',
+    },
+  ],
+  male_andro_midday: [
+    {
+      id: 'm_andro_fin_midday',
+      imageUrl: null,
+      headline: 'Andropause data commands a premium.',
+      copyText: 'Male longitudinal data after 40 is among the rarest in clinical research. Your patterns over the next 90 days will be worth significantly more than standard data. You are building something valuable.',
+      phaseTag: 'Portfolio',
+      phaseEmoji: '💰',
+      pillar: 'financial',
+    },
+  ],
+  male_andro_evening: [
+    {
+      id: 'm_andro_bio_evening',
+      imageUrl: null,
+      headline: 'Recovery is your competitive edge.',
+      copyText: 'After 40 recovery quality matters more than peak performance. Jules tracks your sleep, stress, and energy recovery to show you when you are genuinely restored versus running on reserves.',
+      phaseTag: 'Recovery',
+      phaseEmoji: '🌆',
+      pillar: 'biology',
+    },
+  ],
+  male_andro_night: [
+    {
+      id: 'm_andro_life_night',
+      imageUrl: null,
+      headline: 'Consistency is the strategy.',
+      copyText: 'At this stage the men who perform best are the ones who know their patterns and protect their recovery. Jules gives you the data to stop guessing and start optimizing with precision.',
+      phaseTag: 'Pattern',
+      phaseEmoji: '🌙',
+      pillar: 'biology',
+    },
+  ],
+
   // Non-binary
   nonbinary_morning: [
     {
@@ -220,31 +330,50 @@ export function getCardForUser(profile: Profile): Card {
   const slot = getCurrentTimeSlot();
   const gender = profile.genero ?? 'nonbinary';
 
+  // Calculate age for 40+ routing
+  const age = profile.fecha_nacimiento
+    ? Math.floor((Date.now() - new Date(profile.fecha_nacimiento).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : 0;
+
   // Milestone cards take priority on exact days
   if (MILESTONE_DAYS[daysOfData]) {
     return MILESTONE_DAYS[daysOfData](formatValue(daysOfData));
   }
 
   if (daysOfData < 30) {
-    // Tier 1: discovery cards
-    const key = `${gender}_${slot}`;
-    const cards = DISCOVERY_CARDS[key] || DISCOVERY_CARDS[`nonbinary_${slot}`] || DISCOVERY_CARDS['nonbinary_morning'];
-    // Rotate by day to vary content
+    // Determine demographic key including 40+ variants
+    let genderKey: string;
+    if (gender === 'female' && age >= 40) {
+      genderKey = 'female_peri';
+    } else if (gender === 'male' && age >= 40) {
+      genderKey = 'male_andro';
+    } else {
+      genderKey = gender;
+    }
+
+    const key = `${genderKey}_${slot}`;
+    const cards = DISCOVERY_CARDS[key]
+      || DISCOVERY_CARDS[`${gender}_${slot}`]
+      || DISCOVERY_CARDS[`nonbinary_${slot}`]
+      || DISCOVERY_CARDS['nonbinary_morning'];
+
     return cards[daysOfData % cards.length];
   }
 
-  // Tier 2: 173-card Supabase Storage library
-  // Card selection by phase + slot — returns URL pattern for Supabase Storage
-  // Actual image selection will be refined in Session 2
-  const phase = profile.days_of_data != null ? 'follicular' : 'follicular';
-  const imageUrl = `https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/${gender}_${phase}_${slot}_01.jpg`;
+  // Tier 2: Day 30+ — use real phase from phaseEngine
+  const phaseResult = getCurrentPhase(profile);
+  const phaseTag = phaseResult.displayName;
+  const phaseEmoji = phaseResult.emoji;
+
+  const imageUrl = `https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library/${gender}_${phaseResult.phase}_${slot}_01.jpg`;
+
   return {
-    id: `tier2_${gender}_${phase}_${slot}`,
+    id: `tier2_${gender}_${phaseResult.phase}_${slot}`,
     imageUrl,
     headline: 'Your patterns are speaking.',
-    copyText: 'Jules has been listening. Your biological data is generating real insights now. Check your coach session for today\'s observation.',
-    phaseTag: 'Day 30+',
-    phaseEmoji: '🔬',
+    copyText: `You are in your ${phaseTag.toLowerCase()} right now. Jules has 30 days of your data and is beginning to see what this phase means specifically for you. Check in with Jules to hear what she has noticed.`,
+    phaseTag,
+    phaseEmoji,
     pillar: 'biology',
   };
 }
