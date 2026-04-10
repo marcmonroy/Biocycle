@@ -704,7 +704,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           {saved ? L('Saved ✓', 'Guardado ✓') : saving ? L('Saving...', 'Guardando...') : L('Save changes', 'Guardar cambios')}
         </button>
 
-        {profile.days_of_data === 0 && onComplete && (
+        {(profile.days_of_data === null || profile.days_of_data === 0) && onComplete && (
           <button
             onClick={onComplete}
             style={{

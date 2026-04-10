@@ -661,15 +661,13 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
       addJulesMsg(ackText);
       speak(ackText, () => {
-        setBioState('thinking'); // keep input area hidden during pause
         setTimeout(() => {
-          setBioState('idle');
           if (nextQ === 'SESSION_COMPLETE') {
             enterSessionComplete();
           } else {
             showQuestion(nextQ as ConversationState);
           }
-        }, 800); // 800ms pause after Jules finishes speaking
+        }, 500);
       });
     } finally {
       isProcessingRef.current = false;
@@ -1111,7 +1109,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       </div>
 
       {/* INPUT AREA — only renders when there is actual input needed */}
-      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || convState === 'ADHOC') && !isBusy && (
+      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || convState === 'ADHOC') && (
         <div style={{
           flexShrink: 0, background: '#0A0A1A',
           borderTop: '1px solid rgba(255,255,255,0.07)',
