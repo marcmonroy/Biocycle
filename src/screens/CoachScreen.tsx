@@ -571,6 +571,20 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
       console.log('[saveSession] saved successfully');
 
+      // Update last_response_date for all users; restore paused users to active_trader
+      await supabase.from('user_state')
+        .update({ last_response_date: new Date().toISOString() })
+        .eq('user_id', profile.id);
+      await supabase.from('user_state')
+        .update({
+          state: 'active_trader',
+          returned_at: new Date().toISOString(),
+          return_method: 'checkin',
+          last_response_date: new Date().toISOString(),
+        })
+        .eq('user_id', profile.id)
+        .eq('state', 'paused_trader');
+
       // Only increment days_of_data once per calendar day.
       // After insert, query returns 1 if this is the first session today.
       const { data: existingToday } = await supabase

@@ -65,7 +65,7 @@ export interface Profile {
 export interface UserState {
   id: string;
   user_id: string;
-  state: 'active_trader' | 'paused' | 'churned';
+  state: 'active_trader' | 'paused_trader' | 'paid_trader';
   last_response_date: string | null;
   streak_at_lapse: number | null;
   returned_at: string | null;

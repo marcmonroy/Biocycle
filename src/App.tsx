@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
-import type { Profile } from './lib/supabase';
+import type { Profile, UserState } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
 import { LandingScreen } from './screens/LandingScreen';
@@ -27,6 +27,7 @@ type VerifyResume = { userId: string; phone: string } | null;
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [userState, setUserState] = useState<UserState | null>(null);
   const [screen, setScreen] = useState<Screen>('landing');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
@@ -82,6 +83,14 @@ export default function App() {
 
     const p = data as Profile;
     setProfile(p);
+
+    // Fetch user_state
+    const { data: userStateData } = await supabase
+      .from('user_state')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    setUserState(userStateData as UserState | null);
 
     // If WhatsApp not verified, route back to step 5 to complete verification
     if (!p.whatsapp_verified) {
@@ -220,6 +229,7 @@ export default function App() {
       {screen === 'home' && (
         <DashboardScreen
           profile={profile}
+          userState={userState}
           onStartCoach={handleStartCoach}
         />
       )}

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/supabase';
+import type { Profile, UserState } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { getCardForUser } from '../lib/cardSystem';
 
 interface Props {
   profile: Profile;
+  userState: UserState | null;
   onStartCoach: () => void;
 }
 
@@ -133,7 +134,7 @@ function StreakBar({ streak, idioma }: { streak: number; idioma: 'EN' | 'ES' }) 
   );
 }
 
-export function DashboardScreen({ profile, onStartCoach }: Props) {
+export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
   const [streak, setStreak] = useState(0);
   const [qualityScore, setQualityScore] = useState(0);
   const [portfolioValue, setPortfolioValue] = useState(1.0);
@@ -235,6 +236,8 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
     loadStats();
   }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const isPaused = userState?.state === 'paused_trader';
+
   const nombre = profile.nombre ?? (idioma === 'ES' ? 'Trader' : 'Trader');
   const greeting = idioma === 'ES'
     ? `Hola, ${nombre}.`
@@ -284,7 +287,73 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
         <TierBadge streak={streak} quality={qualityScore} foundingTrader={foundingTrader} />
       </div>
 
-      {/* Portfolio Hero */}
+      {/* Paused state */}
+      {isPaused && (
+        <div style={{
+          width: '100%', maxWidth: 430, margin: '0 auto',
+          padding: '40px 24px', display: 'flex', flexDirection: 'column',
+          alignItems: 'center', gap: 24, textAlign: 'center',
+        }}>
+          <div style={{ fontSize: 48 }}>⏸</div>
+
+          <div>
+            <h2 style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '1.3rem', fontWeight: 700, color: 'white', margin: '0 0 8px',
+            }}>
+              {idioma === 'ES' ? 'Sesiones pausadas' : 'Sessions paused'}
+            </h2>
+            <p style={{ color: '#4A5568', fontSize: '0.9rem', lineHeight: 1.55, margin: 0 }}>
+              {idioma === 'ES'
+                ? `Tu racha era de ${userState?.streak_at_lapse ?? 0} días. Tus datos están preservados.`
+                : `Your streak was ${userState?.streak_at_lapse ?? 0} days. Your data is preserved.`}
+            </p>
+          </div>
+
+          {/* Resume free */}
+          <button
+            onClick={onStartCoach}
+            style={{
+              width: '100%', background: '#FF6B6B', border: 'none',
+              borderRadius: 14, padding: '18px', color: 'white',
+              fontSize: '1rem', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            {idioma === 'ES' ? 'Retomar gratis — check-in ahora →' : 'Resume free — check in now →'}
+          </button>
+
+          {/* Stay active paid */}
+          <div style={{
+            width: '100%', background: 'rgba(255,217,61,0.06)',
+            border: '1px solid rgba(255,217,61,0.2)', borderRadius: 14, padding: '20px',
+          }}>
+            <p style={{ color: '#FFD93D', fontSize: '0.85rem', fontWeight: 600, margin: '0 0 4px' }}>
+              {idioma === 'ES' ? 'Mantente activo sin check-ins' : 'Stay active without check-ins'}
+            </p>
+            <p style={{ color: '#4A5568', fontSize: '0.8rem', margin: '0 0 12px' }}>
+              {idioma === 'ES'
+                ? '$9.99/mes — activo independientemente de la frecuencia de check-in'
+                : '$9.99/month — active regardless of check-in frequency'}
+            </p>
+            <button style={{
+              width: '100%', background: 'rgba(255,217,61,0.12)',
+              border: '1px solid rgba(255,217,61,0.3)', borderRadius: 10,
+              padding: '12px', color: '#FFD93D', fontSize: '0.9rem',
+              fontWeight: 600, cursor: 'pointer',
+            }}>
+              {idioma === 'ES' ? 'Suscribirse $9.99/mes →' : 'Subscribe $9.99/month →'}
+            </button>
+            <p style={{ color: '#4A5568', fontSize: 11, margin: '8px 0 0' }}>
+              {idioma === 'ES'
+                ? 'Stripe disponible próximamente'
+                : 'Stripe payment coming soon'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!isPaused && (
+      <>{/* Portfolio Hero */}
       <div style={{
         width: '100%',
         maxWidth: 430,
@@ -482,6 +551,7 @@ export function DashboardScreen({ profile, onStartCoach }: Props) {
           </p>
         )}
       </div>
+      </>)}
     </div>
   );
 }
