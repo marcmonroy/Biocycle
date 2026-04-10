@@ -17,6 +17,7 @@ export interface Profile {
   age_verified: boolean;
   whatsapp_phone: string | null;
   whatsapp_verified: boolean;
+  whatsapp_enabled: boolean | null;
 
   // Body metrics
   height_cm: number | null;

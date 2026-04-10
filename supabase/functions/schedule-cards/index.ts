@@ -122,7 +122,6 @@ serve(async (_req) => {
       .from('profiles')
       .select('id, whatsapp_phone, genero, idioma, checkin_times, days_of_data, fecha_nacimiento')
       .eq('whatsapp_verified', true)
-      .eq('whatsapp_enabled', true)
       .not('whatsapp_phone', 'is', null);
 
     if (error) {
