@@ -22,7 +22,16 @@ export function DataHubScreen({ profile }: Props) {
   const L = (en: string, es: string) => idioma === 'ES' ? es : en;
 
   const daysOfData = getDaysOfData(profile);
-  const portfolioValue = Math.max(1.0, daysOfData * 0.15);
+  let portfolioValue = daysOfData * 0.15;
+  if (profile.height_cm && profile.weight_kg && profile.exercise_frequency) portfolioValue += 5;
+  if (profile.known_conditions?.length && profile.current_medications?.length) portfolioValue += 8;
+  if (profile.blood_type) portfolioValue += 3;
+  if (profile.fecha_nacimiento) {
+    const age = new Date().getFullYear() - new Date(profile.fecha_nacimiento).getFullYear();
+    if (age >= 40) portfolioValue *= 1.3;
+  }
+  if (profile.wearable_connected) portfolioValue += 10;
+  portfolioValue = Math.max(1.0, portfolioValue);
 
   useEffect(() => {
     async function load() {
