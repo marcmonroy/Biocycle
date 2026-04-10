@@ -206,7 +206,8 @@ export default function App() {
       minHeight: '100vh',
       position: 'relative',
       background: '#0A0A1A',
-      overflow: 'hidden',
+      overflowX: 'hidden',
+      overflowY: 'auto',
     }}>
       {screen === 'home' && (
         <DashboardScreen
