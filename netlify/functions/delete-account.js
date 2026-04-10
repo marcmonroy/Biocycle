@@ -18,7 +18,7 @@ exports.handler = async (event) => {
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
 
     console.log('[delete-account] SUPABASE_URL present:', !!supabaseUrl);
     console.log('[delete-account] SERVICE_ROLE_KEY present:', !!serviceKey);
