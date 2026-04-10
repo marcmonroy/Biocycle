@@ -255,11 +255,17 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       await supabase.from('conversation_sessions').delete().eq('user_id', uid);
       await supabase.from('user_state').delete().eq('user_id', uid);
       await supabase.from('profiles').delete().eq('id', uid);
-      await fetch('/.netlify/functions/delete-account', {
+      const deleteRes = await fetch('/.netlify/functions/delete-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: uid }),
       });
+      const deleteData = await deleteRes.json();
+      console.log('[ProfileScreen] delete-account response:', deleteData);
+      if (!deleteRes.ok) {
+        console.error('[ProfileScreen] auth delete failed:', deleteData.error);
+        // Still sign out even if auth delete fails
+      }
       await supabase.auth.signOut();
       onLogout();
     } catch {
