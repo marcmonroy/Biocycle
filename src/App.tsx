@@ -112,13 +112,20 @@ export default function App() {
   }
 
   async function handleRegisterComplete() {
-    if (session) {
-      setAuthLoading(true);
-      await loadProfile(session.user.id);
-      // Route to profile for first-time setup regardless of what loadProfile set
+    setAuthLoading(true);
+
+    // Get fresh session directly — don't rely on stale session state
+    const { data: { session: freshSession } } = await supabase.auth.getSession();
+
+    if (freshSession) {
+      setSession(freshSession);
+      await loadProfile(freshSession.user.id);
+      // Always route new users to profile first
       setScreen('profile');
     } else {
-      setScreen('profile');
+      // Session missing — send back to login
+      setAuthLoading(false);
+      setScreen('login');
     }
   }
 

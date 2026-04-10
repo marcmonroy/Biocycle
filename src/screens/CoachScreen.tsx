@@ -479,9 +479,11 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
       : '';
     const sys = isES
-      ? `${noIntro}Eres Jules, una compañera de IA cálida. Genera EXACTAMENTE UNA oración cálida y breve reconociendo la respuesta del usuario. No hagas preguntas. No des consejos. Solo reconoce. El usuario acaba de decirte que su ${dimLabel} es: ${userValue}.${ctx}`
-      : `${noIntro}You are Jules, a warm AI companion. Generate exactly ONE warm, brief sentence acknowledging the user's response. Do not ask follow-up questions. Do not give advice. Just acknowledge. The user just told you their ${dimLabel} is: ${userValue}.${ctx}`;
-    const text = await callCoachAPI(convHistoryRef.current, sys, 60);
+      ? `${noIntro}MODO RESPUESTA BREVE. Genera EXACTAMENTE UNA oración reconociendo lo que dijo el usuario. PROHIBIDO hacer preguntas. PROHIBIDO dar consejos. PROHIBIDO decir tu nombre. Solo una oración de reconocimiento cálido y para. El usuario dijo que su ${dimLabel} es: ${userValue}.${ctx}`
+      : `${noIntro}BRIEF ACKNOWLEDGMENT MODE. Generate EXACTLY ONE sentence acknowledging what the user said. FORBIDDEN to ask questions. FORBIDDEN to give advice. FORBIDDEN to say your name. One warm acknowledgment sentence and stop. The user said their ${dimLabel} is: ${userValue}.${ctx}`;
+    // For ACK calls, use minimal context — just the user's answer
+    const ackMessages: Message[] = [{ role: 'user', content: userValue }];
+    const text = await callCoachAPI(ackMessages, sys, 40);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
 
