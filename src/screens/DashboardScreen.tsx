@@ -244,6 +244,8 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
     : `Hey, ${nombre}.`;
 
   const phaseLabel = idioma === 'ES' ? phase.displayNameES : phase.displayName;
+  const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
+  const cardCopy = idioma === 'ES' ? card.copyTextES : card.copyText;
 
   return (
     <div style={{
@@ -439,7 +441,7 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
           {card.imageUrl ? (
             <img
               src={card.imageUrl}
-              alt={card.headline}
+              alt={cardHeadline}
               style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
@@ -491,32 +493,24 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
               </span>
             </div>
 
-            {(() => {
-              const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
-              const cardCopy = idioma === 'ES' ? card.copyTextES : card.copyText;
-              return (
-                <>
-                  <h3 style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: '1rem',
-                    fontWeight: 700,
-                    color: 'white',
-                    margin: '0 0 10px',
-                    lineHeight: 1.3,
-                  }}>
-                    {cardHeadline}
-                  </h3>
-                  <p style={{
-                    color: 'rgba(255,255,255,0.6)',
-                    fontSize: '0.88rem',
-                    lineHeight: 1.6,
-                    margin: 0,
-                  }}>
-                    {cardCopy}
-                  </p>
-                </>
-              );
-            })()}
+            <h3 style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '1rem',
+                fontWeight: 700,
+                color: 'white',
+                margin: '0 0 10px',
+                lineHeight: 1.3,
+              }}>
+                {cardHeadline}
+              </h3>
+              <p style={{
+                color: 'rgba(255,255,255,0.6)',
+                fontSize: '0.88rem',
+                lineHeight: 1.6,
+                margin: 0,
+              }}>
+                {cardCopy}
+              </p>
           </div>
         </div>
       </div>
