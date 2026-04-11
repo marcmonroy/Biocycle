@@ -115,8 +115,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'f_life_morning_1',
-      imageUrl: img('100.png'),
-      imagePath: '100.png',
+      imageUrl: img('430.png'),
+      imagePath: '430.png',
       headline: 'You are already doing five things at once.',
       headlineES: 'Ya estás haciendo cinco cosas a la vez.',
       copyText: 'Jules tracks your cognitive clarity every morning. Some days everything flows. Some days it does not. Knowing the difference before it happens — that is the whole game.',
@@ -141,8 +141,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'f_bio_morning_2',
-      imageUrl: img('400.png'),
-      imagePath: '400.png',
+      imageUrl: img('160.png'),
+      imagePath: '160.png',
       headline: 'Full battery.',
       headlineES: 'Batería completa.',
       copyText: 'Some mornings you wake up fully charged. Jules is learning exactly when those mornings happen for you specifically — so you can start expecting them.',
@@ -473,8 +473,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'm_life_evening_1',
-      imageUrl: img('441.png'),
-      imagePath: '441.png',
+      imageUrl: img('722.png'),
+      imagePath: '722.png',
       headline: 'The connection that matters most.',
       headlineES: 'La conexión que más importa.',
       copyText: 'Evening connection scores are among the most predictive variables in your data. How present you are with the people you love tonight is a hormonal signal worth tracking.',
@@ -585,8 +585,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'f_peri_morning_energy',
-      imageUrl: img('400.png'),
-      imagePath: '400.png',
+      imageUrl: img('160.png'),
+      imagePath: '160.png',
       headline: 'Today you are fully charged.',
       headlineES: 'Hoy estás completamente cargada.',
       copyText: 'Good energy mornings still happen in perimenopause — they just follow a different pattern than before. Jules is learning yours. The data will tell you when to expect more of these.',
@@ -774,8 +774,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'm_andro_life_evening_1',
-      imageUrl: img('441.png'),
-      imagePath: '441.png',
+      imageUrl: img('722.png'),
+      imagePath: '722.png',
       headline: 'This connection is the real metric.',
       headlineES: 'Esta conexión es la métrica real.',
       copyText: 'Evening connection with the people who matter most predicts next-morning testosterone more reliably than most supplements. Jules tracks both. The data is clear.',
@@ -834,8 +834,8 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
     },
     {
       id: 'nb_life_morning_1',
-      imageUrl: img('400.png'),
-      imagePath: '400.png',
+      imageUrl: img('160.png'),
+      imagePath: '160.png',
       headline: 'Full charge. Your rules.',
       headlineES: 'Carga completa. Tus reglas.',
       copyText: 'Good mornings happen on your own schedule. Jules learns your specific peak windows — not the ones assigned by gender averages but the ones that belong to you specifically.',
@@ -937,49 +937,83 @@ function formatValue(days: number): string {
 // ── Main card selector ────────────────────────────────────────────────────
 
 export function getCardForUser(profile: Profile): Card {
-  const daysOfData   = getDaysOfData(profile);
-  const slot         = getCurrentTimeSlot();
-  const gender       = profile.genero ?? 'nonbinary';
+  const daysOfData  = getDaysOfData(profile);
+  const slot        = getCurrentTimeSlot();
+  const gender      = profile.genero ?? 'nonbinary';
   const picardiaMode = profile.picardia_mode ?? false;
-  const age          = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
+  const age = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
 
   // ── Milestone cards take priority on exact days
   if (MILESTONE_DAYS[daysOfData]) {
     return MILESTONE_DAYS[daysOfData](formatValue(daysOfData));
   }
 
-  // Build demographic key with 40+ routing
+  // ── Days 0-29: Discovery cards
+  if (daysOfData < 30) {
+    // Build demographic key with 40+ routing
+    let genderKey: string;
+    if (gender === 'female' && age >= 40) {
+      genderKey = 'female_peri';
+    } else if (gender === 'male' && age >= 40) {
+      genderKey = 'male_andro';
+    } else {
+      genderKey = gender; // 'female' | 'male' | 'nonbinary'
+    }
+
+    const key = `${genderKey}_${slot}`;
+
+    // Get card pool — cascade fallbacks
+    let allCards = DISCOVERY_CARDS[key]
+      || DISCOVERY_CARDS[`${gender}_${slot}`]
+      || DISCOVERY_CARDS[`nonbinary_${slot}`]
+      || DISCOVERY_CARDS['nonbinary_morning']
+      || [];
+
+    // Filter picardia — only show picardia cards in picardia mode
+    const filtered = picardiaMode
+      ? allCards
+      : allCards.filter(c => !c.picardiaOnly);
+
+    const pool = filtered.length > 0 ? filtered : allCards;
+
+    // Rotate by day to prevent consecutive repeats
+    return pool[daysOfData % pool.length];
+  }
+
+  // ── Day 30+: Phase-based cards using real phase from phaseEngine
+  const phaseResult = getCurrentPhase(profile);
+
+  // Determine which pool to use for Tier 2
+  // For now use the same discovery card pool but filtered to biology/life pillars
+  // When Tier 2 image library is confirmed in Supabase Storage,
+  // replace imageUrl construction below with actual image URLs.
+
   let genderKey: string;
   if (gender === 'female' && age >= 40) {
     genderKey = 'female_peri';
   } else if (gender === 'male' && age >= 40) {
     genderKey = 'male_andro';
   } else {
-    genderKey = gender; // 'female' | 'male' | 'nonbinary'
+    genderKey = gender;
   }
 
-  const key = `${genderKey}_${slot}`;
-
-  // Get card pool — cascade fallbacks
-  const allCards = DISCOVERY_CARDS[key]
+  const discoveryKey = `${genderKey}_${slot}`;
+  const discoveryPool = DISCOVERY_CARDS[discoveryKey]
     || DISCOVERY_CARDS[`${gender}_${slot}`]
     || DISCOVERY_CARDS[`nonbinary_${slot}`]
     || DISCOVERY_CARDS['nonbinary_morning']
     || [];
 
-  // Filter picardia — only show picardia cards in picardia mode
-  const filtered = picardiaMode ? allCards : allCards.filter(c => !c.picardiaOnly);
-  const pool = filtered.length > 0 ? filtered : allCards;
+  const filtered = picardiaMode
+    ? discoveryPool
+    : discoveryPool.filter(c => !c.picardiaOnly);
 
-  if (daysOfData < 30) {
-    // ── Days 0–29: rotate by day
-    return pool[daysOfData % pool.length];
-  }
+  const pool = filtered.length > 0 ? filtered : discoveryPool;
 
-  // ── Day 30+: overlay real phase from phaseEngine
-  const phaseResult = getCurrentPhase(profile);
+  // Rotate by day for variety
   const baseCard = pool[daysOfData % pool.length];
 
+  // Return with phase-enhanced copy for Day 30+ users
   return {
     ...baseCard,
     phaseTag: phaseResult.displayName,
