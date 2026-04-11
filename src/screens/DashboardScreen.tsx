@@ -491,24 +491,32 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
               </span>
             </div>
 
-            <h3 style={{
-              fontFamily: 'JetBrains Mono, monospace',
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: 'white',
-              margin: '0 0 10px',
-              lineHeight: 1.3,
-            }}>
-              {card.headline}
-            </h3>
-            <p style={{
-              color: 'rgba(255,255,255,0.6)',
-              fontSize: '0.88rem',
-              lineHeight: 1.6,
-              margin: 0,
-            }}>
-              {card.copyText}
-            </p>
+            {(() => {
+              const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
+              const cardCopy = idioma === 'ES' ? card.copyTextES : card.copyText;
+              return (
+                <>
+                  <h3 style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: '1rem',
+                    fontWeight: 700,
+                    color: 'white',
+                    margin: '0 0 10px',
+                    lineHeight: 1.3,
+                  }}>
+                    {cardHeadline}
+                  </h3>
+                  <p style={{
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: '0.88rem',
+                    lineHeight: 1.6,
+                    margin: 0,
+                  }}>
+                    {cardCopy}
+                  </p>
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
