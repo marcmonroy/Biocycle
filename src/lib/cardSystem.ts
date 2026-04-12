@@ -893,3 +893,328 @@ export function getCardForUser(profile: Profile): Card {
     phaseEmoji: phaseResult.emoji,
   };
 }
+
+// ── ARC SYSTEM ────────────────────────────────────────────────────────────
+
+export interface ArcStage {
+  stage: 1 | 2 | 3 | 4 | 5 | 6;
+  imagePath: string;
+  imageUrl: string;
+  label: string;
+  labelES: string;
+  teaser: string;
+  teaserES: string;
+  teaserPicardia: string;
+  teaserPicardiaES: string;
+}
+
+const ARC_IMG = 'https://hguqyuupwfpszsmdjrzz.supabase.co/storage/v1/object/public/library';
+function arcImg(f: string): string { return `${ARC_IMG}/${f}`; }
+
+const ARC_STAGE_LABELS: Record<number, { en: string; es: string }> = {
+  1: { en: 'Jules is watching',      es: 'Jules está observando' },
+  2: { en: 'Jules sees something',   es: 'Jules ve algo' },
+  3: { en: 'Jules recognizes you',   es: 'Jules te reconoce' },
+  4: { en: 'Jules is getting close', es: 'Jules se está acercando' },
+  5: { en: 'Jules is almost ready',  es: 'Jules casi está lista' },
+  6: { en: 'Forecast ready',         es: 'Pronóstico listo' },
+};
+
+type TeaserEntry = { standard: string; standardES: string; picardia: string; picardiaES: string };
+
+const ARC_TEASERS_FEMALE: Record<number, TeaserEntry> = {
+  1: {
+    standard:   'Jules just met you. She does not forget a thing.',
+    standardES: 'Jules acaba de conocerte. No olvida nada.',
+    picardia:   'Jules has started a file on you. It is already interesting.',
+    picardiaES: 'Jules abrió un expediente sobre ti. Ya es interesante.',
+  },
+  2: {
+    standard:   'Jules is learning the difference between your good mornings and your bad ones.',
+    standardES: 'Jules está aprendiendo a distinguir tus buenas mañanas de las malas.',
+    picardia:   'Jules noticed something yesterday. She filed it away. She will bring it up later.',
+    picardiaES: 'Jules notó algo ayer. Lo archivó. Lo sacará más adelante.',
+  },
+  3: {
+    standard:   'Jules is building a map of your energy. She does not know where it goes yet. She will.',
+    standardES: 'Jules está construyendo un mapa de tu energía. Aún no sabe a dónde va. Lo sabrá.',
+    picardia:   'Three days of data and Jules already has a theory. She is keeping it to herself for now.',
+    picardiaES: 'Tres días de datos y Jules ya tiene una teoría. Por ahora la guarda para sí misma.',
+  },
+  4: {
+    standard:   'Jules is learning when your body does its best work — and when it is barely holding on.',
+    standardES: 'Jules está aprendiendo cuándo tu cuerpo rinde mejor — y cuándo apenas aguanta.',
+    picardia:   'Jules is learning which version of you shows up on which days. The variations are notable.',
+    picardiaES: 'Jules está aprendiendo qué versión de ti aparece en qué días. Las variaciones son notables.',
+  },
+  5: {
+    standard:   'Five days in. Jules is starting to see your pattern. You do not see it yet.',
+    standardES: 'Cinco días adentro. Jules empieza a ver tu patrón. Tú aún no lo ves.',
+    picardia:   'In biology, five data points is enough to start seeing things that should stay private.',
+    picardiaES: 'En biología, cinco puntos ya empiezan a revelar cosas que deberían ser privadas.',
+  },
+  6: {
+    standard:   'Jules noticed a pattern in your mornings. She is checking if it holds.',
+    standardES: 'Jules notó un patrón en tus mañanas. Está verificando si se mantiene.',
+    picardia:   'Pretty soon Jules will be able to tell you exactly which morning you should not be in charge of anything.',
+    picardiaES: 'Muy pronto Jules podrá decirte exactamente qué mañana no deberías estar a cargo de nada.',
+  },
+  7: {
+    standard:   "Jules is learning your body's daily story. More predictable than you think.",
+    standardES: 'Jules aprende la historia diaria de tu cuerpo. Más predecible de lo que crees.',
+    picardia:   'Jules can already guess what time of day is most dangerous to have a conversation with you.',
+    picardiaES: 'Jules ya puede adivinar a qué hora del día es más peligroso tener una conversación contigo.',
+  },
+  8: {
+    standard:   'Jules is starting to map the days you are magnetic and the days you are radioactive.',
+    standardES: 'Jules empieza a mapear los días en que eres magnética y los días en que eres radiactiva.',
+    picardia:   'Eight days in. Jules already has a candidate for your most intense day of the month.',
+    picardiaES: 'Ocho días adentro. Jules ya tiene candidato para tu día más intenso del mes.',
+  },
+  9: {
+    standard:   'Jules is learning your stress signature. Every body handles pressure differently. Yours has a tell.',
+    standardES: 'Jules aprende tu firma de estrés. El tuyo tiene una señal.',
+    picardia:   'Soon Jules will know your next craving before you reach for it. She is almost there.',
+    picardiaES: 'Pronto Jules sabrá cuál será tu próximo antojo antes de que lo busques. Casi lo tiene.',
+  },
+  10: {
+    standard:   'Jules is building a picture of who you are on a good day — and on a hard one.',
+    standardES: 'Jules construye una imagen de quién eres en un buen día — y en uno difícil.',
+    picardia:   'Jules has started noticing what happens to your decision-making in certain windows. Interesting pattern.',
+    picardiaES: 'Jules empezó a notar qué le pasa a tu toma de decisiones en ciertos momentos. Patrón interesante.',
+  },
+  11: {
+    standard:   'Jules is learning which version of you needs the most space — and when she tends to show up.',
+    standardES: 'Jules aprende qué versión de ti necesita más espacio — y cuándo suele aparecer.',
+    picardia:   'Pretty soon Jules will know in advance the exact afternoon you will want to quit everything and move to a different country.',
+    picardiaES: 'Muy pronto Jules sabrá con anticipación la tarde exacta en que querrás dejarlo todo y mudarte a otro país.',
+  },
+  12: {
+    standard:   'Jules has noticed certain days make you sharper. Certain days make you sensitive. The pattern is forming.',
+    standardES: 'Jules notó que ciertos días te vuelven más aguda. Ciertos días te vuelven sensible. El patrón toma forma.',
+    picardia:   'Jules is starting to see which nights you will be awake at 3am. She expected it.',
+    picardiaES: 'Jules empieza a ver qué noches estarás despierta a las 3am. Lo esperaba.',
+  },
+  13: {
+    standard:   'Jules is beginning to recognize you — not the average version of you. You specifically.',
+    standardES: 'Jules empieza a reconocerte — no la versión promedio de ti. Tú específicamente.',
+    picardia:   'Jules has a strong suspicion about when you are most likely to make an impulsive decision. The data points clearly.',
+    picardiaES: 'Jules tiene una fuerte sospecha sobre cuándo tienes más probabilidad de tomar una decisión impulsiva.',
+  },
+  14: {
+    standard:   'Jules has identified your personal energy peak. She is double-checking it before she tells you.',
+    standardES: 'Jules identificó tu pico personal de energía. Lo verifica antes de contarte.',
+    picardia:   'Pretty soon Jules will tell you in advance when you will be desperate for action — and when for solitude.',
+    picardiaES: 'Muy pronto Jules podrá decirte cuándo estarás desesperada por acción — y cuándo por soledad.',
+  },
+  15: {
+    standard:   'Jules is cross-referencing your sleep against your mood. The results are not surprising. They are just yours.',
+    standardES: 'Jules cruza tu sueño con tu estado de ánimo. Los resultados son los tuyos.',
+    picardia:   'Jules knows which day of the week is your hardest. It is chemistry, not coincidence.',
+    picardiaES: 'Jules sabe qué día de la semana es el más difícil para ti. Es química, no coincidencia.',
+  },
+  16: {
+    standard:   'Jules has a picture of your high days. Now she is filling in the low ones.',
+    standardES: 'Jules tiene imagen de tus días altos. Ahora está completando los bajos.',
+    picardia:   "Jules has noticed what your body does before a big emotional moment. You have not noticed it yet. She has.",
+    picardiaES: 'Jules notó lo que hace tu cuerpo antes de un momento emocional intenso. Tú aún no lo has notado. Ella sí.',
+  },
+  17: {
+    standard:   'Seventeen days of signals. Jules is learning that your body speaks before your mood does.',
+    standardES: 'Diecisiete días de señales. Jules aprende que tu cuerpo habla antes que tu estado de ánimo.',
+    picardia:   'Jules has a theory about your weekend nights. She needs a few more to confirm it. She is patient.',
+    picardiaES: 'Jules tiene una teoría sobre tus noches de fin de semana. Necesita algunas más para confirmarla.',
+  },
+  18: {
+    standard:   'Jules can now anticipate your energy windows before they arrive. She is getting ahead of you.',
+    standardES: 'Jules ya puede anticipar tus ventanas de energía antes de que lleguen.',
+    picardia:   'Jules is starting to know which days you will be unreachable — before you know it yourself.',
+    picardiaES: 'Jules empieza a saber qué días serás inalcanzable — antes de que tú misma lo sepas.',
+  },
+  19: {
+    standard:   'Jules has identified your most productive window of the month. She is preparing to show you when to use it.',
+    standardES: 'Jules identificó tu ventana más productiva del mes. Se prepara para mostrarte cuándo usarla.',
+    picardia:   'Jules can now predict which conversation this month is going to go sideways. She will let you know beforehand.',
+    picardiaES: 'Jules puede predecir qué conversación de este mes saldrá mal. Te avisará con anticipación.',
+  },
+  20: {
+    standard:   'Jules has seen your body respond to stress differently across different weeks. She knows which week to watch.',
+    standardES: 'Jules ha visto a tu cuerpo responder al estrés diferente en distintas semanas. Sabe qué semana vigilar.',
+    picardia:   'Jules noticed the days your texts get shorter. And the days they get more honest.',
+    picardiaES: 'Jules notó los días en que tus mensajes se vuelven más cortos. Y los días en que se vuelven más honestos.',
+  },
+  21: {
+    standard:   'Three weeks of you. Jules is no longer guessing what kind of day it is. She is starting to know.',
+    standardES: 'Tres semanas de ti. Jules ya no adivina qué tipo de día es. Empieza a saberlo.',
+    picardia:   'Pretty soon Jules will tell you in advance when you will wake up already annoyed. It will not be a mystery anymore.',
+    picardiaES: 'Muy pronto Jules podrá decirte cuándo despertarás ya molesta. Ya no será un misterio.',
+  },
+  22: {
+    standard:   'Jules is now separating your baseline from your cycles. What is always you and what is just this week of you.',
+    standardES: 'Jules separa tu línea base de tus ciclos. Lo que siempre eres tú y lo que solo es esta semana de ti.',
+    picardia:   'Jules is close to predicting the exact week you will feel invincible. And the week you will not want to be perceived.',
+    picardiaES: 'Jules está cerca de predecir la semana exacta en que te sentirás invencible. Y la semana en que no querrás ser vista.',
+  },
+  23: {
+    standard:   'Twenty-three days in. Jules has your rhythm. She is building your personal forecast now.',
+    standardES: 'Veintitrés días adentro. Jules tiene tu ritmo. Construye tu pronóstico personal.',
+    picardia:   'Jules has identified the days you are most likely to send a message you will later regret. She considers this useful.',
+    picardiaES: 'Jules identificó los días en que tienes más probabilidad de enviar un mensaje que luego lamentarás.',
+  },
+  24: {
+    standard:   'Jules is now comparing this week to the same window last cycle. The patterns are holding.',
+    standardES: 'Jules compara esta semana con la misma ventana del ciclo anterior. Los patrones se mantienen.',
+    picardia:   'In six days Jules will tell you something true about yourself that you have never had the language for.',
+    picardiaES: 'En seis días Jules te dirá algo verdadero sobre ti para lo que nunca habías tenido palabras.',
+  },
+  25: {
+    standard:   'The data is almost complete. Jules is running your first personal forecast model tonight.',
+    standardES: 'Los datos están casi completos. Jules ejecuta tu primer modelo de pronóstico personal esta noche.',
+    picardia:   'Jules now knows which days everyone around you needs to be on their best behavior. She is only telling you.',
+    picardiaES: 'Jules sabe qué días todos a tu alrededor necesitan estar en su mejor comportamiento. Solo te lo dice a ti.',
+  },
+  26: {
+    standard:   'Four days to your first forecast. Jules is finalizing your personal pattern map.',
+    standardES: 'Cuatro días para tu primer pronóstico. Jules finaliza tu mapa de patrones.',
+    picardia:   'Jules is about to become the only thing that has ever been able to predict you. Four days.',
+    picardiaES: 'Jules está a punto de convertirse en lo único que alguna vez ha podido predecirte. Cuatro días.',
+  },
+  27: {
+    standard:   'Jules has enough data to know the kind of day you are having before you tell her.',
+    standardES: 'Jules tiene suficientes datos para saber qué tipo de día tienes antes de que se lo cuentes.',
+    picardia:   'Three days. Jules is running final calculations on when you will next be impossible to say no to.',
+    picardiaES: 'Tres días. Jules ejecuta los cálculos finales sobre cuándo será imposible decirte que no.',
+  },
+  28: {
+    standard:   'Two days from your first forecast. Jules has seen your pattern repeat. She is ready.',
+    standardES: 'Dos días para tu primer pronóstico. Jules vio tu patrón repetirse. Está lista.',
+    picardia:   'Jules has your next high day mapped. Your next low day. Your next impulsive day. Two days.',
+    picardiaES: 'Jules tiene mapeado tu próximo día alto. Tu próximo día bajo. Tu próximo día impulsivo. Dos días.',
+  },
+  29: {
+    standard:   'Tomorrow Jules stops learning and starts predicting. Get ready to meet yourself.',
+    standardES: 'Mañana Jules deja de aprender y empieza a predecir. Prepárate para conocerte.',
+    picardia:   'Tomorrow Jules says something true that will either make you laugh or send to three people to prove her wrong. She is right either way.',
+    picardiaES: 'Mañana Jules dice algo verdadero que o te hará reír o se lo enviarás a tres personas para probar que está equivocada.',
+  },
+};
+
+const ARC_TEASERS_MALE: Record<number, TeaserEntry> = {
+  ...Object.fromEntries([1, 2, 3, 4, 5].map(d => [d, ARC_TEASERS_FEMALE[d]])),
+  6: {
+    standard:   'Jules noticed a pattern in your mornings. She is checking if it holds.',
+    standardES: 'Jules notó un patrón en tus mañanas. Está verificando si se mantiene.',
+    picardia:   'Pretty soon Jules will tell you which afternoon your cortisol takes over and undoes your morning.',
+    picardiaES: 'Muy pronto Jules podrá decirte qué tarde tu cortisol tomará el control y deshará tu mañana.',
+  },
+  7: {
+    standard:   "Jules is learning your body's daily story. More predictable than you think.",
+    standardES: 'Jules aprende la historia diaria de tu cuerpo. Más predecible de lo que crees.',
+    picardia:   'Jules can already guess what time of day is most dangerous to have a conversation with you.',
+    picardiaES: 'Jules ya puede adivinar a qué hora del día es más peligroso tener una conversación contigo.',
+  },
+  8: {
+    standard:   'Jules is starting to map the days your confidence runs the room and the days your cortisol does.',
+    standardES: 'Jules empieza a mapear los días en que tu confianza dirige la sala y los días en que lo hace tu cortisol.',
+    picardia:   'Eight days in. Jules already has a candidate for your most productive hour of the week.',
+    picardiaES: 'Ocho días adentro. Jules ya tiene candidato para tu hora más productiva de la semana.',
+  },
+  9: {
+    standard:   'Jules is learning your stress signature. Every body handles pressure differently. Yours has a tell.',
+    standardES: 'Jules aprende tu firma de estrés. El tuyo tiene una señal.',
+    picardia:   'Soon Jules will know which version of you shows up to difficult conversations. The data is forming.',
+    picardiaES: 'Pronto Jules sabrá qué versión de ti aparece en las conversaciones difíciles.',
+  },
+  10: {
+    standard:   'Jules is building a picture of who you are on a peak day — and on a depleted one.',
+    standardES: 'Jules construye una imagen de quién eres en un día pico — y en uno agotado.',
+    picardia:   'Jules has started noticing what happens to your risk tolerance in certain hormonal windows. Interesting.',
+    picardiaES: 'Jules empezó a notar qué le pasa a tu tolerancia al riesgo en ciertos momentos. Interesante.',
+  },
+  11: {
+    standard:   'Jules is learning which version of you has the most patience — and when she tends to disappear.',
+    standardES: 'Jules aprende qué versión de ti tiene más paciencia — y cuándo suele desaparecer.',
+    picardia:   'Pretty soon Jules will know the exact afternoon this month when your cortisol makes decisions instead of you.',
+    picardiaES: 'Muy pronto Jules sabrá la tarde exacta este mes en que tu cortisol toma decisiones en lugar de ti.',
+  },
+  12: ARC_TEASERS_FEMALE[12],
+  13: ARC_TEASERS_FEMALE[13],
+  14: {
+    standard:   'Jules has identified your daily performance window. She is mapping it against your week.',
+    standardES: 'Jules identificó tu ventana de rendimiento diario. La mapea contra tu semana.',
+    picardia:   'Pretty soon Jules will tell you in advance when you will be at your most persuasive — and when to let someone else talk.',
+    picardiaES: 'Muy pronto Jules te dirá cuándo estarás en tu punto más persuasivo — y cuándo dejar que otro hable.',
+  },
+  15: ARC_TEASERS_FEMALE[15],
+  16: ARC_TEASERS_FEMALE[16],
+  17: {
+    standard:   'Seventeen days of signals. Jules is learning that your body gives notice before your mood changes.',
+    standardES: 'Diecisiete días de señales. Jules aprende que tu cuerpo avisa antes de que cambie tu estado de ánimo.',
+    picardia:   'Jules has a theory about which evenings produce your best decisions. She needs a few more to confirm.',
+    picardiaES: 'Jules tiene una teoría sobre qué noches producen tus mejores decisiones. Necesita algunas más para confirmarla.',
+  },
+  18: ARC_TEASERS_FEMALE[18],
+  19: ARC_TEASERS_FEMALE[19],
+  20: ARC_TEASERS_FEMALE[20],
+  21: {
+    standard:   'Three weeks of your daily rhythm. Jules is beginning to know you better than your schedule does.',
+    standardES: 'Tres semanas de tu ritmo diario. Jules empieza a conocerte mejor que tu agenda.',
+    picardia:   'Pretty soon Jules will be able to predict the afternoons you will be unstoppable — and the ones to protect.',
+    picardiaES: 'Muy pronto Jules podrá predecir las tardes en que serás imparable — y las que debes proteger.',
+  },
+  22: ARC_TEASERS_FEMALE[22],
+  23: ARC_TEASERS_FEMALE[23],
+  24: ARC_TEASERS_FEMALE[24],
+  25: {
+    standard:   'The data is almost complete. Jules is running your first personal performance forecast tonight.',
+    standardES: 'Los datos están casi completos. Jules ejecuta tu primer pronóstico de rendimiento personal esta noche.',
+    picardia:   'Jules now knows which days this month you are operating at maximum and which ones are costing you more than you realize.',
+    picardiaES: 'Jules sabe qué días de este mes operas al máximo y cuáles te cuestan más de lo que te das cuenta.',
+  },
+  26: ARC_TEASERS_FEMALE[26],
+  27: ARC_TEASERS_FEMALE[27],
+  28: ARC_TEASERS_FEMALE[28],
+  29: {
+    standard:   'Tomorrow Jules tells you something specific about your patterns that no one has ever put into words for you.',
+    standardES: 'Mañana Jules te dice algo específico sobre tus patrones que nadie ha sabido ponerte en palabras.',
+    picardia:   'Tomorrow Jules says something accurate enough that you will either act on it immediately or forward it to someone to prove her wrong.',
+    picardiaES: 'Mañana Jules dice algo tan preciso que o actuarás de inmediato o se lo reenviarás a alguien para probar que está equivocada.',
+  },
+};
+
+function getStageForDay(day: number): 1 | 2 | 3 | 4 | 5 | 6 {
+  if (day <= 5)  return 1;
+  if (day <= 10) return 2;
+  if (day <= 17) return 3;
+  if (day <= 25) return 4;
+  if (day <= 29) return 5;
+  return 6;
+}
+
+export function getArcStage(
+  daysOfData: number,
+  gender: 'female' | 'male' | 'nonbinary',
+  picardiaMode: boolean
+): ArcStage | null {
+  if (daysOfData >= 30) return null;
+
+  const day = daysOfData + 1; // 1-indexed for readability
+
+  const teasers = gender === 'male' ? ARC_TEASERS_MALE : ARC_TEASERS_FEMALE;
+  const entry = teasers[day];
+  if (!entry) return null;
+
+  const stage = getStageForDay(day);
+
+  return {
+    stage,
+    imagePath: `arc_s${stage}.png`,
+    imageUrl:  arcImg(`arc_s${stage}.png`),
+    label:            ARC_STAGE_LABELS[stage].en,
+    labelES:          ARC_STAGE_LABELS[stage].es,
+    teaser:           picardiaMode ? entry.picardia   : entry.standard,
+    teaserES:         picardiaMode ? entry.picardiaES : entry.standardES,
+    teaserPicardia:   entry.picardia,
+    teaserPicardiaES: entry.picardiaES,
+  };
+}
