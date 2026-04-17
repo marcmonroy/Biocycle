@@ -59,6 +59,9 @@ export interface Profile {
   wearable_source: string | null;
   validation_due_date: string | null;
   days_of_data: number | null;
+  pattern_delta_vector: Record<string, number> | null;
+  compatibility_opt_in: boolean;
+  cycle_auto_detect_enabled: boolean;
   onboarding_complete: boolean | null;
   created_at: string;
 }
