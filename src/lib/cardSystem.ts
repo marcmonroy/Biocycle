@@ -325,7 +325,7 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       phaseTag: 'Cognitive', phaseEmoji: '🧠', pillar: 'financial', picardiaOnly: false,
     },
     {
-      id: 'm_clarity_morning_1', imagePath: '720.png', imageUrl: img('720.png'),
+      id: 'm_clarity_morning_1', imagePath: '741.png', imageUrl: img('741.png'),
       headline: 'From question mark to lightbulb.',
       headlineES: 'Del signo de interrogación al foco.',
       copyText: 'Some mornings the fog clears and the idea arrives. Jules tracks your cognitive clarity score daily. The transition from confused to sharp — it follows your biology.',
@@ -352,7 +352,7 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
 
   male_midday: [
     {
-      id: 'm_fin_midday_1', imagePath: '706.png', imageUrl: img('706.png'),
+      id: 'm_fin_midday_1', imagePath: '740.png', imageUrl: img('740.png'),
       headline: 'Your data is making money.',
       headlineES: 'Tus datos están generando dinero.',
       copyText: 'Male biological data is among the most underrepresented in health research. Your daily patterns are worth real money. At 30 days your portfolio unlocks. High five to that.',
