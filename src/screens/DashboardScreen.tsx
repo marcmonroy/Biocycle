@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserState } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
-import { getCardForUser } from '../lib/cardSystem';
+import { getCardForUser, getArcStage } from '../lib/cardSystem';
 
 interface Props {
   profile: Profile;
@@ -247,6 +247,21 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
   const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
   const cardCopy = idioma === 'ES' ? card.copyTextES : card.copyText;
 
+  const gender = (profile.genero ?? 'nonbinary') as 'female' | 'male' | 'nonbinary';
+  const picardiaMode = profile.picardia_mode ?? false;
+  const arcData = getArcStage(daysOfData, gender, picardiaMode);
+  const arcLabel = idioma === 'ES' ? arcData?.labelES : arcData?.label;
+  const arcTeaser = idioma === 'ES' ? arcData?.teaserES : arcData?.teaser;
+
+  function shareCard() {
+    const text = `${cardHeadline}\n\nForecast your future\nbiocycle.app`;
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+  }
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -437,27 +452,80 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
           border: '1px solid rgba(255,255,255,0.07)',
           background: 'rgba(255,255,255,0.02)',
         }}>
-          {/* Card image or placeholder */}
-          {card.imageUrl ? (
-            <img
-              src={card.imageUrl}
-              alt={cardHeadline}
-              style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          ) : (
+          {/* Card image with gradient overlay + share button */}
+          <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9' }}>
+            {card.imageUrl ? (
+              <img
+                src={card.imageUrl}
+                alt={cardHeadline}
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div style={{
+                width: '100%',
+                height: '100%',
+                background: 'linear-gradient(135deg, #0A0A1A 0%, #1A1A3E 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 48,
+              }}>
+                {card.phaseEmoji}
+              </div>
+            )}
+            {/* Bottom gradient overlay with one-liner */}
             <div style={{
-              width: '100%',
-              aspectRatio: '16/9',
-              background: `linear-gradient(135deg, #0A0A1A 0%, #1A1A3E 100%)`,
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '15%',
+              background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, transparent 100%)',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 48,
+              alignItems: 'flex-end',
+              padding: '0 12px 8px',
             }}>
-              {card.phaseEmoji}
+              <span style={{
+                color: 'white',
+                fontWeight: 700,
+                fontSize: '0.78rem',
+                fontFamily: 'JetBrains Mono, monospace',
+                lineHeight: 1.2,
+                textShadow: '0 1px 3px rgba(0,0,0,0.6)',
+              }}>
+                {cardHeadline}
+              </span>
             </div>
-          )}
+            {/* Share button */}
+            <button
+              onClick={shareCard}
+              style={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                background: 'rgba(0,0,0,0.45)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 8,
+                width: 34,
+                height: 34,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
+              }}
+              aria-label="Share"
+            >
+              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx={18} cy={5} r={3} />
+                <circle cx={6} cy={12} r={3} />
+                <circle cx={18} cy={19} r={3} />
+                <line x1={8.59} y1={13.51} x2={15.42} y2={17.49} />
+                <line x1={15.41} y1={6.51} x2={8.59} y2={10.49} />
+              </svg>
+            </button>
+          </div>
 
           <div style={{ padding: '20px 20px 22px' }}>
             {/* Tags */}
@@ -511,7 +579,55 @@ export function DashboardScreen({ profile, userState, onStartCoach }: Props) {
               }}>
                 {cardCopy}
               </p>
+              {arcTeaser && (
+                <p style={{
+                  color: 'rgba(0,200,150,0.8)',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.55,
+                  margin: '12px 0 0',
+                  fontStyle: 'italic',
+                }}>
+                  {arcTeaser}
+                </p>
+              )}
           </div>
+
+          {/* Arc strip */}
+          {arcData && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '12px 20px 16px',
+              borderTop: '1px solid rgba(255,255,255,0.06)',
+            }}>
+              <img
+                src={arcData.imageUrl}
+                alt={arcLabel}
+                style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  color: 'white',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  lineHeight: 1.2,
+                }}>
+                  {arcLabel}
+                </div>
+                <div style={{
+                  color: '#4A5568',
+                  fontSize: 10,
+                  letterSpacing: '0.08em',
+                  marginTop: 2,
+                }}>
+                  Stage {arcData.stage} of 5
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

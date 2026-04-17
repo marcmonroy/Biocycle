@@ -43,6 +43,61 @@ const TEASERS: Record<string, Record<string, Record<string, string>>> = {
   },
 };
 
+// Arc teaser data (standard mode only — mirrors cardSystem.ts ARC_TEASERS_*)
+const ARC_STANDARD_FEMALE: Record<number, { en: string; es: string }> = {
+  1:  { en: 'Jules just met you. She does not forget a thing.', es: 'Jules acaba de conocerte. No olvida nada.' },
+  2:  { en: 'Jules is learning the difference between your good mornings and your bad ones.', es: 'Jules aprende a distinguir tus buenas mañanas de las malas.' },
+  3:  { en: 'Jules is building a map of your energy. She does not know where it goes yet. She will.', es: 'Jules construye un mapa de tu energía. Aún no sabe a dónde va. Lo sabrá.' },
+  4:  { en: 'Jules is learning when your body does its best work — and when it is barely holding on.', es: 'Jules aprende cuándo tu cuerpo rinde mejor — y cuándo apenas aguanta.' },
+  5:  { en: 'Five days in. Jules is starting to see your pattern. You do not see it yet.', es: 'Cinco días adentro. Jules empieza a ver tu patrón. Tú aún no lo ves.' },
+  6:  { en: 'Jules noticed a pattern in your mornings. She is checking if it holds.', es: 'Jules notó un patrón en tus mañanas. Está verificando si se mantiene.' },
+  7:  { en: "Jules is learning your body's daily story. More predictable than you think.", es: 'Jules aprende la historia diaria de tu cuerpo. Más predecible de lo que crees.' },
+  8:  { en: 'Jules is starting to map the days you are magnetic and the days you are radioactive.', es: 'Jules empieza a mapear los días en que eres magnética y los días en que eres radiactiva.' },
+  9:  { en: 'Jules is learning your stress signature. Every body handles pressure differently. Yours has a tell.', es: 'Jules aprende tu firma de estrés. El tuyo tiene una señal.' },
+  10: { en: 'Jules is building a picture of who you are on a good day — and on a hard one.', es: 'Jules construye una imagen de quién eres en un buen día — y en uno difícil.' },
+  11: { en: 'Jules is learning which version of you needs the most space — and when she tends to show up.', es: 'Jules aprende qué versión de ti necesita más espacio — y cuándo suele aparecer.' },
+  12: { en: 'Jules has noticed certain days make you sharper. Certain days make you sensitive. The pattern is forming.', es: 'Jules notó que ciertos días te vuelven más aguda. Ciertos días te vuelven sensible. El patrón toma forma.' },
+  13: { en: 'Jules is beginning to recognize you — not the average version of you. You specifically.', es: 'Jules empieza a reconocerte — no la versión promedio de ti. Tú específicamente.' },
+  14: { en: 'Jules has identified your personal energy peak. She is double-checking it before she tells you.', es: 'Jules identificó tu pico personal de energía. Lo verifica antes de contarte.' },
+  15: { en: 'Jules is cross-referencing your sleep against your mood. The results are not surprising. They are just yours.', es: 'Jules cruza tu sueño con tu estado de ánimo. Los resultados son los tuyos.' },
+  16: { en: 'Jules has a picture of your high days. Now she is filling in the low ones.', es: 'Jules tiene imagen de tus días altos. Ahora está completando los bajos.' },
+  17: { en: 'Seventeen days of signals. Jules is learning that your body speaks before your mood does.', es: 'Diecisiete días de señales. Jules aprende que tu cuerpo habla antes que tu estado de ánimo.' },
+  18: { en: 'Jules can now anticipate your energy windows before they arrive. She is getting ahead of you.', es: 'Jules ya puede anticipar tus ventanas de energía antes de que lleguen.' },
+  19: { en: 'Jules has identified your most productive window of the month. She is preparing to show you when to use it.', es: 'Jules identificó tu ventana más productiva del mes. Se prepara para mostrarte cuándo usarla.' },
+  20: { en: 'Jules has seen your body respond to stress differently across different weeks. She knows which week to watch.', es: 'Jules ha visto a tu cuerpo responder al estrés diferente en distintas semanas. Sabe qué semana vigilar.' },
+  21: { en: 'Three weeks of you. Jules is no longer guessing what kind of day it is. She is starting to know.', es: 'Tres semanas de ti. Jules ya no adivina qué tipo de día es. Empieza a saberlo.' },
+  22: { en: 'Jules is now separating your baseline from your cycles. What is always you and what is just this week of you.', es: 'Jules separa tu línea base de tus ciclos. Lo que siempre eres tú y lo que solo es esta semana de ti.' },
+  23: { en: 'Twenty-three days in. Jules has your rhythm. She is building your personal forecast now.', es: 'Veintitrés días adentro. Jules tiene tu ritmo. Construye tu pronóstico personal.' },
+  24: { en: 'Jules is now comparing this week to the same window last cycle. The patterns are holding.', es: 'Jules compara esta semana con la misma ventana del ciclo anterior. Los patrones se mantienen.' },
+  25: { en: 'The data is almost complete. Jules is running your first personal forecast model tonight.', es: 'Los datos están casi completos. Jules ejecuta tu primer modelo de pronóstico personal esta noche.' },
+  26: { en: 'Four days to your first forecast. Jules is finalizing your personal pattern map.', es: 'Cuatro días para tu primer pronóstico. Jules finaliza tu mapa de patrones.' },
+  27: { en: 'Jules has enough data to know the kind of day you are having before you tell her.', es: 'Jules tiene suficientes datos para saber qué tipo de día tienes antes de que se lo cuentes.' },
+  28: { en: 'Two days from your first forecast. Jules has seen your pattern repeat. She is ready.', es: 'Dos días para tu primer pronóstico. Jules vio tu patrón repetirse. Está lista.' },
+  29: { en: 'Tomorrow Jules stops learning and starts predicting. Get ready to meet yourself.', es: 'Mañana Jules deja de aprender y empieza a predecir. Prepárate para conocerte.' },
+};
+
+const ARC_STANDARD_MALE: Record<number, { en: string; es: string }> = {
+  ...ARC_STANDARD_FEMALE,
+  8:  { en: 'Jules is starting to map the days your confidence runs the room and the days your cortisol does.', es: 'Jules empieza a mapear los días en que tu confianza dirige la sala y los días en que lo hace tu cortisol.' },
+  10: { en: 'Jules is building a picture of who you are on a peak day — and on a depleted one.', es: 'Jules construye una imagen de quién eres en un día pico — y en uno agotado.' },
+  11: { en: 'Jules is learning which version of you has the most patience — and when she tends to disappear.', es: 'Jules aprende qué versión de ti tiene más paciencia — y cuándo suele desaparecer.' },
+  14: { en: 'Jules has identified your daily performance window. She is mapping it against your week.', es: 'Jules identificó tu ventana de rendimiento diario. La mapea contra tu semana.' },
+  17: { en: 'Seventeen days of signals. Jules is learning that your body gives notice before your mood changes.', es: 'Diecisiete días de señales. Jules aprende que tu cuerpo avisa antes de que cambie tu estado de ánimo.' },
+  21: { en: 'Three weeks of your daily rhythm. Jules is beginning to know you better than your schedule does.', es: 'Tres semanas de tu ritmo diario. Jules empieza a conocerte mejor que tu agenda.' },
+  25: { en: 'The data is almost complete. Jules is running your first personal performance forecast tonight.', es: 'Los datos están casi completos. Jules ejecuta tu primer pronóstico de rendimiento personal esta noche.' },
+  29: { en: 'Tomorrow Jules tells you something specific about your patterns that no one has ever put into words for you.', es: 'Mañana Jules te dice algo específico sobre tus patrones que nadie ha sabido ponerte en palabras.' },
+};
+
+function getArcTeaser(daysOfData: number, gender: string, lang: string): string | null {
+  if (daysOfData >= 30 || daysOfData < 1) return null;
+  const day = daysOfData + 1;
+  const g = normalizeGender(gender);
+  const map = g === 'male' ? ARC_STANDARD_MALE : ARC_STANDARD_FEMALE;
+  const entry = map[day];
+  if (!entry) return null;
+  return lang === 'ES' ? entry.es : entry.en;
+}
+
 function getCurrentSlot(hour: number): 'morning' | 'afternoon' | 'night' | null {
   if (hour >= 5  && hour < 12) return 'morning';
   if (hour >= 12 && hour < 17) return 'afternoon';
@@ -166,7 +221,11 @@ serve(async (_req) => {
 
         const gender  = trader.genero || 'female';
         const lang    = trader.idioma === 'ES' ? 'ES' : 'EN';
-        const teaser  = getTeaser(slot, gender, lang);
+        const daysOfData = trader.days_of_data ?? 0;
+        const arcTeaser  = getArcTeaser(daysOfData, gender, lang);
+        const teaser  = arcTeaser
+          ? `${getTeaser(slot, gender, lang)}\n\n${arcTeaser}`
+          : getTeaser(slot, gender, lang);
 
         const ok = await sendWhatsApp(trader.whatsapp_phone, teaser, lang);
         if (ok) {

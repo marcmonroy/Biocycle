@@ -847,8 +847,8 @@ export function getCardForUser(profile: Profile): Card {
   const picardiaMode = profile.picardia_mode ?? false;
   const age          = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
 
-  // Milestone cards take priority on exact days
-  if (MILESTONE_DAYS[daysOfData]) {
+  // Milestone cards take priority on exact days — morning slot only
+  if (MILESTONE_DAYS[daysOfData] && slot === 'morning') {
     return MILESTONE_DAYS[daysOfData](formatValue(daysOfData));
   }
 
