@@ -181,6 +181,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     try {
       const canvas = document.createElement('canvas');
       const W = 720, H = 900;
+      const imgH = H; // image fills the full canvas — no footer
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
       if (!ctx) { setSharing(false); return; }
@@ -193,9 +194,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         img.onerror = () => reject(new Error('img load failed'));
         img.src = card.imageUrl ?? '';
       });
-
-      // Cover-fit image into top 640px
-      const imgH = 640;
       const scale = Math.max(W / img.width, imgH / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
@@ -237,23 +235,15 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         y += 42;
       }
 
-      // Footer banner
-      ctx.fillStyle = '#0A0A1A';
-      ctx.fillRect(0, imgH, W, H - imgH);
-      ctx.fillStyle = '#FFD93D';
-      ctx.font = 'bold 28px -apple-system, system-ui, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(idioma === 'ES' ? 'Pronostica tu futuro' : 'Forecast your future', W / 2, imgH + 90);
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.font = '22px -apple-system, system-ui, sans-serif';
-      ctx.fillText('biocycle.app', W / 2, imgH + 140);
-
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
       if (!blob) { setSharing(false); return; }
 
       const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: idioma === 'ES' ? 'Conócete antes de que pase — biocycle.app' : 'Know yourself before it happens — biocycle.app' });
+        await navigator.share({
+          files: [file],
+          text: idioma === 'ES' ? 'Pronostica tu futuro — biocycle.app' : 'Forecast your future — biocycle.app',
+        });
       } else {
         // Fallback: copy image to clipboard
         try {
@@ -284,14 +274,14 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: '#0A0A1A', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 80, overflowX: 'hidden' }}>
 
       {/* Top bar: streak + greeting + settings + tier */}
-      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '52px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '28px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* Compact streak */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 18 }}>🔥</span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 700, color: flameColor, lineHeight: 1 }}>
+          <span style={{ fontSize: 21 }}>🔥</span>
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 17, fontWeight: 700, color: flameColor, lineHeight: 1 }}>
             {streak}
           </span>
-          <span style={{ color: '#4A5568', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <span style={{ color: '#4A5568', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             {idioma === 'ES' ? 'días' : 'day streak'}
           </span>
         </div>
@@ -466,7 +456,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: 'linear-gradient(135deg, rgba(255,217,61,0.06) 0%, rgba(123,97,255,0.06) 100%)', border: '1px solid rgba(255,217,61,0.15)', borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ color: '#4A5568', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-                {idioma === 'ES' ? 'Ganancias' : 'Earnings'}
+                {idioma === 'ES' ? 'Valor de tus Datos' : 'Data Value'}
               </div>
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1.4rem', fontWeight: 700, color: '#FFD93D', lineHeight: 1 }}>
                 ${animatedValue.toFixed(2)}
