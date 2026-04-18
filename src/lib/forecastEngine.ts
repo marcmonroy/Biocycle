@@ -25,10 +25,13 @@ export interface ForecastDay {
   phaseEmoji: string;
   energy: number;
   cognitive: number;
-  emotional: number;
-  physical: number;
-  sexual: number;
+  stress: number;
   anxiety: number;
+  sleep: number;
+  emotional: number;
+  social: number;
+  sexual: number;
+  physical: number;
   insight: string;
   insightES: string;
   isVulnerabilityWindow: boolean;
@@ -222,6 +225,9 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
     const emotional = applyCalibration(textbook.emotional, vector[deltaKey(phase, 'emotional')], mode);
     const sexual    = applyCalibration(textbook.sexual,    vector[deltaKey(phase, 'sexual')],    mode);
     const anxiety   = applyCalibration(textbook.anxiety,   vector[deltaKey(phase, 'anxiety')],   mode);
+    const stress    = applyCalibration(textbook.stress,    vector[deltaKey(phase, 'stress')],    mode);
+    const sleep     = applyCalibration(textbook.sleep,     vector[deltaKey(phase, 'sleep')],     mode);
+    const social    = applyCalibration(textbook.social,    vector[deltaKey(phase, 'social')],    mode);
     const physical  = Math.round((energy + (textbook.energy * 0.9)) / 2);
 
     const insight = PHASE_INSIGHTS[phase] ?? { en: '', es: '' };
@@ -235,10 +241,13 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
       phaseEmoji: phase === 'menstrual' ? '🌑' : phase === 'follicular' ? '🌱' : phase === 'ovulatory' ? '✨' : phase === 'luteal' ? '🍂' : phase === 'late_luteal' ? '🌘' : phase === 'morning_peak' ? '☀️' : phase === 'afternoon_dip' ? '🌥' : phase === 'evening_balance' ? '🌆' : phase === 'night_rest' ? '🌙' : '✨',
       energy,
       cognitive,
-      emotional,
-      physical,
-      sexual,
+      stress,
       anxiety,
+      sleep,
+      emotional,
+      social,
+      sexual,
+      physical,
       insight: insight.en,
       insightES: insight.es,
       isVulnerabilityWindow: anxiety >= 70,
