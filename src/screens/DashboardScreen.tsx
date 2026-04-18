@@ -34,6 +34,7 @@ function useCountUp(target: number, duration = 1200): number {
 export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfile, onNavigate }: Props) {
   const [streak, setStreak] = useState(0);
   const [qualityScore, setQualityScore] = useState(0);
+  const [consistencyScore, setConsistencyScore] = useState(0);
   const [portfolioValue, setPortfolioValue] = useState(1.0);
   const [foundingTrader, setFoundingTrader] = useState(false);
   const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
@@ -101,20 +102,53 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       }
       setQualityScore(quality);
 
+      // Data Consistency — separate metric from quality
+      // Rewards streak + session density + gap-free periods
+      let consistencyScore = 0;
+      if (last30.length > 0) {
+        const expectedSessions = Math.min(daysOfData, 30) * 3; // 3 slots/day
+        const sessionRatio = Math.min(1, last30.length / expectedSessions);
+
+        const dates30 = [...new Set(last30.map((s: any) => s.session_date as string))].sort();
+        let gaps = 0;
+        for (let i = 1; i < dates30.length; i++) {
+          const diff = (Date.parse(dates30[i]) - Date.parse(dates30[i - 1])) / 86_400_000;
+          if (diff > 1) gaps += diff - 1;
+        }
+        const gapPenalty = Math.min(1, gaps / 10);
+
+        consistencyScore = Math.round((sessionRatio * 60 + (1 - gapPenalty) * 40));
+      }
+      setConsistencyScore(consistencyScore);
+
       const { data: usData } = await supabase.from('user_state').select('founding_trader').eq('user_id', profile.id).maybeSingle();
       setFoundingTrader(usData?.founding_trader === true);
 
-      let value = daysOfData * 0.15;
-      value *= (quality / 100) || 0.01;
-      if (profile.height_cm && profile.weight_kg && profile.exercise_frequency) value += 5;
-      if (profile.known_conditions?.length && profile.current_medications?.length) value += 8;
-      if (profile.blood_type) value += 3;
-      if (profile.fecha_nacimiento) {
-        const age = new Date().getFullYear() - new Date(profile.fecha_nacimiento).getFullYear();
-        if (age >= 40) value *= 1.3;
+      // Data Value — realistic calibrated formula
+      // Base: $0.02 per day of data (not $0.15)
+      // Multiplier: quality score 0-100 as 0.0-1.0 factor
+      // Bonuses only kick in after Day 30 (research-eligible threshold)
+      // Age 40+ multiplier only applies after Day 30
+      const researchEligible = daysOfData >= 30;
+
+      let value = daysOfData * 0.02;
+      value *= (quality / 100) || 0.1;
+
+      if (researchEligible) {
+        // Health profile bonus (filled fields add value only once eligible)
+        if (profile.height_cm && profile.weight_kg && profile.exercise_frequency) value += 1.5;
+        if (profile.known_conditions?.length && profile.current_medications?.length) value += 2.5;
+        if (profile.blood_type) value += 1.0;
+
+        if (profile.fecha_nacimiento) {
+          const age = new Date().getFullYear() - new Date(profile.fecha_nacimiento).getFullYear();
+          if (age >= 40) value *= 1.3;
+        }
+
+        if (profile.wearable_connected) value += 3.0;
       }
-      if (profile.wearable_connected) value += 10;
-      setPortfolioValue(Math.max(1.0, value));
+
+      setPortfolioValue(Math.max(0.10, value));
 
       // Forecast accuracy (rolling 30d)
       if (daysOfData >= 30) {
@@ -462,7 +496,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
                 ${animatedValue.toFixed(2)}
               </div>
               <div style={{ color: '#4A5568', fontSize: 10, marginTop: 4 }}>
-                {daysOfData} {idioma === 'ES' ? 'días' : 'days'} · {qualityScore}%
+                {daysOfData} {idioma === 'ES' ? 'días' : 'days'} · {idioma === 'ES' ? 'Calidad' : 'Quality'} {qualityScore}% · {idioma === 'ES' ? 'Consistencia' : 'Consistency'} {consistencyScore}%
               </div>
             </div>
             <div style={{ color: '#FFD93D', fontSize: 18 }}>→</div>
