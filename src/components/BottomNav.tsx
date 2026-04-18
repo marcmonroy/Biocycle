@@ -1,18 +1,20 @@
-export type Tab = 'home' | 'coach' | 'data' | 'profile';
+export type Tab = 'home' | 'forecast' | 'coach' | 'circle' | 'earnings';
 
 interface Props {
   active: Tab;
   onNavigate: (tab: Tab) => void;
+  idioma?: 'EN' | 'ES';
 }
 
 const tabs: { id: Tab; label: string; labelES: string; icon: string }[] = [
-  { id: 'home',    label: 'Home',    labelES: 'Inicio',  icon: '⌂' },
-  { id: 'coach',   label: 'Coach',   labelES: 'Coach',   icon: '◎' },
-  { id: 'data',    label: 'Data',    labelES: 'Datos',   icon: '▦' },
-  { id: 'profile', label: 'Profile', labelES: 'Perfil',  icon: '◯' },
+  { id: 'home',     label: 'Home',        labelES: 'Inicio',      icon: '⌂' },
+  { id: 'forecast', label: 'Forecast',    labelES: 'Pronóstico',  icon: '◐' },
+  { id: 'coach',    label: 'Coach',       labelES: 'Coach',       icon: '◎' },
+  { id: 'circle',   label: 'Your Circle', labelES: 'Tu Círculo',  icon: '⚭' },
+  { id: 'earnings', label: 'Earnings',    labelES: 'Ganancias',   icon: '$' },
 ];
 
-export function BottomNav({ active, onNavigate }: Props) {
+export function BottomNav({ active, onNavigate, idioma = 'EN' }: Props) {
   return (
     <nav style={{
       width: '100%',
@@ -31,6 +33,7 @@ export function BottomNav({ active, onNavigate }: Props) {
     }}>
       {tabs.map(tab => {
         const isActive = tab.id === active;
+        const label = idioma === 'ES' ? tab.labelES : tab.label;
         return (
           <button
             key={tab.id}
@@ -48,12 +51,21 @@ export function BottomNav({ active, onNavigate }: Props) {
               cursor: 'pointer',
               color: isActive ? '#FF6B6B' : '#8A9BB0',
               transition: 'color 0.15s',
+              padding: '0 2px',
             }}
           >
             <span style={{ fontSize: 20, lineHeight: 1 }}>{tab.icon}</span>
-            <span style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase',
-              fontFamily: 'Inter, system-ui, sans-serif' }}>
-              {tab.label}
+            <span style={{
+              fontSize: 9,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '100%',
+            }}>
+              {label}
             </span>
           </button>
         );

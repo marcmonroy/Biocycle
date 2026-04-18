@@ -9,19 +9,20 @@ import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
 import { CoachScreen } from './screens/CoachScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
+import { ForecastScreen } from './screens/ForecastScreen';
+import { CircleScreen } from './screens/CircleScreen';
 import { DataHubScreen } from './screens/DataHubScreen';
 import { BottomNav } from './components/BottomNav';
 import type { Tab } from './components/BottomNav';
 import { DebugOverlay, setDebug } from './components/DebugOverlay';
 
-// ── URL param: clear adhoc session storage if ?session=scheduled ──────────
 const _urlParams = new URLSearchParams(window.location.search);
 if (_urlParams.get('session') === 'scheduled') {
   sessionStorage.removeItem('biocycle_adhoc_greeting');
   sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
 }
 
-type Screen = 'landing' | 'register' | 'login' | 'home' | 'coach' | 'data' | 'profile';
+type Screen = 'landing' | 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
 type VerifyResume = { userId: string; phone: string } | null;
 
 export default function App() {
@@ -31,29 +32,21 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('landing');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
-  // Ref so the onAuthStateChange closure can read the live screen value
   const screenRef = useRef<Screen>('landing');
 
-  // Keep screenRef in sync so the auth listener closure always sees the live screen
   useEffect(() => { screenRef.current = screen; }, [screen]);
-
-  // Debug: track active screen
   useEffect(() => { setDebug('screen', screen); }, [screen]);
 
-  // ── Auth state ────────────────────────────────────────────────────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
-      if (data.session) {
-        loadProfile(data.session.user.id);
-      } else {
-        setAuthLoading(false);
-      }
+      if (data.session) loadProfile(data.session.user.id);
+      else setAuthLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      if (screenRef.current === 'register') return; // registration wizard owns its own state
+      if (screenRef.current === 'register') return;
       if (newSession) {
         setAuthLoading(true);
         loadProfile(newSession.user.id);
@@ -65,34 +58,18 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Load profile ──────────────────────────────────────────────────────────
   async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (error || !data) {
-      // Profile not created yet — stay on current screen (registration in progress)
-      setAuthLoading(false);
-      return;
-    }
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (error || !data) { setAuthLoading(false); return; }
 
     const p = data as Profile;
     setProfile(p);
 
-    // Fetch user_state
-    const { data: userStateData } = await supabase
-      .from('user_state')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data: userStateData } = await supabase.from('user_state').select('*').eq('user_id', userId).maybeSingle();
     setUserState(userStateData as UserState | null);
 
-    // If WhatsApp not verified, route back to step 5 to complete verification
     if (!p.whatsapp_verified) {
       setVerifyResume({ userId: p.id, phone: (p as any).whatsapp_phone || '' });
       setAuthLoading(false);
@@ -103,68 +80,40 @@ export default function App() {
     setAuthLoading(false);
     setScreen('home');
 
-    // Check if this is a scheduled session via URL
     if (_urlParams.get('session') === 'scheduled') {
       setScreen('coach');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
   function handleNavigate(tab: Tab) {
     if (!profile) return;
     setScreen(tab);
   }
 
-  function handleStartCoach() {
-    setScreen('coach');
-  }
+  function handleStartCoach() { setScreen('coach'); }
+  function handleOpenProfile() { setScreen('profile'); }
 
   async function handleRegisterComplete() {
     setAuthLoading(true);
-
-    // Get fresh session directly — don't rely on stale session state
     const { data: { session: freshSession } } = await supabase.auth.getSession();
-
     if (freshSession) {
       setSession(freshSession);
       await loadProfile(freshSession.user.id);
-      // Always route new users to profile first
       setScreen('profile');
     } else {
-      // Session missing — send back to login
       setAuthLoading(false);
       setScreen('login');
     }
   }
 
-  function handleProfileUpdate(updated: Profile) {
-    setProfile(updated);
-  }
+  function handleProfileUpdate(updated: Profile) { setProfile(updated); }
+  function handleLogout() { setProfile(null); setSession(null); setScreen('landing'); }
 
-  function handleLogout() {
-    setProfile(null);
-    setSession(null);
-    setScreen('landing');
-  }
-
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (authLoading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#0A0A1A',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
-        <div style={{
-          fontFamily: 'JetBrains Mono, monospace',
-          color: 'rgba(255,217,61,0.5)',
-          fontSize: 12,
-          letterSpacing: '0.15em',
-          animation: 'pulse 1.5s ease-in-out infinite',
-        }}>
+      <div style={{ minHeight: '100vh', background: '#0A0A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,217,61,0.5)', fontSize: 12, letterSpacing: '0.15em', animation: 'pulse 1.5s ease-in-out infinite' }}>
           <style>{`@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }`}</style>
           BIOCYCLE
         </div>
@@ -172,7 +121,6 @@ export default function App() {
     );
   }
 
-  // ── Resume WhatsApp verification for logged-in but unverified users ────────
   if (session && verifyResume) {
     return (
       <RegisterScreen
@@ -185,35 +133,20 @@ export default function App() {
     );
   }
 
-  // ── Unauthenticated flows ─────────────────────────────────────────────────
   if (!session || !profile) {
-    if (screen === 'register') {
-      return (
-        <RegisterScreen
-          onComplete={handleRegisterComplete}
-          onSignIn={() => setScreen('login')}
-        />
-      );
-    }
-    if (screen === 'login') {
-      return (
-        <LoginScreen onRegister={() => setScreen('register')} />
-      );
-    }
-    return (
-      <LandingScreen
-        onRegister={() => setScreen('register')}
-        onSignIn={() => setScreen('login')}
-      />
-    );
+    if (screen === 'register') return <RegisterScreen onComplete={handleRegisterComplete} onSignIn={() => setScreen('login')} />;
+    if (screen === 'login')    return <LoginScreen onRegister={() => setScreen('register')} />;
+    return <LandingScreen onRegister={() => setScreen('register')} onSignIn={() => setScreen('login')} />;
   }
 
-  // ── Tab screens with bottom nav ───────────────────────────────────────────
   const activeTab: Tab = screen === 'home' ? 'home'
+    : screen === 'forecast' ? 'forecast'
     : screen === 'coach' ? 'coach'
-    : screen === 'data' ? 'data'
-    : screen === 'profile' ? 'profile'
+    : screen === 'circle' ? 'circle'
+    : screen === 'earnings' ? 'earnings'
     : 'home';
+
+  const idioma = profile.idioma ?? 'EN';
 
   return (
     <div style={{
@@ -231,31 +164,24 @@ export default function App() {
           profile={profile}
           userState={userState}
           onStartCoach={handleStartCoach}
-        />
-      )}
-      {screen === 'coach' && (
-        <CoachScreen
-          profile={profile}
-          onBack={() => setScreen('home')}
+          onOpenProfile={handleOpenProfile}
           onNavigate={handleNavigate}
         />
       )}
-      {screen === 'data' && (
-        <DataHubScreen profile={profile} />
-      )}
-      {screen === 'profile' && (
+      {screen === 'forecast' && <ForecastScreen profile={profile} />}
+      {screen === 'coach'    && <CoachScreen profile={profile} onBack={() => setScreen('home')} onNavigate={handleNavigate} />}
+      {screen === 'circle'   && <CircleScreen profile={profile} />}
+      {screen === 'earnings' && <DataHubScreen profile={profile} />}
+      {screen === 'profile'  && (
         <ProfileScreen
           profile={profile}
           onProfileUpdate={handleProfileUpdate}
           onLogout={handleLogout}
-          onComplete={() => setScreen('coach')}
+          onComplete={() => setScreen('home')}
         />
       )}
 
-      <BottomNav
-        active={activeTab}
-        onNavigate={handleNavigate}
-      />
+      {screen !== 'profile' && <BottomNav active={activeTab} onNavigate={handleNavigate} idioma={idioma} />}
       <DebugOverlay />
     </div>
   );
