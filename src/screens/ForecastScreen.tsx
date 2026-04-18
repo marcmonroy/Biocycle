@@ -70,12 +70,10 @@ function DayCard({ day, isToday, idioma, showSexual }: { day: ForecastDay; isTod
         </div>
       </div>
 
-      <DimBar label={idioma === 'ES' ? 'Energía' : 'Energy'}      value={day.energy}    color="#FFD93D" />
-      <DimBar label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'} value={day.cognitive} color="#7B61FF" />
-      <DimBar label={idioma === 'ES' ? 'Estrés' : 'Stress'}       value={day.stress}    color="#FFB347" />
-      <DimBar label={idioma === 'ES' ? 'Sueño' : 'Sleep'}         value={day.sleep}     color="#00C896" />
-      <DimBar label={idioma === 'ES' ? 'Emocional' : 'Emotional'} value={day.emotional} color="#FF6B6B" />
-      <DimBar label={idioma === 'ES' ? 'Social' : 'Social'}       value={day.social}    color="#7B61FF" />
+      <DimBar label={idioma === 'ES' ? 'Energía' : 'Energy'}          value={day.energy}    color="#FFD93D" />
+      <DimBar label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'}     value={day.cognitive} color="#7B61FF" />
+      <DimBar label={idioma === 'ES' ? 'Emocional' : 'Emotional'}     value={day.emotional} color="#FF6B6B" />
+      <DimBar label={idioma === 'ES' ? 'Físico' : 'Physical'}         value={day.physical}  color="#00C896" />
       {showSexual && <DimBar label="Sexual" value={day.sexual} color="#FF6B6B" />}
 
       <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, lineHeight: 1.5, margin: '10px 0 0', paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -99,7 +97,7 @@ export function ForecastScreen({ profile }: Props) {
       setForecast(r);
       setLoading(false);
     });
-  }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile.id]);
 
   if (loading || !forecast) {
     return (
