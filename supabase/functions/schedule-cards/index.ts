@@ -197,6 +197,7 @@ serve(async (_req) => {
 
     for (const trader of (traders || [])) {
       try {
+        console.log(`[DIAG] trader_id=${trader.id} trader_checkin_times=${JSON.stringify(trader.checkin_times)} loop_slot=${slot} loop_hour=${hour} expected_hour=${trader.checkin_times?.[slot]?.hour} match=${trader.checkin_times?.[slot]?.hour === hour}`);
         // Check if trader's checkin_time for this slot matches current hour
         const checkinHour = trader.checkin_times?.[slot]?.hour;
         if (checkinHour === undefined || checkinHour !== hour) {
