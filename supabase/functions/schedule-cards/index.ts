@@ -145,15 +145,21 @@ async function sendWhatsApp(to: string, teaserText: string, lang: string): Promi
   return res.status === 201;
 }
 
-async function logSend(supabase: any, userId: string, phone: string, slot: string, teaser: string) {
-  await supabase.from('whatsapp_sends').insert({
+async function insertPending(supabase: any, userId: string, phone: string, slot: string, teaser: string): Promise<string | null> {
+  const { data, error } = await supabase.from('whatsapp_sends').insert({
     user_id:     userId,
     phone,
     slot,
     teaser_text: teaser,
-    status:      'sent',
+    status:      'pending',
     sent_at:     new Date().toISOString(),
-  }).catch(() => {/* non-blocking */});
+  }).select('id').single();
+  if (error) { console.error('[schedule-cards] insertPending error:', error.message); return null; }
+  return data?.id ?? null;
+}
+
+async function updateSendStatus(supabase: any, id: string, status: 'sent' | 'failed') {
+  await supabase.from('whatsapp_sends').update({ status }).eq('id', id).catch(() => {/* non-blocking */});
 }
 
 serve(async (_req) => {
@@ -227,10 +233,13 @@ serve(async (_req) => {
           ? `${getTeaser(slot, gender, lang)}\n\n${arcTeaser}`
           : getTeaser(slot, gender, lang);
 
-        const ok = await sendWhatsApp(trader.whatsapp_phone, teaser, lang);
-        if (ok) {
-          await logSend(supabase, trader.id, trader.whatsapp_phone, slot, teaser);
+        // Insert attempt record before calling Twilio
+        const sendId = await insertPending(supabase, trader.id, trader.whatsapp_phone, slot, teaser);
 
+        const ok = await sendWhatsApp(trader.whatsapp_phone, teaser, lang);
+        if (sendId) await updateSendStatus(supabase, sendId, ok ? 'sent' : 'failed');
+
+        if (ok) {
           // Update last_response_date in user_state
           await supabase.from('user_state')
             .update({ last_response_date: new Date().toISOString() })
