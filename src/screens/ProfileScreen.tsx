@@ -23,6 +23,12 @@ function formatHour(h: number): string {
   return h < 12 ? `${h}am` : `${h - 12}pm`;
 }
 
+function localToUTC(localHour: number): number {
+  const d = new Date();
+  d.setHours(localHour, 0, 0, 0);
+  return d.getUTCHours();
+}
+
 const slotPillStyle = (active: boolean): React.CSSProperties => ({
   background: active ? 'rgba(255,107,107,0.2)' : 'transparent',
   border: `1px solid ${active ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`,
@@ -212,9 +218,9 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       family_history:     familyHistory.length ? familyHistory : null,
       has_sexual_partner: sexualPartner,
       checkin_times: {
-        morning:   { hour: checkinMorning,   label: formatHour(checkinMorning) },
-        afternoon: { hour: checkinAfternoon, label: formatHour(checkinAfternoon) },
-        night:     { hour: checkinNight,     label: formatHour(checkinNight) },
+        morning:   { hour: localToUTC(checkinMorning),   label: formatHour(checkinMorning) },
+        afternoon: { hour: localToUTC(checkinAfternoon), label: formatHour(checkinAfternoon) },
+        night:     { hour: localToUTC(checkinNight),     label: formatHour(checkinNight) },
       },
     };
 

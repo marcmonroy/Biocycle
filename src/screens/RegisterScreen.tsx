@@ -304,11 +304,17 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       console.error('[RegisterScreen] user_state upsert error (step 5):', stateError5.message);
     }
 
+    const localToUTC = (localHour: number): number => {
+      const d = new Date();
+      d.setHours(localHour, 0, 0, 0);
+      return d.getUTCHours();
+    };
+
     await supabase.from('profiles').update({
       checkin_times: {
-        morning:   { hour: 8,  label: '8am' },
-        afternoon: { hour: 13, label: '1pm' },
-        night:     { hour: 20, label: '8pm' },
+        morning:   { hour: localToUTC(8),  label: '8am' },
+        afternoon: { hour: localToUTC(13), label: '1pm' },
+        night:     { hour: localToUTC(20), label: '8pm' },
       },
     }).eq('id', userIdRef.current);
 

@@ -98,12 +98,6 @@ function getArcTeaser(daysOfData: number, gender: string, lang: string): string 
   return lang === 'ES' ? entry.es : entry.en;
 }
 
-function getCurrentSlot(hour: number): 'morning' | 'afternoon' | 'night' | null {
-  if (hour >= 5  && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 23) return 'night';
-  return null;
-}
 
 function normalizeGender(g: string): 'male' | 'female' {
   const lower = (g || '').toLowerCase();
@@ -162,6 +156,17 @@ async function updateSendStatus(supabase: any, id: string, status: 'sent' | 'fai
   await supabase.from('whatsapp_sends').update({ status }).eq('id', id).catch(() => {/* non-blocking */});
 }
 
+async function logSend(supabase: any, userId: string, phone: string, slot: string, teaser: string) {
+  await supabase.from('whatsapp_sends').insert({
+    user_id:     userId,
+    phone,
+    slot,
+    teaser_text: teaser,
+    status:      'sent',
+    sent_at:     new Date().toISOString(),
+  }).catch((e: any) => console.error('[schedule-cards] logSend error:', e.message));
+}
+
 serve(async (_req) => {
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
@@ -171,7 +176,6 @@ serve(async (_req) => {
 
     console.log(`[schedule-cards] hour=${hour} date=${today}`);
 
-    // Fetch active traders with WhatsApp enabled
     const { data: traders, error } = await supabase
       .from('profiles')
       .select('id, whatsapp_phone, genero, idioma, checkin_times, days_of_data, fecha_nacimiento')
@@ -183,26 +187,20 @@ serve(async (_req) => {
       return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }
 
-    console.log(`[schedule-cards] found ${traders?.length ?? 0} eligible traders`);
+    console.log(`[schedule-cards] found ${traders?.length ?? 0} traders`);
 
     let sent = 0;
     let skipped = 0;
 
     for (const trader of (traders || [])) {
       try {
-        console.log(`[DIAG] trader_id=${trader.id} trader_checkin_times=${JSON.stringify(trader.checkin_times)} loop_hour=${hour}`);
-        // Determine which slot matches the current UTC hour for this trader
         let slot: 'morning' | 'afternoon' | 'night' | null = null;
-        if (trader.checkin_times?.morning?.hour === hour) slot = 'morning';
+        if      (trader.checkin_times?.morning?.hour   === hour) slot = 'morning';
         else if (trader.checkin_times?.afternoon?.hour === hour) slot = 'afternoon';
-        else if (trader.checkin_times?.night?.hour === hour) slot = 'night';
+        else if (trader.checkin_times?.night?.hour     === hour) slot = 'night';
 
-        if (!slot) {
-          skipped++;
-          continue;
-        }
+        if (!slot) { skipped++; continue; }
 
-        // Check if already sent this slot today
         const { data: alreadySent } = await supabase
           .from('whatsapp_sends')
           .select('id')
@@ -211,38 +209,26 @@ serve(async (_req) => {
           .gte('sent_at', `${today}T00:00:00Z`)
           .limit(1);
 
-        if (alreadySent && alreadySent.length > 0) {
-          skipped++;
-          continue;
-        }
+        if (alreadySent && alreadySent.length > 0) { skipped++; continue; }
 
-        // Validate phone
         const digits = (trader.whatsapp_phone || '').replace(/\D/g, '');
-        if (digits.length < 10 || digits.length > 13) {
-          skipped++;
-          continue;
-        }
+        if (digits.length < 10 || digits.length > 13) { skipped++; continue; }
 
-        const gender  = trader.genero || 'female';
-        const lang    = trader.idioma === 'ES' ? 'ES' : 'EN';
+        const gender     = trader.genero || 'female';
+        const lang       = trader.idioma === 'ES' ? 'ES' : 'EN';
         const daysOfData = trader.days_of_data ?? 0;
         const arcTeaser  = getArcTeaser(daysOfData, gender, lang);
-        const teaser  = arcTeaser
+        const teaser     = arcTeaser
           ? `${getTeaser(slot, gender, lang)}\n\n${arcTeaser}`
           : getTeaser(slot, gender, lang);
 
-        // Insert attempt record before calling Twilio
-        const sendId = await insertPending(supabase, trader.id, trader.whatsapp_phone, slot, teaser);
-
+        console.log(`[schedule-cards] sending to ${trader.id} slot=${slot}`);
         const ok = await sendWhatsApp(trader.whatsapp_phone, teaser, lang);
-        if (sendId) await updateSendStatus(supabase, sendId, ok ? 'sent' : 'failed');
-
         if (ok) {
-          // Update last_response_date in user_state
+          await logSend(supabase, trader.id, trader.whatsapp_phone, slot, teaser);
           await supabase.from('user_state')
             .update({ last_response_date: new Date().toISOString() })
             .eq('user_id', trader.id);
-
           sent++;
         } else {
           skipped++;
@@ -254,7 +240,7 @@ serve(async (_req) => {
     }
 
     console.log(`[schedule-cards] done. sent=${sent} skipped=${skipped}`);
-    return new Response(JSON.stringify({ sent, skipped, slot, hour }), {
+    return new Response(JSON.stringify({ sent, skipped, hour }), {
       headers: { 'Content-Type': 'application/json' },
     });
 
