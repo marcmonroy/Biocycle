@@ -167,16 +167,9 @@ serve(async (_req) => {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
     const nowUTC   = new Date();
     const hour     = nowUTC.getUTCHours();
-    const slot     = getCurrentSlot(hour);
     const today    = nowUTC.toISOString().split('T')[0];
 
-    console.log(`[schedule-cards] hour=${hour} slot=${slot} date=${today}`);
-
-    if (!slot) {
-      return new Response(JSON.stringify({ skipped: true, reason: 'outside slot hours' }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    console.log(`[schedule-cards] hour=${hour} date=${today}`);
 
     // Fetch active traders with WhatsApp enabled
     const { data: traders, error } = await supabase
@@ -197,10 +190,14 @@ serve(async (_req) => {
 
     for (const trader of (traders || [])) {
       try {
-        console.log(`[DIAG] trader_id=${trader.id} trader_checkin_times=${JSON.stringify(trader.checkin_times)} loop_slot=${slot} loop_hour=${hour} expected_hour=${trader.checkin_times?.[slot]?.hour} match=${trader.checkin_times?.[slot]?.hour === hour}`);
-        // Check if trader's checkin_time for this slot matches current hour
-        const checkinHour = trader.checkin_times?.[slot]?.hour;
-        if (checkinHour === undefined || checkinHour !== hour) {
+        console.log(`[DIAG] trader_id=${trader.id} trader_checkin_times=${JSON.stringify(trader.checkin_times)} loop_hour=${hour}`);
+        // Determine which slot matches the current UTC hour for this trader
+        let slot: 'morning' | 'afternoon' | 'night' | null = null;
+        if (trader.checkin_times?.morning?.hour === hour) slot = 'morning';
+        else if (trader.checkin_times?.afternoon?.hour === hour) slot = 'afternoon';
+        else if (trader.checkin_times?.night?.hour === hour) slot = 'night';
+
+        if (!slot) {
           skipped++;
           continue;
         }
