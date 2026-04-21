@@ -29,6 +29,12 @@ function localToUTC(localHour: number): number {
   return d.getUTCHours();
 }
 
+function utcToLocal(utcHour: number): number {
+  const d = new Date();
+  d.setUTCHours(utcHour, 0, 0, 0);
+  return d.getHours();
+}
+
 const slotPillStyle = (active: boolean): React.CSSProperties => ({
   background: active ? 'rgba(255,107,107,0.2)' : 'transparent',
   border: `1px solid ${active ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`,
@@ -148,10 +154,21 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
   const [sexualPartner, setSexualPartner] = useState<boolean | null>(profile.has_sexual_partner ?? null);
 
   // Check-in times
-  const defaultTimes = profile.checkin_times ?? { morning: { hour: 8, label: 'Morning' }, afternoon: { hour: 13, label: 'Afternoon' }, night: { hour: 20, label: 'Night' } };
-  const [checkinMorning, setCheckinMorning]     = useState(defaultTimes.morning.hour);
-  const [checkinAfternoon, setCheckinAfternoon] = useState(defaultTimes.afternoon.hour);
-  const [checkinNight, setCheckinNight]         = useState(defaultTimes.night.hour);
+  const [checkinMorning, setCheckinMorning]     = useState(
+    profile.checkin_times?.morning?.hour != null
+      ? utcToLocal(profile.checkin_times.morning.hour)
+      : 8
+  );
+  const [checkinAfternoon, setCheckinAfternoon] = useState(
+    profile.checkin_times?.afternoon?.hour != null
+      ? utcToLocal(profile.checkin_times.afternoon.hour)
+      : 13
+  );
+  const [checkinNight, setCheckinNight]         = useState(
+    profile.checkin_times?.night?.hour != null
+      ? utcToLocal(profile.checkin_times.night.hour)
+      : 20
+  );
 
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
