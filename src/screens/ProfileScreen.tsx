@@ -174,7 +174,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
   const daysOfData = getDaysOfData(profile);
   const isES = idioma === 'ES';
   const isFemale = profile.genero === 'female';
-  const phaseLabel = isES ? phase.displayNameES : phase.displayName;
+  void phase;
 
   // Always compute metric values from whichever input set is active
   const metricHeightCm = units === 'metric'
@@ -257,7 +257,10 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
     if (!error && data) {
       onProfileUpdate(data as Profile);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
+      setTimeout(() => {
+        setSaved(false);
+        onComplete?.();
+      }, 2500);
     }
   }
 
@@ -309,19 +312,43 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       overflowY: 'auto',
     }}>
       {/* Header */}
-      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '52px 24px 20px' }}>
+      <div style={{
+        width: '100%',
+        maxWidth: 430,
+        margin: '0 auto',
+        padding: '52px 20px 12px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}>
+        <button
+          onClick={onComplete}
+          style={{
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8,
+            width: 36,
+            height: 36,
+            color: 'white',
+            fontSize: 18,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          aria-label="Back"
+        >
+          ←
+        </button>
         <h1 style={{
           fontFamily: 'JetBrains Mono, monospace',
-          fontSize: '1.2rem',
+          fontSize: '1.1rem',
           fontWeight: 700,
           color: 'white',
-          margin: '0 0 4px',
+          margin: 0,
         }}>
-          {profile.nombre ?? 'Profile'}
+          {profile.idioma === 'ES' ? 'Configuración' : 'Settings'}
         </h1>
-        <p style={{ color: '#4A5568', fontSize: 12, margin: 0 }}>
-          {daysOfData} {L('days of data', 'días de datos')} · {phaseLabel}
-        </p>
       </div>
 
       {/* ── Preferences ───────────────────────────────────────────────────── */}

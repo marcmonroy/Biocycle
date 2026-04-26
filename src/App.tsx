@@ -88,6 +88,9 @@ export default function App() {
 
   function handleNavigate(tab: Tab) {
     if (!profile) return;
+    if (tab === 'home' && session) {
+      loadProfile(session.user.id);
+    }
     setScreen(tab);
   }
 
@@ -169,7 +172,7 @@ export default function App() {
         />
       )}
       {screen === 'forecast' && <ForecastScreen profile={profile} />}
-      {screen === 'coach'    && <CoachScreen profile={profile} onBack={() => setScreen('home')} onNavigate={handleNavigate} />}
+      {screen === 'coach'    && <CoachScreen profile={profile} onBack={() => { if (session) loadProfile(session.user.id); setScreen('home'); }} onNavigate={handleNavigate} />}
       {screen === 'circle'   && <CircleScreen profile={profile} />}
       {screen === 'earnings' && <DataHubScreen profile={profile} />}
       {screen === 'profile'  && (

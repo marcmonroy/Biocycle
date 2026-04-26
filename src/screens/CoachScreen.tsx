@@ -706,6 +706,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         .update({
           state: 'active_trader',
           returned_at: new Date().toISOString(),
+          resumed_at: new Date().toISOString(),
           return_method: 'checkin',
           last_response_date: new Date().toISOString(),
         })
