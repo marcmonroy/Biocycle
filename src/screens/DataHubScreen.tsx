@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
 import { getDaysOfData } from '../lib/phaseEngine';
+import { computePortfolioMetrics } from '../lib/portfolioValue';
 
 interface Props {
   profile: Profile;
@@ -35,21 +36,14 @@ export function DataHubScreen({ profile }: Props) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [relationships, setRelationships] = useState<RelationshipWithScore[]>([]);
+  const [portfolioValue, setPortfolioValue] = useState(0.10);
+  const [qualityScore, setQualityScore] = useState(0);
+  const [consistencyScore, setConsistencyScore] = useState(0);
 
   const idioma = profile.idioma ?? 'EN';
   const L = (en: string, es: string) => idioma === 'ES' ? es : en;
 
   const daysOfData = getDaysOfData(profile);
-  let portfolioValue = daysOfData * 0.15;
-  if (profile.height_cm && profile.weight_kg && profile.exercise_frequency) portfolioValue += 5;
-  if (profile.known_conditions?.length && profile.current_medications?.length) portfolioValue += 8;
-  if (profile.blood_type) portfolioValue += 3;
-  if (profile.fecha_nacimiento) {
-    const age = new Date().getFullYear() - new Date(profile.fecha_nacimiento).getFullYear();
-    if (age >= 40) portfolioValue *= 1.3;
-  }
-  if (profile.wearable_connected) portfolioValue += 10;
-  portfolioValue = Math.max(1.0, portfolioValue);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +59,14 @@ export function DataHubScreen({ profile }: Props) {
     }
     load();
   }, [profile.id]);
+
+  useEffect(() => {
+    computePortfolioMetrics(profile).then(metrics => {
+      setPortfolioValue(metrics.value);
+      setQualityScore(metrics.qualityScore);
+      setConsistencyScore(metrics.consistencyScore);
+    });
+  }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     async function loadRelationships() {
@@ -198,7 +200,7 @@ export function DataHubScreen({ profile }: Props) {
               ${portfolioValue.toFixed(2)}
             </div>
             <p style={{ color: '#4A5568', fontSize: 11, margin: '4px 0 0' }}>
-              {daysOfData} {L('days · $0.15/day', 'días · $0.15/día')}
+              {daysOfData} {L('days', 'días')} · {L('Quality', 'Calidad')} {qualityScore}% · {L('Consistency', 'Consistencia')} {consistencyScore}%
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
