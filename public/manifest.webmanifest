@@ -1,0 +1,25 @@
+{
+  "name": "BioCycle",
+  "short_name": "BioCycle",
+  "description": "Stop being surprised by yourself.",
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/biocycle-mark-large.png",
+      "sizes": "2048x2048",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#042C53",
+  "background_color": "#042C53",
+  "display": "standalone",
+  "start_url": "/",
+  "lang": "en",
+  "scope": "/"
+}
