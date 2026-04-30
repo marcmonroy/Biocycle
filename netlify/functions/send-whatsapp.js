@@ -171,21 +171,18 @@ exports.handler = async (event) => {
       };
     }
 
-    // Send via approved template — ContentSid + ContentVariables
-    const templateSid = language === 'es'
-      ? 'HXa511293ce070bfd02ac0d799b2aa6526'
-      : 'HX2a761c6b6589f010cd416d1bf4f386d8';
-
-    const codeVar = `Your verification code is ${code}. Enter it in the BioCycle app to verify your account.`;
+    // Send plain text — simpler and more reliable than template for verification codes
+    const bodyText = language === 'es'
+      ? `BioCycle: Tu código de verificación es ${code}. Ingrésalo en la app para verificar tu cuenta.`
+      : `BioCycle: Your verification code is ${code}. Enter it in the BioCycle app to verify your account.`;
 
     const tmplPayload = new URLSearchParams({
-      From:             from,
-      To:               toNumber,
-      ContentSid:       templateSid,
-      ContentVariables: JSON.stringify({ '1': codeVar }),
+      From: from,
+      To:   toNumber,
+      Body: bodyText,
     });
 
-    console.log('[send-whatsapp] Sending template', templateSid, 'to:', toNumber, 'from:', from);
+    console.log('[send-whatsapp] Sending plain text verification to:', toNumber, 'from:', from);
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,

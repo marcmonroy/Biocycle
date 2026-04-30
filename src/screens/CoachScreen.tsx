@@ -1335,7 +1335,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
           `[${s.session_date} ${s.time_slot}]: ${s.session_summary}`)
         .join('\n') ?? '';
 
-      // ── 5. Check for gap (1-6 days since last completed session)
+      // ── 5. Check for gap (2-6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
         .select('session_date')
@@ -1351,7 +1351,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         const diff = Math.floor(
           (Date.parse(today) - Date.parse(lastSessions[0].session_date)) / 86_400_000
         );
-        if (diff >= 1 && diff <= 6) isGap = true;
+        if (diff >= 2 && diff <= 6) isGap = true;
       }
 
       sessionRef.current.isGap = isGap;
