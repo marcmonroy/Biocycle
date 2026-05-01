@@ -189,8 +189,8 @@ const bodyStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: colors.midnightDeep,
+  border: `1px solid ${colors.surfaceBorderHi}`,
   borderRadius: 10,
   padding: '14px 16px',
   color: colors.bone,
