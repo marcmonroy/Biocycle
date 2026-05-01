@@ -14,6 +14,8 @@ import { DataHubScreen } from './screens/DataHubScreen';
 import { BottomNav } from './components/BottomNav';
 import type { Tab } from './components/BottomNav';
 import { DebugOverlay, setDebug } from './components/DebugOverlay';
+import { ResetPasswordForm } from './components/ResetPasswordForm';
+import { colors, fonts } from './lib/tokens';
 
 const _urlParams = new URLSearchParams(window.location.search);
 if (_urlParams.get('session') === 'scheduled') {
@@ -35,6 +37,15 @@ if (_prefillEmail || _prefillPhone || _prefillLang) {
   window.history.replaceState({}, '', window.location.pathname);
 }
 
+// Detect Supabase password recovery redirect
+const _hash = window.location.hash;
+const _hashParams = new URLSearchParams(_hash.replace('#', ''));
+const _isRecovery = _hashParams.get('type') === 'recovery';
+const _recoveryToken = _hashParams.get('access_token') || '';
+if (_isRecovery) {
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
 type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
 type VerifyResume = { userId: string; phone: string } | null;
 
@@ -45,6 +56,10 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('register');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
+  const [showResetPassword, setShowResetPassword] = useState(
+    _isRecovery && !!_recoveryToken
+  );
+  const [resetPasswordDone, setResetPasswordDone] = useState(false);
   const screenRef = useRef<Screen>('register');
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
@@ -123,6 +138,41 @@ export default function App() {
 
   function handleProfileUpdate(updated: Profile) { setProfile(updated); }
   function handleLogout() { setProfile(null); setSession(null); setScreen('register'); }
+
+  if (showResetPassword && !resetPasswordDone) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: colors.midnight,
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+        fontFamily: fonts.body,
+      }}>
+        <img src="/favicon.svg" alt="" style={{ width: 40, height: 40, marginBottom: 16 }} />
+        <h2 style={{
+          fontFamily: fonts.display,
+          fontWeight: 300,
+          fontSize: 26,
+          color: colors.bone,
+          marginBottom: 8,
+          textAlign: 'center',
+        }}>Set a new password</h2>
+        <p style={{ color: colors.boneFaint, fontSize: 14, marginBottom: 24, textAlign: 'center' }}>
+          Choose a new password for your BioCycle account.
+        </p>
+        <ResetPasswordForm
+          onDone={() => {
+            setResetPasswordDone(true);
+            setShowResetPassword(false);
+            setScreen('login');
+          }}
+        />
+      </div>
+    );
+  }
 
   if (authLoading) {
     return (

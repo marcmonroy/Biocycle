@@ -102,14 +102,71 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setLoading(false);
 
     if (authError) {
+      if (authError.message?.toLowerCase().includes('already registered') ||
+          authError.message?.toLowerCase().includes('already exists') ||
+          (authError as any).code === 'user_already_exists') {
+        // User exists — try to sign them in and continue registration
+        const { error: signInErr } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (!signInErr) {
+          // Signed in successfully — check if they need to continue setup
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('whatsapp_verified')
+              .eq('id', user.id)
+              .maybeSingle();
+            if (profileData && !profileData.whatsapp_verified) {
+              setStep(4); // Send them to phone step
+              setLoading(false);
+              return;
+            } else if (profileData?.whatsapp_verified) {
+              onComplete(); // Already fully registered
+              setLoading(false);
+              return;
+            }
+          }
+        }
+        // Wrong password for existing account
+        setError('An account with this email exists. Check your password or use "Sign in" below.');
+        setLoading(false);
+        return;
+      }
       setError(authError.message);
       return;
     }
 
     // Supabase returns user with session=null for an already-registered email
     if (data.user && !data.session) {
+      // Try to sign in with the provided credentials and continue setup
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (!signInErr) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('whatsapp_verified')
+            .eq('id', user.id)
+            .maybeSingle();
+          if (profileData && !profileData.whatsapp_verified) {
+            setStep(4);
+            setLoading(false);
+            return;
+          } else if (profileData?.whatsapp_verified) {
+            onComplete();
+            setLoading(false);
+            return;
+          }
+        }
+      }
       setExistingAccount(true);
-      setError('An account with this email already exists.');
+      setError('An account with this email exists. Check your password or use "Sign in" below.');
       return;
     }
 
