@@ -341,7 +341,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             <div style={{ padding: '16px 18px 18px' }}>
               <p style={{ color: 'rgba(245, 242, 238,0.7)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 }}>{cardCopy}</p>
               {arcTeaser && (
-                <p style={{ color: 'rgba(0,200,150,0.85)', fontSize: '0.8rem', lineHeight: 1.5, margin: '12px 0 0', fontStyle: 'italic' }}>
+                <p style={{ color: colors.amber, fontSize: '0.8rem', lineHeight: 1.5, margin: '12px 0 0', fontStyle: 'italic' }}>
                   {arcTeaser}
                 </p>
               )}

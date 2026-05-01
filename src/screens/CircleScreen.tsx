@@ -138,7 +138,7 @@ export function CircleScreen({ profile }: Props) {
             padding: '32px 20px',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>⭕</div>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${colors.amber}`, margin: '0 auto 12px' }} />
             <div style={{ color: colors.bone, fontWeight: 600, marginBottom: 8 }}>
               {idioma === 'ES' ? 'Tu círculo está vacío' : 'Your circle is empty'}
             </div>
