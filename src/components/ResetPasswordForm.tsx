@@ -31,6 +31,7 @@ export function ResetPasswordForm({ onDone }: Props) {
       return;
     }
     setSuccess(true);
+    await supabase.auth.signOut();
     setTimeout(onDone, 1800);
   }
 
