@@ -37,14 +37,6 @@ if (_prefillEmail || _prefillPhone || _prefillLang) {
   window.history.replaceState({}, '', window.location.pathname);
 }
 
-// Detect Supabase password recovery redirect
-const _hash = window.location.hash;
-const _hashParams = new URLSearchParams(_hash.replace('#', ''));
-const _isRecovery = _hashParams.get('type') === 'recovery';
-const _recoveryToken = _hashParams.get('access_token') || '';
-if (_isRecovery) {
-  window.history.replaceState({}, '', window.location.pathname);
-}
 
 type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
 type VerifyResume = { userId: string; phone: string } | null;
@@ -56,9 +48,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('register');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
-  const [showResetPassword, setShowResetPassword] = useState(
-    _isRecovery && !!_recoveryToken
-  );
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetPasswordDone, setResetPasswordDone] = useState(false);
   const screenRef = useRef<Screen>('register');
 
@@ -72,7 +62,12 @@ export default function App() {
       else setAuthLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setShowResetPassword(true);
+        setAuthLoading(false);
+        return;
+      }
       setSession(newSession);
       if (screenRef.current === 'register') return;
       if (newSession) {
