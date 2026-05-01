@@ -1483,9 +1483,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         borderBottom: '1px solid rgba(245, 242, 238,0.06)',
         flexShrink: 0,
       }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: colors.boneFaint, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
-          ←
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: colors.boneFaint, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
+            ←
+          </button>
+          <img src="/favicon.svg" alt="" style={{ width: 22, height: 22 }} />
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <QuantumDNA size={44} state={bioState} />
           <span style={{ fontSize: 9, letterSpacing: '0.1em', color: phaseColor, fontFamily: fonts.mono }}>

@@ -341,6 +341,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         >
           ←
         </button>
+        <img src="/favicon.svg" alt="" style={{ width: 22, height: 22 }} />
         <h1 style={{
           fontFamily: fonts.display,
           fontSize: '1.3rem',

@@ -238,17 +238,27 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   }
 
   const flameColor = streak >= 7 ? colors.amber : streak >= 3 ? colors.amber : colors.boneFaint;
-  const tier = foundingTrader ? { label: 'FOUNDING', color: colors.tierFounding }
-    : streak >= 180 && qualityScore >= 90 ? { label: 'ELITE', color: colors.tierElite }
-    : streak >= 90 && qualityScore >= 80 ? { label: 'PREMIUM', color: colors.success }
-    : streak >= 30 && qualityScore >= 60 ? { label: 'STANDARD', color: colors.amber }
-    : { label: 'NEW', color: colors.boneFaint };
+  const tierColors = {
+    FOUNDING: { bg: `${colors.amber}22`, border: `${colors.amber}44`, text: colors.amber },
+    ELITE:    { bg: `${colors.tierElite}22`, border: `${colors.tierElite}44`, text: colors.tierElite },
+    PREMIUM:  { bg: colors.boneTrace, border: colors.surfaceBorderHi, text: colors.bone },
+    STANDARD: { bg: colors.surfaceLow, border: colors.surfaceBorder, text: colors.boneDim },
+    NEW:      { bg: 'transparent', border: colors.surfaceBorder, text: colors.boneFaint },
+  } as const;
+  type TierKey = keyof typeof tierColors;
+  const tierKey = (profile.tier?.toUpperCase() ?? 'NEW') as TierKey;
+  const tierStyle = tierColors[tierKey] ?? tierColors.NEW;
 
   return (
     <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: colors.midnight, fontFamily: fonts.body, paddingBottom: 80, overflowX: 'hidden' }}>
 
       {/* Top bar: streak + greeting + settings + tier */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '28px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Brand mark */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <img src="/favicon.svg" alt="" style={{ width: 22, height: 22 }} />
+        </div>
+
         {/* Compact streak */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 21 }}>🔥</span>
@@ -262,8 +272,8 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
         {/* Tier badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ background: `${tier.color}22`, border: `1px solid ${tier.color}44`, borderRadius: 6, padding: '2px 8px', color: tier.color, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em' }}>
-            {tier.label}
+          <div style={{ background: tierStyle.bg, border: `1px solid ${tierStyle.border}`, borderRadius: 4, padding: '2px 8px', color: tierStyle.text, fontSize: 9, fontWeight: 500, letterSpacing: '0.14em', fontFamily: fonts.mono }}>
+            {tierKey}
           </div>
           <button onClick={onOpenProfile} style={{ background: 'rgba(245, 242, 238,0.05)', border: '1px solid rgba(245, 242, 238,0.1)', borderRadius: 8, width: 34, height: 34, color: colors.bone, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Settings">
             ⚙
@@ -321,7 +331,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
               )}
               {/* Bottom gradient + one-liner */}
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)', display: 'flex', alignItems: 'flex-end', padding: '0 18px 22px' }}>
-                <span style={{ color: colors.bone, fontWeight: 300, fontSize: '1rem', lineHeight: 1.25, textShadow: '0 1px 3px rgba(0,0,0,0.6)', fontFamily: fonts.display, fontStyle: 'italic' }}>
+                <span style={{ color: colors.bone, fontWeight: 400, fontSize: 16, lineHeight: 1.3, textShadow: '0 1px 4px rgba(0,0,0,0.7)', fontFamily: fonts.display, fontStyle: 'italic' }}>
                   {cardHeadline}
                 </span>
               </div>

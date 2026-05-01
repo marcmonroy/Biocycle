@@ -160,6 +160,10 @@ export function DataHubScreen({ profile }: Props) {
         margin: '0 auto',
         padding: '52px 24px 20px',
       }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
+          <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
+        </div>
         <h1 style={{
           fontFamily: fonts.display,
           fontSize: '1.3rem',
