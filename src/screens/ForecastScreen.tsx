@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Profile } from '../lib/supabase';
 import { generateForecast, type ForecastResult, type ForecastDay } from '../lib/forecastEngine';
 import { getDaysOfData } from '../lib/phaseEngine';
-import { colors, fonts, radius, spacing } from '../lib/tokens';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;

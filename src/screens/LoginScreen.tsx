@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getLang } from '../lib/lang';
-import { colors, fonts, radius } from '../lib/tokens';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   onRegister?: () => void;
