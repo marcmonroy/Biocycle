@@ -4,8 +4,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const TWILIO_ACCOUNT_SID = Deno.env.get('TWILIO_ACCOUNT_SID')!;
 const TWILIO_AUTH_TOKEN  = Deno.env.get('TWILIO_AUTH_TOKEN')!;
 const TWILIO_FROM        = Deno.env.get('TWILIO_WHATSAPP_FROM') || 'whatsapp:+16625688859';
-const TEMPLATE_EN        = 'HX2a761c6b6589f010cd416d1bf4f386d8';
-const TEMPLATE_ES        = 'HXa511293ce070bfd02ac0d799b2aa6526';
+const TEMPLATE_EN        = 'HX49846a0b7b3de8862ed8d0da25543a7b';
+const TEMPLATE_ES        = 'HXba3e40ba97a1c1ba71e56ff255d5fae0';
 const SUPABASE_URL       = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY        = Deno.env.get('SERVICE_ROLE_KEY')!;
 
@@ -111,7 +111,117 @@ function getTeaser(slot: string, gender: string, lang: string): string {
   return TEASERS[slot]?.[g]?.[l] ?? TEASERS[slot]?.['female']?.['EN'] ?? 'BioCycle check-in time.';
 }
 
-async function sendWhatsApp(to: string, teaserText: string, lang: string): Promise<boolean> {
+const HEADLINES: Record<string, { en: string[]; es: string[] }> = {
+  female_morning: {
+    en: [
+      'Your brain just hit airplane mode — first class only.',
+      'Coffee is optional. Your hormones already showed up.',
+      'Today your follicular phase says yes to everything.',
+      'Estrogen is in the building. Try not to start a project.',
+      'Your morning cortisol just clocked in early.',
+    ],
+    es: [
+      'Tu cerebro acaba de pasar a modo avión — solo primera clase.',
+      'El café es opcional. Tus hormonas ya llegaron.',
+      'Hoy tu fase folicular le dice que sí a todo.',
+      'El estrógeno entró al edificio. Intenta no empezar un proyecto.',
+      'Tu cortisol matutino acaba de entrar antes de tiempo.',
+    ],
+  },
+  female_afternoon: {
+    en: [
+      'The 2pm wall just hit. Your hormones did this.',
+      'Your body is in a mood and frankly it has a point.',
+      'Ovulation says: be magnetic, do nothing.',
+      'Cortisol dipped. Energy dipped. Standards: still high.',
+      'Your afternoon called. It wants attention.',
+    ],
+    es: [
+      'El muro de las 2pm acaba de llegar. Tus hormonas lo hicieron.',
+      'Tu cuerpo está de humor y francamente tiene razón.',
+      'La ovulación dice: sé magnética, no hagas nada.',
+      'El cortisol bajó. La energía bajó. Los estándares: siguen altos.',
+      'Tu tarde llamó. Quiere atención.',
+    ],
+  },
+  female_night: {
+    en: [
+      'Sleep is where tomorrow gets made. Or unmade.',
+      'Your body is filing today\'s data. Be still.',
+      'Late luteal energy: protect your evening.',
+      'Biologically speaking, you are dangerous right now.',
+      'Tomorrow morning depends on tonight.',
+    ],
+    es: [
+      'El sueño es donde se hace el mañana. O se deshace.',
+      'Tu cuerpo está archivando los datos de hoy. Quédate quieta.',
+      'Energía de luteal tardío: protege tu noche.',
+      'Biológicamente hablando, eres peligrosa ahora mismo.',
+      'La mañana de mañana depende de esta noche.',
+    ],
+  },
+  male_morning: {
+    en: [
+      'Testosterone just clocked in. Your boss has no idea.',
+      'Your shadow is bigger than you are right now.',
+      'Eight arms, one mind, before 9am.',
+      'Morning peak. Use the window.',
+      'First thirty minutes after waking is yours. Take it.',
+    ],
+    es: [
+      'La testosterona acaba de entrar. Tu jefe no tiene idea.',
+      'Tu sombra es más grande que tú ahora mismo.',
+      'Ocho brazos, una mente, antes de las 9am.',
+      'Pico matutino. Usa la ventana.',
+      'Los primeros treinta minutos al despertar son tuyos. Tómalos.',
+    ],
+  },
+  male_afternoon: {
+    en: [
+      'Your data is making more money than you today.',
+      'The 2pm crash is gravity. Don\'t fight it.',
+      'Your laptop has more battery than you do.',
+      'Workplace cortisol is real. Jules sees it.',
+      'Casual conversation > 2-hour meeting. Always.',
+    ],
+    es: [
+      'Tus datos están ganando más dinero que tú hoy.',
+      'El crash de las 2pm es gravedad. No lo pelees.',
+      'Tu laptop tiene más batería que tú.',
+      'El cortisol laboral es real. Jules lo ve.',
+      'Conversación casual > reunión de 2 horas. Siempre.',
+    ],
+  },
+  male_night: {
+    en: [
+      'Sleep is where testosterone is made. Or lost.',
+      'Every hour past midnight costs tomorrow.',
+      'Tonight\'s data: very specific.',
+      'The grind is optional. Recovery is not.',
+      'Your second wind betrayed you. Sleep anyway.',
+    ],
+    es: [
+      'El sueño es donde se hace la testosterona. O se pierde.',
+      'Cada hora pasada de la medianoche cuesta el mañana.',
+      'Datos de esta noche: muy específicos.',
+      'El grind es opcional. La recuperación no.',
+      'Tu segundo aire te traicionó. Duerme igual.',
+    ],
+  },
+};
+
+function pickHeadline(gender: string, slot: string, lang: string, daysOfData: number): string {
+  const g = gender === 'male' ? 'male' : 'female';
+  const key = `${g}_${slot}`;
+  const pool = HEADLINES[key];
+  if (!pool) return getTeaser(slot, gender, lang);
+  const list = lang === 'ES' ? pool.es : pool.en;
+  const today = new Date();
+  const dayKey = today.getUTCFullYear() * 1000 + today.getUTCMonth() * 50 + today.getUTCDate() + daysOfData;
+  return list[dayKey % list.length];
+}
+
+async function sendWhatsApp(to: string, bodyText: string, lang: string): Promise<boolean> {
   const templateSid = lang === 'ES' ? TEMPLATE_ES : TEMPLATE_EN;
   const toNumber = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
 
@@ -119,7 +229,7 @@ async function sendWhatsApp(to: string, teaserText: string, lang: string): Promi
     From:             TWILIO_FROM,
     To:               toNumber,
     ContentSid:       templateSid,
-    ContentVariables: JSON.stringify({ '1': teaserText }),
+    ContentVariables: JSON.stringify({ '1': bodyText }),
   });
 
   const res = await fetch(
@@ -135,7 +245,7 @@ async function sendWhatsApp(to: string, teaserText: string, lang: string): Promi
   );
 
   const data = await res.json();
-  console.log('[schedule-cards] Twilio response:', res.status, data.sid || data.code);
+  console.log('[schedule-cards] Twilio:', res.status, data.sid || data.code, data.message || '');
   return res.status === 201;
 }
 
@@ -156,15 +266,20 @@ async function updateSendStatus(supabase: any, id: string, status: 'sent' | 'fai
   await supabase.from('whatsapp_sends').update({ status }).eq('id', id).catch(() => {/* non-blocking */});
 }
 
-async function logSend(supabase: any, userId: string, phone: string, slot: string, teaser: string) {
-  await supabase.from('whatsapp_sends').insert({
-    user_id:     userId,
-    phone,
-    slot,
-    teaser_text: teaser,
-    status:      'sent',
-    sent_at:     new Date().toISOString(),
-  }).catch((e: any) => console.error('[schedule-cards] logSend error:', e.message));
+async function logSend(supabase: any, userId: string, _phone: string, slot: string, teaserText: string) {
+  try {
+    const { error } = await supabase.from('whatsapp_sends').insert({
+      user_id:     userId,
+      slot:        slot,
+      time_slot:   slot,
+      teaser_text: teaserText,
+      status:      'sent',
+      sent_at:     new Date().toISOString(),
+    });
+    if (error) console.error('[schedule-cards] logSend error:', error.message);
+  } catch (err) {
+    console.error('[schedule-cards] logSend exception:', err);
+  }
 }
 
 serve(async (_req) => {
@@ -217,10 +332,17 @@ serve(async (_req) => {
         const gender     = trader.genero || 'female';
         const lang       = trader.idioma === 'ES' ? 'ES' : 'EN';
         const daysOfData = trader.days_of_data ?? 0;
-        const arcTeaser  = getArcTeaser(daysOfData, gender, lang);
-        const teaser     = arcTeaser
-          ? `${getTeaser(slot, gender, lang)}\n\n${arcTeaser}`
-          : getTeaser(slot, gender, lang);
+
+        const greeting = lang === 'ES'
+          ? (slot === 'morning' ? 'Buenos días.' : slot === 'afternoon' ? 'Pausa rápida.' : 'Antes de dormir —')
+          : (slot === 'morning' ? 'Good morning.' : slot === 'afternoon' ? 'Quick check-in.' : 'Before bed —');
+
+        const headline  = pickHeadline(gender, slot, lang, daysOfData);
+        const arcTeaser = getArcTeaser(daysOfData, gender, lang);
+
+        const teaser = arcTeaser
+          ? `${greeting} ${headline} ${arcTeaser}`
+          : `${greeting} ${headline}`;
 
         console.log(`[schedule-cards] sending to ${trader.id} slot=${slot}`);
         const ok = await sendWhatsApp(trader.whatsapp_phone, teaser, lang);

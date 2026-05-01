@@ -3,7 +3,6 @@ import { supabase } from './lib/supabase';
 import type { Profile, UserState } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
-import { LandingScreen } from './screens/LandingScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
@@ -22,17 +21,31 @@ if (_urlParams.get('session') === 'scheduled') {
   sessionStorage.removeItem('biocycle_adhoc_greeting_spoken');
 }
 
-type Screen = 'landing' | 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
+// Pre-fill values from landing page redirect
+const _prefillEmail = _urlParams.get('prefill_email') || '';
+const _prefillPhone = _urlParams.get('prefill_phone') || '';
+const _prefillLang  = _urlParams.get('prefill_lang') || '';
+
+// Store lang preference from landing page
+if (_prefillLang === 'es') localStorage.setItem('biocycle_lang', 'ES');
+else if (_prefillLang === 'en') localStorage.setItem('biocycle_lang', 'EN');
+
+// Strip prefill params from URL bar (clean URL after reading them)
+if (_prefillEmail || _prefillPhone || _prefillLang) {
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
+type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
 type VerifyResume = { userId: string; phone: string } | null;
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userState, setUserState] = useState<UserState | null>(null);
-  const [screen, setScreen] = useState<Screen>('landing');
+  const [screen, setScreen] = useState<Screen>('register');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
-  const screenRef = useRef<Screen>('landing');
+  const screenRef = useRef<Screen>('register');
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { setDebug('screen', screen); }, [screen]);
@@ -52,7 +65,7 @@ export default function App() {
         loadProfile(newSession.user.id);
       } else {
         setProfile(null);
-        setScreen('landing');
+        setScreen('register');
         setAuthLoading(false);
       }
     });
@@ -88,9 +101,7 @@ export default function App() {
 
   function handleNavigate(tab: Tab) {
     if (!profile) return;
-    if (tab === 'home' && session) {
-      loadProfile(session.user.id);
-    }
+    if (tab === 'home' && session) loadProfile(session.user.id);
     setScreen(tab);
   }
 
@@ -111,14 +122,14 @@ export default function App() {
   }
 
   function handleProfileUpdate(updated: Profile) { setProfile(updated); }
-  function handleLogout() { setProfile(null); setSession(null); setScreen('landing'); }
+  function handleLogout() { setProfile(null); setSession(null); setScreen('register'); }
 
   if (authLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0A0A1A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontFamily: 'JetBrains Mono, monospace', color: 'rgba(255,217,61,0.5)', fontSize: 12, letterSpacing: '0.15em', animation: 'pulse 1.5s ease-in-out infinite' }}>
+      <div style={{ minHeight: '100vh', background: '#042C53', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ fontFamily: 'IBM Plex Sans, system-ui, sans-serif', color: 'rgba(239,159,39,0.6)', fontSize: 13, letterSpacing: '0.15em', animation: 'pulse 1.5s ease-in-out infinite' }}>
           <style>{`@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }`}</style>
-          BIOCYCLE
+          biocycle
         </div>
       </div>
     );
@@ -137,9 +148,15 @@ export default function App() {
   }
 
   if (!session || !profile) {
-    if (screen === 'register') return <RegisterScreen onComplete={handleRegisterComplete} onSignIn={() => setScreen('login')} />;
-    if (screen === 'login')    return <LoginScreen onRegister={() => setScreen('register')} />;
-    return <LandingScreen onRegister={() => setScreen('register')} onSignIn={() => setScreen('login')} />;
+    if (screen === 'login') return <LoginScreen onRegister={() => setScreen('register')} />;
+    return (
+      <RegisterScreen
+        onComplete={handleRegisterComplete}
+        onSignIn={() => setScreen('login')}
+        initialEmail={_prefillEmail}
+        initialPhone={_prefillPhone}
+      />
+    );
   }
 
   const activeTab: Tab = screen === 'home' ? 'home'
@@ -158,7 +175,7 @@ export default function App() {
       margin: '0 auto',
       minHeight: '100vh',
       position: 'relative',
-      background: '#0A0A1A',
+      background: '#042C53',
       overflowX: 'hidden',
       overflowY: 'auto',
     }}>

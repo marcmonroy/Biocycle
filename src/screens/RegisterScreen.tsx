@@ -10,6 +10,7 @@ interface Props {
   initialStep?: Step;
   initialUserId?: string;
   initialPhone?: string;
+  initialEmail?: string;
 }
 
 const COUNTRY_CODES = [
@@ -27,14 +28,14 @@ const COUNTRY_CODES = [
   { code: '+55',   label: 'BR' },
 ];
 
-export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserId, initialPhone }: Props) {
+export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserId, initialPhone, initialEmail }: Props) {
   const [step, setStep] = useState<Step>(() => initialStep ?? 1);
   // Authoritative userId — set only from the live signUp response (or explicitly in the resume effect).
   // Never initialized from props so a fresh registration always starts clean.
   const userIdRef = useRef<string | null>(null);
 
   // Step 1
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => initialEmail ?? '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [existingAccount, setExistingAccount] = useState(false);
@@ -372,7 +373,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           <div style={{
             height: '100%',
             width: `${progress}%`,
-            background: '#FF6B6B',
+            background: '#EF9F27',
             borderRadius: 2,
             transition: 'width 0.3s',
           }} />
@@ -386,7 +387,9 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
 
         {/* STEP 1 */}
         {step === 1 && (<>
-          <h2 style={headingStyle}>Create your account</h2>
+          <h2 style={headingStyle}>
+            {isES ? 'Bienvenido, futuro Founding Trader' : 'Welcome, future Founding Trader'}
+          </h2>
           <input style={inputStyle} type="email" placeholder="Email address"
             value={email} onChange={e => { setEmail(e.target.value); setError(''); setExistingAccount(false); }}
             autoComplete="email" />
@@ -599,11 +602,11 @@ const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
   width: '100%',
   maxWidth: '100vw',
-  background: '#0A0A1A',
+  background: '#042C53',
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
   overflowX: 'hidden',
   paddingBottom: 40,
 };
@@ -618,11 +621,11 @@ const cardStyle: React.CSSProperties = {
 };
 
 const headingStyle: React.CSSProperties = {
-  color: 'white',
-  fontSize: '1.4rem',
-  fontWeight: 700,
+  color: '#F5F2EE',
+  fontSize: '1.5rem',
+  fontWeight: 350,
   margin: 0,
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: "'Fraunces', Georgia, serif",
 };
 
 const bodyStyle: React.CSSProperties = {
@@ -634,27 +637,28 @@ const bodyStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: 10,
+  background: '#021A33',
+  border: '1px solid rgba(245,242,238,0.12)',
+  borderRadius: 12,
   padding: '14px 16px',
-  color: 'white',
+  color: '#F5F2EE',
   fontSize: '1rem',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
   outline: 'none',
   boxSizing: 'border-box',
 };
 
 const btnStyle: React.CSSProperties = {
   width: '100%',
-  background: '#FF6B6B',
+  background: '#EF9F27',
   border: 'none',
   borderRadius: 12,
   padding: '16px',
-  color: 'white',
+  color: '#042C53',
   fontSize: '1rem',
-  fontWeight: 600,
+  fontWeight: 500,
   cursor: 'pointer',
+  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
 };
 
 const errorStyle: React.CSSProperties = {
