@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { getLang } from '../lib/lang';
+import { colors, fonts, radius } from '../lib/tokens';
 
 interface Props {
   onRegister?: () => void;
@@ -109,7 +110,7 @@ export function LoginScreen({ onRegister }: Props) {
                   transform: 'translateY(-50%)',
                   background: 'none',
                   border: 'none',
-                  color: '#4A5568',
+                  color: colors.boneFaint,
                   cursor: 'pointer',
                   fontSize: 16,
                   padding: 0,
@@ -153,12 +154,12 @@ const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
   width: '100%',
   maxWidth: '100vw',
-  background: '#0A0A1A',
+  background: colors.midnight,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: fonts.body,
   overflowX: 'hidden',
   padding: '24px',
 };
@@ -172,15 +173,15 @@ const cardStyle: React.CSSProperties = {
 };
 
 const headingStyle: React.CSSProperties = {
-  color: 'white',
+  color: colors.bone,
   fontSize: '1.6rem',
-  fontWeight: 700,
+  fontWeight: 300,
   margin: 0,
-  fontFamily: 'JetBrains Mono, monospace',
+  fontFamily: fonts.display,
 };
 
 const bodyStyle: React.CSSProperties = {
-  color: '#4A5568',
+  color: colors.boneFaint,
   fontSize: '0.9rem',
   lineHeight: 1.55,
   margin: 0,
@@ -192,27 +193,27 @@ const inputStyle: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,0.1)',
   borderRadius: 10,
   padding: '14px 16px',
-  color: 'white',
+  color: colors.bone,
   fontSize: '1rem',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: fonts.body,
   outline: 'none',
   boxSizing: 'border-box',
 };
 
 const btnStyle: React.CSSProperties = {
   width: '100%',
-  background: '#FF6B6B',
+  background: colors.amber,
   border: 'none',
   borderRadius: 12,
   padding: '16px',
-  color: 'white',
+  color: colors.bone,
   fontSize: '1rem',
   fontWeight: 600,
   cursor: 'pointer',
 };
 
 const errorStyle: React.CSSProperties = {
-  color: '#FF6B6B',
+  color: colors.amber,
   fontSize: '0.85rem',
   margin: 0,
 };
