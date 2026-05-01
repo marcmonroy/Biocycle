@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { colors, fonts } from '../lib/tokens';
+import { fonts } from '../lib/tokens';
 
 interface DebugData {
   screen?: string;
