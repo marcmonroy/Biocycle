@@ -94,7 +94,15 @@ export default function App() {
     setUserState(userStateData as UserState | null);
 
     if (!p.whatsapp_verified) {
-      setVerifyResume({ userId: p.id, phone: (p as any).whatsapp_phone || '' });
+      // Check how far they got in registration
+      const hasPhone = !!(p as any).whatsapp_phone;
+      if (hasPhone) {
+        // They got to phone step — resume at WhatsApp verification
+        setVerifyResume({ userId: p.id, phone: (p as any).whatsapp_phone || '' });
+      } else {
+        // They never finished profile setup — resume at Step 2
+        setVerifyResume({ userId: p.id, phone: '' });
+      }
       setAuthLoading(false);
       return;
     }
@@ -185,9 +193,10 @@ export default function App() {
       <RegisterScreen
         onComplete={handleRegisterComplete}
         onSignIn={() => setScreen('login')}
-        initialStep={5}
+        initialStep={verifyResume.phone ? 5 : 2}
         initialUserId={verifyResume.userId}
         initialPhone={verifyResume.phone}
+        initialEmail={session?.user?.email ?? ''}
       />
     );
   }

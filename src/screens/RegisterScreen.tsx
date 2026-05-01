@@ -42,7 +42,9 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [existingAccount, setExistingAccount] = useState(false);
 
   // Step 2
-  const [dob, setDob] = useState('');
+  const [dobMonth, setDobMonth] = useState('');
+  const [dobDay, setDobDay]     = useState('');
+  const [dobYear, setDobYear]   = useState('');
   const [underAge, setUnderAge] = useState(false);
 
   // Step 3 — language read from localStorage (set on landing page)
@@ -181,7 +183,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
 
   // ── Step 2 ───────────────────────────────────────────────────────────────
   const handleStep2 = () => {
-    if (!dob) { setError('Please enter your date of birth.'); return; }
+    if (!dobMonth || !dobDay || !dobYear) {
+      setError(isES ? 'Por favor selecciona tu fecha de nacimiento.' : 'Please select your date of birth.');
+      return;
+    }
+    const dob = `${dobYear}-${dobMonth}-${dobDay}`;
     const birth = new Date(dob);
     const now = new Date();
     let age = now.getFullYear() - birth.getFullYear();
@@ -235,7 +241,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       nombre:            name,
       genero:            gender || null,
       idioma:            language,
-      fecha_nacimiento:  dob || null,
+      fecha_nacimiento:  (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
       age_verified:      true,
       whatsapp_phone:    fullPhone,
       whatsapp_verified: false,
@@ -246,7 +252,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         nombre:            name,
         genero:            gender || null,
         idioma:            language,
-        fecha_nacimiento:  dob || null,
+        fecha_nacimiento:  (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
         age_verified:      true,
         whatsapp_phone:    fullPhone,
         whatsapp_verified: false,
@@ -506,12 +512,51 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           <p style={bodyStyle}>
             {isES ? 'BioCycle es para mayores de 18 años.' : 'BioCycle is for users 18 and older.'}
           </p>
-          <input style={inputStyle} type="date" value={dob}
-            onChange={e => setDob(e.target.value)}
-            max={new Date(new Date().setFullYear(new Date().getFullYear() - 13)).toISOString().split('T')[0]}
-          />
+          {(() => {
+            const months = [
+              'January','February','March','April','May','June',
+              'July','August','September','October','November','December'
+            ];
+            const currentYear = new Date().getFullYear();
+            const years = Array.from({ length: 80 }, (_, i) => currentYear - 18 - i);
+            const days = Array.from({ length: 31 }, (_, i) => i + 1);
+            return (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <select
+                  value={dobMonth}
+                  onChange={e => setDobMonth(e.target.value)}
+                  style={{ ...inputStyle, flex: 2, appearance: 'none' as const, cursor: 'pointer' }}
+                >
+                  <option value="">{isES ? 'Mes' : 'Month'}</option>
+                  {months.map((m, i) => (
+                    <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={dobDay}
+                  onChange={e => setDobDay(e.target.value)}
+                  style={{ ...inputStyle, flex: 1, appearance: 'none' as const, cursor: 'pointer' }}
+                >
+                  <option value="">{isES ? 'Día' : 'Day'}</option>
+                  {days.map(d => (
+                    <option key={d} value={String(d).padStart(2, '0')}>{d}</option>
+                  ))}
+                </select>
+                <select
+                  value={dobYear}
+                  onChange={e => setDobYear(e.target.value)}
+                  style={{ ...inputStyle, flex: 2, appearance: 'none' as const, cursor: 'pointer' }}
+                >
+                  <option value="">{isES ? 'Año' : 'Year'}</option>
+                  {years.map(y => (
+                    <option key={y} value={String(y)}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            );
+          })()}
           {error && <p style={errorStyle}>{error}</p>}
-          <button style={btnStyle} onClick={handleStep2} disabled={loading || !dob}>
+          <button style={btnStyle} onClick={handleStep2} disabled={loading || !dobMonth || !dobDay || !dobYear}>
             {loading ? '...' : (isES ? 'Continuar →' : 'Continue →')}
           </button>
         </>)}
