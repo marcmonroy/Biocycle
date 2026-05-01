@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
@@ -108,40 +109,40 @@ export function CircleScreen({ profile }: Props) {
   const atCap = rels.length >= MAX_RELATIONSHIPS;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0A0A1A', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100vh', background: colors.midnight, paddingBottom: 80 }}>
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '28px 24px 16px' }}>
         <h1 style={{
-          fontFamily: 'JetBrains Mono, monospace',
+          fontFamily: fonts.display,
           fontSize: '1.3rem',
-          fontWeight: 700,
-          color: 'white',
+          fontWeight: 300,
+          color: colors.bone,
           margin: 0,
         }}>
           {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
         </h1>
-        <p style={{ color: '#4A5568', fontSize: 12, margin: '6px 0 0' }}>
+        <p style={{ color: colors.boneFaint, fontSize: 12, margin: '6px 0 0' }}>
           {rels.length} / {MAX_RELATIONSHIPS} {idioma === 'ES' ? 'personas' : 'people'}
         </p>
       </div>
 
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px' }}>
         {loading ? (
-          <div style={{ color: '#4A5568', textAlign: 'center', padding: 40 }}>
+          <div style={{ color: colors.boneFaint, textAlign: 'center', padding: 40 }}>
             {idioma === 'ES' ? 'Cargando...' : 'Loading...'}
           </div>
         ) : rels.length === 0 ? (
           <div style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px dashed rgba(255,255,255,0.1)',
+            background: 'rgba(245, 242, 238,0.03)',
+            border: '1px dashed rgba(245, 242, 238,0.1)',
             borderRadius: 14,
             padding: '32px 20px',
             textAlign: 'center',
           }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>⭕</div>
-            <div style={{ color: 'white', fontWeight: 600, marginBottom: 8 }}>
+            <div style={{ color: colors.bone, fontWeight: 600, marginBottom: 8 }}>
               {idioma === 'ES' ? 'Tu círculo está vacío' : 'Your circle is empty'}
             </div>
-            <div style={{ color: '#4A5568', fontSize: 12, lineHeight: 1.5 }}>
+            <div style={{ color: colors.boneFaint, fontSize: 12, lineHeight: 1.5 }}>
               {idioma === 'ES'
                 ? 'Jules te pedirá nombres durante las sesiones, o puedes agregarlos aquí.'
                 : 'Jules will ask for names during sessions, or you can add them here.'}
@@ -150,12 +151,12 @@ export function CircleScreen({ profile }: Props) {
         ) : (
           rels.map(r => {
             const cat = CATEGORY_LABELS[r.category] ?? CATEGORY_LABELS.other;
-            const scoreColor = r.avgScore == null ? '#4A5568' : r.avgScore >= 7 ? '#00C896' : r.avgScore >= 5 ? '#FFD93D' : '#FF6B6B';
+            const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.amber;
             const trendArrow = r.trend === 'up' ? '↑' : r.trend === 'down' ? '↓' : r.trend === 'flat' ? '→' : '';
             return (
               <div key={r.id} style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(245, 242, 238,0.03)',
+                border: '1px solid rgba(245, 242, 238,0.06)',
                 borderRadius: 12,
                 padding: '14px 16px',
                 marginBottom: 8,
@@ -170,29 +171,29 @@ export function CircleScreen({ profile }: Props) {
                   fontSize: 18, flexShrink: 0,
                 }}>{cat.emoji}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: 'white', fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
+                  <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
                     {r.name} {r.intimacy && <span style={{ fontSize: 12 }}>💞</span>}
                   </div>
-                  <div style={{ color: '#4A5568', fontSize: 11 }}>
+                  <div style={{ color: colors.boneFaint, fontSize: 11 }}>
                     {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', marginRight: 8 }}>
-                  <div style={{ color: scoreColor, fontWeight: 700, fontSize: 14, fontFamily: 'JetBrains Mono, monospace' }}>
+                  <div style={{ color: scoreColor, fontWeight: 700, fontSize: 14, fontFamily: fonts.mono }}>
                     {r.avgScore != null ? `${r.avgScore.toFixed(1)} ${trendArrow}` : '—'}
                   </div>
-                  <div style={{ color: '#4A5568', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                     {idioma === 'ES' ? '30 días' : '30 days'}
                   </div>
                 </div>
                 <button
                   onClick={() => removeRelationship(r.id)}
                   style={{
-                    background: 'rgba(255,107,107,0.1)',
-                    border: '1px solid rgba(255,107,107,0.2)',
+                    background: 'rgba(239, 159, 39,0.1)',
+                    border: '1px solid rgba(239, 159, 39,0.2)',
                     borderRadius: 6,
                     width: 28, height: 28,
-                    color: '#FF6B6B',
+                    color: colors.amber,
                     fontSize: 14,
                     cursor: 'pointer',
                     flexShrink: 0,
@@ -214,11 +215,11 @@ export function CircleScreen({ profile }: Props) {
             style={{
               width: '100%',
               marginTop: 12,
-              background: atCap ? 'rgba(255,255,255,0.02)' : 'rgba(255,107,107,0.08)',
-              border: `1px dashed ${atCap ? 'rgba(255,255,255,0.08)' : 'rgba(255,107,107,0.3)'}`,
+              background: atCap ? 'rgba(245, 242, 238,0.02)' : 'rgba(239, 159, 39,0.08)',
+              border: `1px dashed ${atCap ? 'rgba(245, 242, 238,0.08)' : 'rgba(239, 159, 39,0.3)'}`,
               borderRadius: 12,
               padding: '14px',
-              color: atCap ? '#4A5568' : '#FF6B6B',
+              color: atCap ? colors.boneFaint : colors.amber,
               fontSize: 13,
               fontWeight: 600,
               cursor: atCap ? 'default' : 'pointer',
@@ -231,12 +232,12 @@ export function CircleScreen({ profile }: Props) {
         ) : (
           <div style={{
             marginTop: 12,
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(245, 242, 238,0.03)',
+            border: '1px solid rgba(245, 242, 238,0.1)',
             borderRadius: 14,
             padding: '20px',
           }}>
-            <div style={{ color: 'white', fontWeight: 600, fontSize: 14, marginBottom: 14 }}>
+            <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 14 }}>
               {idioma === 'ES' ? 'Nueva persona' : 'New person'}
             </div>
 
@@ -248,11 +249,11 @@ export function CircleScreen({ profile }: Props) {
               onKeyDown={e => e.key === 'Enter' && addRelationship()}
               style={{
                 width: '100%',
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(245, 242, 238,0.05)',
+                border: '1px solid rgba(245, 242, 238,0.12)',
                 borderRadius: 8,
                 padding: '10px 12px',
-                color: 'white',
+                color: colors.bone,
                 fontSize: 14,
                 marginBottom: 12,
                 boxSizing: 'border-box',
@@ -266,11 +267,11 @@ export function CircleScreen({ profile }: Props) {
                   key={key}
                   onClick={() => setNewCategory(key)}
                   style={{
-                    background: newCategory === key ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${newCategory === key ? '#FF6B6B' : 'rgba(255,255,255,0.1)'}`,
+                    background: newCategory === key ? 'rgba(239, 159, 39,0.2)' : 'rgba(245, 242, 238,0.04)',
+                    border: `1px solid ${newCategory === key ? colors.amber : 'rgba(245, 242, 238,0.1)'}`,
                     borderRadius: 20,
                     padding: '4px 10px',
-                    color: newCategory === key ? '#FF6B6B' : '#8A9BB0',
+                    color: newCategory === key ? colors.amber : colors.boneFaint,
                     fontSize: 11,
                     cursor: 'pointer',
                   }}
@@ -285,7 +286,7 @@ export function CircleScreen({ profile }: Props) {
                 onClick={() => setNewIntimacy(v => !v)}
                 style={{
                   width: 36, height: 20, borderRadius: 10,
-                  background: newIntimacy ? '#FF6B6B' : 'rgba(255,255,255,0.1)',
+                  background: newIntimacy ? colors.amber : 'rgba(245, 242, 238,0.1)',
                   position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
                 }}
               >
@@ -296,7 +297,7 @@ export function CircleScreen({ profile }: Props) {
                   background: 'white', transition: 'left 0.2s',
                 }} />
               </div>
-              <span style={{ color: '#8A9BB0', fontSize: 12 }}>
+              <span style={{ color: colors.boneFaint, fontSize: 12 }}>
                 {idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}
               </span>
             </label>
@@ -307,8 +308,8 @@ export function CircleScreen({ profile }: Props) {
                 style={{
                   flex: 1, padding: '10px',
                   background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8, color: '#8A9BB0', fontSize: 13, cursor: 'pointer',
+                  border: '1px solid rgba(245, 242, 238,0.1)',
+                  borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer',
                 }}
               >
                 {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
@@ -318,9 +319,9 @@ export function CircleScreen({ profile }: Props) {
                 disabled={!newName.trim()}
                 style={{
                   flex: 1, padding: '10px',
-                  background: newName.trim() ? '#FF6B6B' : 'rgba(255,107,107,0.2)',
+                  background: newName.trim() ? colors.amber : 'rgba(239, 159, 39,0.2)',
                   border: 'none',
-                  borderRadius: 8, color: 'white', fontSize: 13, fontWeight: 600,
+                  borderRadius: 8, color: colors.bone, fontSize: 13, fontWeight: 600,
                   cursor: newName.trim() ? 'pointer' : 'default',
                 }}
               >

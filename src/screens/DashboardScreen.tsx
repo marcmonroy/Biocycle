@@ -5,6 +5,7 @@ import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { getCardForUser, getArcStage } from '../lib/cardSystem';
 import { computePortfolioMetrics } from '../lib/portfolioValue';
 import type { Tab } from '../components/BottomNav';
+import { colors, fonts, shadows } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
@@ -172,7 +173,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       const dh = img.height * scale;
       const dx = (W - dw) / 2;
       const dy = (imgH - dh) / 2;
-      ctx.fillStyle = '#0A0A1A';
+      ctx.fillStyle = colors.midnight;
       ctx.fillRect(0, 0, W, H);
       ctx.drawImage(img, dx, dy, dw, dh);
 
@@ -184,7 +185,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       ctx.fillRect(0, imgH - 200, W, 200);
 
       // One-liner text (word-wrapped)
-      ctx.fillStyle = 'white';
+      ctx.fillStyle = colors.bone;
       ctx.font = 'bold 34px -apple-system, system-ui, sans-serif';
       ctx.textAlign = 'left';
       const words = cardHeadline.split(' ');
@@ -236,25 +237,25 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     }
   }
 
-  const flameColor = streak >= 7 ? '#FF6B6B' : streak >= 3 ? '#FFD93D' : '#4A5568';
-  const tier = foundingTrader ? { label: 'FOUNDING', color: '#FFD93D' }
-    : streak >= 180 && qualityScore >= 90 ? { label: 'ELITE', color: '#7B61FF' }
-    : streak >= 90 && qualityScore >= 80 ? { label: 'PREMIUM', color: '#00C896' }
-    : streak >= 30 && qualityScore >= 60 ? { label: 'STANDARD', color: '#FFD93D' }
-    : { label: 'NEW', color: '#4A5568' };
+  const flameColor = streak >= 7 ? colors.amber : streak >= 3 ? colors.amber : colors.boneFaint;
+  const tier = foundingTrader ? { label: 'FOUNDING', color: colors.tierFounding }
+    : streak >= 180 && qualityScore >= 90 ? { label: 'ELITE', color: colors.tierElite }
+    : streak >= 90 && qualityScore >= 80 ? { label: 'PREMIUM', color: colors.success }
+    : streak >= 30 && qualityScore >= 60 ? { label: 'STANDARD', color: colors.amber }
+    : { label: 'NEW', color: colors.boneFaint };
 
   return (
-    <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: '#0A0A1A', fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: 80, overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: colors.midnight, fontFamily: fonts.body, paddingBottom: 80, overflowX: 'hidden' }}>
 
       {/* Top bar: streak + greeting + settings + tier */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '28px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         {/* Compact streak */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 21 }}>🔥</span>
-          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 17, fontWeight: 700, color: flameColor, lineHeight: 1 }}>
+          <span style={{ fontFamily: fonts.mono, fontSize: 17, fontWeight: 700, color: flameColor, lineHeight: 1 }}>
             {streak}
           </span>
-          <span style={{ color: '#4A5568', fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          <span style={{ color: colors.boneFaint, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             {idioma === 'ES' ? 'días' : 'day streak'}
           </span>
         </div>
@@ -264,7 +265,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           <div style={{ background: `${tier.color}22`, border: `1px solid ${tier.color}44`, borderRadius: 6, padding: '2px 8px', color: tier.color, fontSize: 9, fontWeight: 700, letterSpacing: '0.1em' }}>
             {tier.label}
           </div>
-          <button onClick={onOpenProfile} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, width: 34, height: 34, color: 'white', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Settings">
+          <button onClick={onOpenProfile} style={{ background: 'rgba(245, 242, 238,0.05)', border: '1px solid rgba(245, 242, 238,0.1)', borderRadius: 8, width: 34, height: 34, color: colors.bone, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Settings">
             ⚙
           </button>
         </div>
@@ -272,12 +273,12 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
       {/* Greeting + phase */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-        <h2 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1.1rem', fontWeight: 700, color: 'white', margin: 0, lineHeight: 1.2 }}>
+        <h2 style={{ fontFamily: fonts.mono, fontSize: '1.1rem', fontWeight: 700, color: colors.bone, margin: 0, lineHeight: 1.2 }}>
           {greeting}
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
           <span style={{ fontSize: 13 }}>{phase.emoji}</span>
-          <span style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
+          <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
         </div>
       </div>
 
@@ -285,15 +286,15 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       {isPaused && (
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '40px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⏸</div>
-          <h2 style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1.3rem', fontWeight: 700, color: 'white', margin: '0 0 8px' }}>
+          <h2 style={{ fontFamily: fonts.mono, fontSize: '1.3rem', fontWeight: 700, color: colors.bone, margin: '0 0 8px' }}>
             {idioma === 'ES' ? 'Sesiones pausadas' : 'Sessions paused'}
           </h2>
-          <p style={{ color: '#4A5568', fontSize: '0.9rem', lineHeight: 1.55, margin: '0 0 24px' }}>
+          <p style={{ color: colors.boneFaint, fontSize: '0.9rem', lineHeight: 1.55, margin: '0 0 24px' }}>
             {idioma === 'ES'
               ? `Tu racha era de ${userState?.streak_at_lapse ?? 0} días. Tus datos están preservados.`
               : `Your streak was ${userState?.streak_at_lapse ?? 0} days. Your data is preserved.`}
           </p>
-          <button onClick={onStartCoach} style={{ width: '100%', background: '#FF6B6B', border: 'none', borderRadius: 14, padding: '18px', color: 'white', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}>
+          <button onClick={onStartCoach} style={{ width: '100%', background: colors.amber, border: 'none', borderRadius: 14, padding: '18px', color: colors.midnight, fontSize: '1rem', fontWeight: 600, cursor: 'pointer' }}>
             {idioma === 'ES' ? 'Retomar gratis — check-in ahora →' : 'Resume free — check in now →'}
           </button>
         </div>
@@ -302,7 +303,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       {!isPaused && (<>
         {/* HERO CARD */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
-          <div style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)', background: 'rgba(255,255,255,0.02)' }}>
+          <div style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(245, 242, 238,0.07)', background: 'rgba(245, 242, 238,0.02)' }}>
             <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5' }}>
               {card.imageUrl ? (
                 <img
@@ -314,18 +315,18 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               ) : (
-                <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #0A0A1A 0%, #1A1A3E 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
+                <div style={{ width: '100%', height: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239, 159, 39, 0.45) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
                   {card.phaseEmoji}
                 </div>
               )}
               {/* Bottom gradient + one-liner */}
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)', display: 'flex', alignItems: 'flex-end', padding: '0 18px 22px' }}>
-                <span style={{ color: 'white', fontWeight: 700, fontSize: '1rem', lineHeight: 1.25, textShadow: '0 1px 3px rgba(0,0,0,0.6)' }}>
+                <span style={{ color: colors.bone, fontWeight: 300, fontSize: '1rem', lineHeight: 1.25, textShadow: '0 1px 3px rgba(0,0,0,0.6)', fontFamily: fonts.display, fontStyle: 'italic' }}>
                   {cardHeadline}
                 </span>
               </div>
               {/* Share button */}
-              <button onClick={shareCard} disabled={sharing} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 10, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)', opacity: sharing ? 0.5 : 1 }} aria-label="Share">
+              <button onClick={shareCard} disabled={sharing} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(245, 242, 238,0.25)', borderRadius: 10, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)', opacity: sharing ? 0.5 : 1 }} aria-label="Share">
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
                   <circle cx={18} cy={5} r={3} />
                   <circle cx={6} cy={12} r={3} />
@@ -338,7 +339,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
             {/* Below card: copy + arc teaser */}
             <div style={{ padding: '16px 18px 18px' }}>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 }}>{cardCopy}</p>
+              <p style={{ color: 'rgba(245, 242, 238,0.7)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 }}>{cardCopy}</p>
               {arcTeaser && (
                 <p style={{ color: 'rgba(0,200,150,0.85)', fontSize: '0.8rem', lineHeight: 1.5, margin: '12px 0 0', fontStyle: 'italic' }}>
                   {arcTeaser}
@@ -348,11 +349,11 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
             {/* Arc strip */}
             {arcData && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px 14px', borderTop: '1px solid rgba(245, 242, 238,0.06)' }}>
                 <img src={arcData.imageUrl} alt={arcLabel} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: 'white', fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.2 }}>{arcLabel}</div>
-                  <div style={{ color: '#4A5568', fontSize: 9, letterSpacing: '0.08em', marginTop: 2 }}>
+                  <div style={{ color: colors.bone, fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.2 }}>{arcLabel}</div>
+                  <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.08em', marginTop: 2 }}>
                     {idioma === 'ES' ? `Etapa ${arcData.stage} de 5` : `Stage ${arcData.stage} of 5`}
                   </div>
                 </div>
@@ -363,11 +364,11 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
         {/* Session CTA */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
-          <button onClick={onStartCoach} style={{ width: '100%', background: '#FF6B6B', border: 'none', borderRadius: 14, padding: '16px 24px', color: 'white', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
+          <button onClick={onStartCoach} style={{ width: '100%', background: colors.amber, border: 'none', borderRadius: 14, padding: '16px 24px', color: colors.midnight, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
             {idioma === 'ES' ? 'Hablar con Jules →' : 'Talk to Jules →'}
           </button>
           {daysOfData < 30 && (
-            <p style={{ color: '#4A5568', fontSize: 11, textAlign: 'center', margin: '10px 0 0' }}>
+            <p style={{ color: colors.boneFaint, fontSize: 11, textAlign: 'center', margin: '10px 0 0' }}>
               {idioma === 'ES' ? `${30 - daysOfData} días para el pronóstico personalizado` : `${30 - daysOfData} days to your personalized forecast`}
             </p>
           )}
@@ -377,14 +378,14 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         {accuracyPct != null && (
           <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
             <button onClick={() => onNavigate('forecast')} style={{ width: '100%', background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.25)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,200,150,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700, color: '#00C896', fontSize: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(0,200,150,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: fonts.mono, fontWeight: 700, color: colors.success, fontSize: 14 }}>
                 {accuracyPct}%
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ color: 'white', fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
+                <div style={{ color: colors.bone, fontSize: 13, fontWeight: 600, marginBottom: 2 }}>
                   {idioma === 'ES' ? 'Jules acertó este mes' : 'Jules was right this month'}
                 </div>
-                <div style={{ color: '#4A5568', fontSize: 11 }}>
+                <div style={{ color: colors.boneFaint, fontSize: 11 }}>
                   {idioma === 'ES' ? 'Ver pronóstico →' : 'See forecast →'}
                 </div>
               </div>
@@ -395,25 +396,25 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         {/* Relationships preview */}
         {topRels.length > 0 && (
           <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-            <button onClick={() => onNavigate('circle')} style={{ width: '100%', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' }}>
+            <button onClick={() => onNavigate('circle')} style={{ width: '100%', background: 'rgba(245, 242, 238,0.03)', border: '1px solid rgba(245, 242, 238,0.08)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ color: 'white', fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                <div style={{ color: colors.bone, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
                 </div>
-                <div style={{ color: '#4A5568', fontSize: 11 }}>→</div>
+                <div style={{ color: colors.boneFaint, fontSize: 11 }}>→</div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 {topRels.map((r, i) => {
-                  const scoreColor = r.avgScore == null ? '#4A5568' : r.avgScore >= 7 ? '#00C896' : r.avgScore >= 5 ? '#FFD93D' : '#FF6B6B';
+                  const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.amber;
                   return (
                     <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,217,61,0.2), rgba(123,97,255,0.2))', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700, fontSize: 13 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,217,61,0.2), rgba(123,97,255,0.2))', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.bone, fontWeight: 700, fontSize: 13 }}>
                         {r.name.charAt(0).toUpperCase()}
                       </div>
-                      <div style={{ color: 'white', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ color: colors.bone, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {r.name}
                       </div>
-                      <div style={{ color: scoreColor, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+                      <div style={{ color: scoreColor, fontSize: 10, fontFamily: fonts.mono, fontWeight: 700 }}>
                         {r.avgScore != null ? r.avgScore.toFixed(1) : '—'}
                       </div>
                     </div>
@@ -426,19 +427,19 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
         {/* Portfolio snippet (secondary) */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
-          <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: 'linear-gradient(135deg, rgba(255,217,61,0.06) 0%, rgba(123,97,255,0.06) 100%)', border: '1px solid rgba(255,217,61,0.15)', borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239, 159, 39, 0.45) 100%)`, border: `1px solid ${colors.boneTrace}`, borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ color: '#4A5568', fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
+              <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
                 {idioma === 'ES' ? 'Valor de tus Datos' : 'Data Value'}
               </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '1.4rem', fontWeight: 700, color: '#FFD93D', lineHeight: 1 }}>
+              <div style={{ fontFamily: fonts.mono, fontSize: '1.4rem', fontWeight: 700, color: colors.amber, lineHeight: 1 }}>
                 ${animatedValue.toFixed(2)}
               </div>
-              <div style={{ color: '#4A5568', fontSize: 10, marginTop: 4 }}>
+              <div style={{ color: colors.boneFaint, fontSize: 10, marginTop: 4 }}>
                 {daysOfData} {idioma === 'ES' ? 'días' : 'days'} · {idioma === 'ES' ? 'Calidad' : 'Quality'} {qualityScore}% · {idioma === 'ES' ? 'Consistencia' : 'Consistency'} {consistencyScore}%
               </div>
             </div>
-            <div style={{ color: '#FFD93D', fontSize: 18 }}>→</div>
+            <div style={{ color: colors.amber, fontSize: 18 }}>→</div>
           </button>
         </div>
       </>)}
