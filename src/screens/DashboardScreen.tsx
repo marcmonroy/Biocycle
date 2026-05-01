@@ -38,7 +38,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [qualityScore, setQualityScore] = useState(0);
   const [consistencyScore, setConsistencyScore] = useState(0);
   const [portfolioValue, setPortfolioValue] = useState(1.0);
-  const [foundingTrader, setFoundingTrader] = useState(false);
   const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
   const [topRels, setTopRels] = useState<{ name: string; avgScore: number | null; category: string }[]>([]);
   const [sharing, setSharing] = useState(false);
@@ -246,7 +245,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     NEW:      { bg: 'transparent', border: colors.surfaceBorder, text: colors.boneFaint },
   } as const;
   type TierKey = keyof typeof tierColors;
-  const tierKey = (profile.tier?.toUpperCase() ?? 'NEW') as TierKey;
+  const tierKey = ((profile as any).tier?.toUpperCase() ?? 'NEW') as TierKey;
   const tierStyle = tierColors[tierKey] ?? tierColors.NEW;
 
   return (
