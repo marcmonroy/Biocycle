@@ -1487,7 +1487,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: colors.boneFaint, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
             ←
           </button>
-          <img src="/favicon.svg" alt="" style={{ width: 22, height: 22 }} />
+          <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
+          <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <QuantumDNA size={44} state={bioState} />

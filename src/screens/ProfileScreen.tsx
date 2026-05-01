@@ -341,7 +341,10 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         >
           ←
         </button>
-        <img src="/favicon.svg" alt="" style={{ width: 22, height: 22 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
+          <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
+        </div>
         <h1 style={{
           fontFamily: fonts.display,
           fontSize: '1.3rem',
