@@ -53,7 +53,7 @@ export function LoginScreen({ onRegister }: Props) {
               {isES ? 'Ingresa tu correo para recibir un enlace de recuperación.' : 'Enter your email to receive a reset link.'}
             </p>
             {resetSent ? (
-              <p style={{ color: '#00C896', fontSize: '0.9rem', margin: 0 }}>
+              <p style={{ color: colors.success, fontSize: '0.9rem', margin: 0 }}>
                 {isES ? 'Revisa tu correo.' : 'Check your email for a reset link.'}
               </p>
             ) : (
@@ -221,7 +221,7 @@ const errorStyle: React.CSSProperties = {
 const inlineLinkStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'rgba(255,255,255,0.6)',
+  color: colors.boneFaint,
   fontSize: 'inherit',
   cursor: 'pointer',
   padding: 0,
