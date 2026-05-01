@@ -5,7 +5,7 @@ import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { getCardForUser, getArcStage } from '../lib/cardSystem';
 import { computePortfolioMetrics } from '../lib/portfolioValue';
 import type { Tab } from '../components/BottomNav';
-import { colors, fonts, shadows } from '../lib/tokens';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
