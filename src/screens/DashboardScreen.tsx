@@ -81,8 +81,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       }
       setStreak(currentStreak);
 
-      const { data: usData } = await supabase.from('user_state').select('founding_trader').eq('user_id', profile.id).maybeSingle();
-      setFoundingTrader(usData?.founding_trader === true);
 
       const metrics = await computePortfolioMetrics(profile);
       setPortfolioValue(metrics.value);
