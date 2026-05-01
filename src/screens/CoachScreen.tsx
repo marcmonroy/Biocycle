@@ -12,6 +12,7 @@ import { BottomNav } from '../components/BottomNav';
 import type { Tab } from '../components/BottomNav';
 import { getCurrentPhase } from '../lib/phaseEngine';
 import { RelationshipCategorySelector } from '../components/RelationshipCategorySelector';
+import { colors, fonts } from '../lib/tokens';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -322,12 +323,12 @@ function NumberPad({ onSelect }: { onSelect: (n: number) => void }) {
           key={n}
           onClick={() => onSelect(n)}
           style={{
-            background: 'rgba(123,97,255,0.12)',
-            border: '1px solid rgba(123,97,255,0.25)',
+            background: 'rgba(133, 183, 235,0.12)',
+            border: '1px solid rgba(133, 183, 235,0.25)',
             borderRadius: 10,
             padding: '13px 0',
-            color: '#7B61FF',
-            fontFamily: 'JetBrains Mono, monospace',
+            color: colors.tierElite,
+            fontFamily: fonts.mono,
             fontSize: '1rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -350,12 +351,12 @@ function ChoiceButtons({ options, onSelect }: { options: string[]; onSelect: (v:
           style={{
             flex: 1,
             minWidth: 72,
-            background: 'rgba(255,107,107,0.12)',
-            border: '1px solid rgba(255,107,107,0.35)',
+            background: 'rgba(239, 159, 39,0.12)',
+            border: '1px solid rgba(239, 159, 39,0.35)',
             borderRadius: 12,
             padding: '13px 8px',
-            color: '#FF6B6B',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            color: colors.amber,
+            fontFamily: fonts.body,
             fontSize: '0.9rem',
             fontWeight: 600,
             cursor: 'pointer',
@@ -470,12 +471,12 @@ function InstrumentPad({ maxValue, onSelect }: { maxValue: 3 | 4; onSelect: (n: 
           key={n}
           onClick={() => onSelect(n)}
           style={{
-            background: 'rgba(0,200,150,0.1)',
-            border: '1px solid rgba(0,200,150,0.25)',
+            background: 'rgba(93, 202, 165,0.1)',
+            border: '1px solid rgba(93, 202, 165,0.25)',
             borderRadius: 10,
             padding: '14px 0',
-            color: '#00C896',
-            fontFamily: 'JetBrains Mono, monospace',
+            color: colors.success,
+            fontFamily: fonts.mono,
             fontSize: '1.1rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -1461,7 +1462,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   const isBusy     = bioState === 'speaking' || bioState === 'thinking';
 
   const phase      = liveDaysRef.current < 30 ? 'LEARNING' : liveDaysRef.current < 90 ? 'CALIBRATION' : 'COMPANION';
-  const phaseColor = { LEARNING: '#FFD93D', CALIBRATION: '#7B61FF', COMPANION: '#00C896' }[phase];
+  const phaseColor = { LEARNING: colors.amber, CALIBRATION: colors.tierElite, COMPANION: colors.success }[phase];
   const phaseLabel = isES
     ? { LEARNING: '● APRENDIENDO', CALIBRATION: '● CALIBRANDO', COMPANION: '● COMPAÑERO' }[phase]
     : { LEARNING: '● LEARNING',    CALIBRATION: '● CALIBRATING', COMPANION: '● COMPANION'  }[phase];
@@ -1471,23 +1472,23 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   return (
     <div style={{
       height: '100dvh', width: '100%', maxWidth: '100vw',
-      background: '#0A0A1A', display: 'flex', flexDirection: 'column',
-      fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden',
+      background: colors.midnight, display: 'flex', flexDirection: 'column',
+      fontFamily: fonts.body, overflow: 'hidden',
     }}>
 
       {/* Top bar */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '52px 20px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid rgba(245, 242, 238,0.06)',
         flexShrink: 0,
       }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#4A5568', cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: colors.boneFaint, cursor: 'pointer', fontSize: 20, padding: '4px 8px' }}>
           ←
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
           <QuantumDNA size={44} state={bioState} />
-          <span style={{ fontSize: 9, letterSpacing: '0.1em', color: phaseColor, fontFamily: 'JetBrains Mono, monospace' }}>
+          <span style={{ fontSize: 9, letterSpacing: '0.1em', color: phaseColor, fontFamily: fonts.mono }}>
             {phaseLabel}
           </span>
         </div>
@@ -1495,9 +1496,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
           onClick={() => setIsMuted(m => !m)}
           style={{
             background: 'none',
-            border: '1px solid rgba(255,255,255,0.12)',
+            border: '1px solid rgba(245, 242, 238,0.12)',
             borderRadius: '50%', width: 40, height: 40,
-            cursor: 'pointer', fontSize: 18, color: 'white',
+            cursor: 'pointer', fontSize: 18, color: colors.bone,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}
         >
@@ -1520,12 +1521,12 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
             )}
             <div style={{
               maxWidth: '80%',
-              background: msg.role === 'user' ? 'rgba(255,107,107,0.12)' : 'rgba(255,255,255,0.04)',
-              border: msg.role === 'user' ? '1px solid rgba(255,107,107,0.2)' : '1px solid rgba(255,255,255,0.07)',
+              background: msg.role === 'user' ? 'rgba(239, 159, 39,0.12)' : 'rgba(245, 242, 238,0.04)',
+              border: msg.role === 'user' ? '1px solid rgba(239, 159, 39,0.2)' : '1px solid rgba(245, 242, 238,0.07)',
               borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
               padding: '10px 14px',
             }}>
-              <p style={{ color: msg.role === 'user' ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.9)', fontSize: '0.9rem', lineHeight: 1.55, margin: 0 }}>
+              <p style={{ color: msg.role === 'user' ? 'rgba(245, 242, 238,0.85)' : 'rgba(245, 242, 238,0.9)', fontSize: '0.9rem', lineHeight: 1.55, margin: 0 }}>
                 {msg.content}
               </p>
             </div>
@@ -1536,19 +1537,19 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         {isBusy && messages.length > 0 && bioState === 'thinking' && (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <QuantumDNA size={28} state="thinking" />
-            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '16px 16px 16px 4px', padding: '10px 14px' }}>
-              <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.9rem', margin: 0 }}>···</p>
+            <div style={{ background: 'rgba(245, 242, 238,0.04)', border: '1px solid rgba(245, 242, 238,0.07)', borderRadius: '16px 16px 16px 4px', padding: '10px 14px' }}>
+              <p style={{ color: 'rgba(245, 242, 238,0.35)', fontSize: '0.9rem', margin: 0 }}>···</p>
             </div>
           </div>
         )}
 
         {/* Session complete card */}
         {convState === 'SESSION_COMPLETE' && (
-          <div style={{ background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.2)', borderRadius: 14, padding: '16px', textAlign: 'center', marginBottom: 80 }}>
-            <p style={{ color: '#00C896', fontSize: '0.9rem', margin: 0, fontWeight: 600 }}>
+          <div style={{ background: 'rgba(93, 202, 165,0.08)', border: '1px solid rgba(93, 202, 165,0.2)', borderRadius: 14, padding: '16px', textAlign: 'center', marginBottom: 80 }}>
+            <p style={{ color: colors.success, fontSize: '0.9rem', margin: 0, fontWeight: 600 }}>
               {isES ? '✓ Sesión guardada' : '✓ Session saved'}
             </p>
-            <p style={{ color: '#4A5568', fontSize: 12, margin: '4px 0 0' }}>
+            <p style={{ color: colors.boneFaint, fontSize: 12, margin: '4px 0 0' }}>
               {isES ? 'Tus datos se han registrado.' : 'Your data has been recorded.'}
             </p>
           </div>
@@ -1560,8 +1561,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       {/* INPUT AREA — only renders when there is actual input needed */}
       {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
         <div style={{
-          flexShrink: 0, background: '#0A0A1A',
-          borderTop: '1px solid rgba(255,255,255,0.07)',
+          flexShrink: 0, background: colors.midnight,
+          borderTop: '1px solid rgba(245, 242, 238,0.07)',
           padding: '12px 16px',
           paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)',
         }}>
@@ -1590,16 +1591,16 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
                 onChange={e => setInputText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
                 style={{
-                  flex: 1, background: '#1A1A2E', border: '1px solid #4A5568',
-                  borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 15,
-                  fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
+                  flex: 1, background: colors.midnightSoft, border: `1px solid ${colors.boneFaint}`,
+                  borderRadius: 8, padding: '10px 14px', color: colors.bone, fontSize: 15,
+                  fontFamily: fonts.body, outline: 'none',
                 }}
               />
               <button
                 onClick={handleSend}
                 style={{
-                  background: '#FF6B6B', border: 'none', borderRadius: 8,
-                  padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer',
+                  background: colors.amber, border: 'none', borderRadius: 8,
+                  padding: '10px 16px', color: colors.bone, fontSize: 18, cursor: 'pointer',
                 }}
               >
                 ↑
@@ -1630,9 +1631,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
               <button
                 onClick={() => isListening ? stopListening() : startListening()}
                 style={{
-                  background: 'transparent', border: '1px solid #4A5568',
+                  background: 'transparent', border: `1px solid ${colors.boneFaint}`,
                   borderRadius: '50%', width: 40, height: 40,
-                  color: isListening ? '#FF6B6B' : '#4A5568',
+                  color: isListening ? colors.amber : colors.boneFaint,
                   fontSize: 18, cursor: 'pointer', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
@@ -1646,14 +1647,14 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
                 onChange={e => setInputText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
                 style={{
-                  flex: 1, background: '#1A1A2E', border: '1px solid #4A5568',
-                  borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 15,
-                  fontFamily: 'Inter, system-ui, sans-serif', outline: 'none',
+                  flex: 1, background: colors.midnightSoft, border: `1px solid ${colors.boneFaint}`,
+                  borderRadius: 8, padding: '10px 14px', color: colors.bone, fontSize: 15,
+                  fontFamily: fonts.body, outline: 'none',
                 }}
               />
               <button
                 onClick={handleSend}
-                style={{ background: '#FF6B6B', border: 'none', borderRadius: 8, padding: '10px 16px', color: '#fff', fontSize: 18, cursor: 'pointer' }}
+                style={{ background: colors.amber, border: 'none', borderRadius: 8, padding: '10px 16px', color: colors.bone, fontSize: 18, cursor: 'pointer' }}
               >
                 ↑
               </button>

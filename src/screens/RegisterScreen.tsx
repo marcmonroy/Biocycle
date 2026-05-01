@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getLang } from '../lib/lang';
+import { colors, fonts } from '../lib/tokens';
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
@@ -369,16 +370,16 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     <div style={screenStyle}>
       {/* Progress bar */}
       <div style={{ width: '100%', maxWidth: 430, padding: '20px 24px 0' }}>
-        <div style={{ height: 3, background: 'rgba(255,255,255,0.07)', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ height: 3, background: 'rgba(245, 242, 238,0.07)', borderRadius: 2, overflow: 'hidden' }}>
           <div style={{
             height: '100%',
             width: `${progress}%`,
-            background: '#EF9F27',
+            background: colors.amber,
             borderRadius: 2,
             transition: 'width 0.3s',
           }} />
         </div>
-        <p style={{ color: '#4A5568', fontSize: 12, margin: '8px 0 0', letterSpacing: '0.08em' }}>
+        <p style={{ color: colors.boneFaint, fontSize: 12, margin: '8px 0 0', letterSpacing: '0.08em' }}>
           {isES ? `Paso ${step} de 5` : `Step ${step} of 5`}
         </p>
       </div>
@@ -412,7 +413,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
                 transform: 'translateY(-50%)',
                 background: 'none',
                 border: 'none',
-                color: '#4A5568',
+                color: colors.boneFaint,
                 cursor: 'pointer',
                 fontSize: 16,
                 padding: 0,
@@ -544,7 +545,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
                   width: 44,
                   textAlign: 'center',
                   fontSize: '1.4rem',
-                  fontFamily: 'JetBrains Mono, monospace',
+                  fontFamily: fonts.mono,
                   padding: '12px 0',
                 }}
               />
@@ -579,7 +580,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
               style={{
                 background: 'none',
                 border: 'none',
-                color: resendCooldown > 0 ? '#4A5568' : 'rgba(255,255,255,0.5)',
+                color: resendCooldown > 0 ? colors.boneFaint : 'rgba(245, 242, 238,0.5)',
                 fontSize: 13,
                 cursor: (resendCooldown > 0 || loading) ? 'default' : 'pointer',
                 padding: '4px 0',
@@ -602,11 +603,11 @@ const screenStyle: React.CSSProperties = {
   minHeight: '100vh',
   width: '100%',
   maxWidth: '100vw',
-  background: '#042C53',
+  background: colors.midnight,
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
-  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+  fontFamily: fonts.body,
   overflowX: 'hidden',
   paddingBottom: 40,
 };
@@ -629,7 +630,7 @@ const headingStyle: React.CSSProperties = {
 };
 
 const bodyStyle: React.CSSProperties = {
-  color: '#4A5568',
+  color: colors.boneFaint,
   fontSize: '0.9rem',
   lineHeight: 1.55,
   margin: 0,
@@ -637,32 +638,32 @@ const bodyStyle: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: '#021A33',
+  background: colors.midnightDeep,
   border: '1px solid rgba(245,242,238,0.12)',
   borderRadius: 12,
   padding: '14px 16px',
   color: '#F5F2EE',
   fontSize: '1rem',
-  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+  fontFamily: fonts.body,
   outline: 'none',
   boxSizing: 'border-box',
 };
 
 const btnStyle: React.CSSProperties = {
   width: '100%',
-  background: '#EF9F27',
+  background: colors.amber,
   border: 'none',
   borderRadius: 12,
   padding: '16px',
-  color: '#042C53',
+  color: colors.midnight,
   fontSize: '1rem',
   fontWeight: 500,
   cursor: 'pointer',
-  fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+  fontFamily: fonts.body,
 };
 
 const errorStyle: React.CSSProperties = {
-  color: '#FF6B6B',
+  color: colors.amber,
   fontSize: '0.85rem',
   margin: 0,
 };
@@ -670,7 +671,7 @@ const errorStyle: React.CSSProperties = {
 const inlineLinkStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: 'rgba(255,255,255,0.6)',
+  color: 'rgba(245, 242, 238,0.6)',
   fontSize: 'inherit',
   cursor: 'pointer',
   padding: 0,
@@ -682,9 +683,9 @@ const pillStyle = (active: boolean): React.CSSProperties => ({
   flex: 1,
   padding: '10px 8px',
   borderRadius: 10,
-  border: active ? '1px solid #FF6B6B' : '1px solid rgba(255,255,255,0.1)',
-  background: active ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.04)',
-  color: active ? '#FF6B6B' : '#4A5568',
+  border: active ? `1px solid ${colors.amber}` : '1px solid rgba(245, 242, 238,0.1)',
+  background: active ? 'rgba(239, 159, 39,0.15)' : 'rgba(245, 242, 238,0.04)',
+  color: active ? colors.amber : colors.boneFaint,
   fontSize: '0.88rem',
   fontWeight: active ? 600 : 400,
   cursor: 'pointer',

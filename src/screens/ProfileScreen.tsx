@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
@@ -36,15 +37,15 @@ function utcToLocal(utcHour: number): number {
 }
 
 const slotPillStyle = (active: boolean): React.CSSProperties => ({
-  background: active ? 'rgba(255,107,107,0.2)' : 'transparent',
-  border: `1px solid ${active ? '#FF6B6B' : 'rgba(255,255,255,0.15)'}`,
+  background: active ? 'rgba(239, 159, 39,0.2)' : 'transparent',
+  border: `1px solid ${active ? colors.amber : 'rgba(245, 242, 238,0.15)'}`,
   borderRadius: 20,
   padding: '5px 11px',
-  color: active ? '#FF6B6B' : '#8A9BB0',
+  color: active ? colors.amber : colors.boneFaint,
   fontSize: 12,
   fontWeight: active ? 600 : 400,
   cursor: 'pointer',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: fonts.body,
   whiteSpace: 'nowrap' as const,
 });
 
@@ -305,8 +306,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       minHeight: '100vh',
       width: '100%',
       maxWidth: '100vw',
-      background: '#0A0A1A',
-      fontFamily: 'Inter, system-ui, sans-serif',
+      background: colors.midnight,
+      fontFamily: fonts.body,
       paddingBottom: 100,
       overflowX: 'hidden',
       overflowY: 'auto',
@@ -324,12 +325,12 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         <button
           onClick={onComplete}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(245, 242, 238,0.05)',
+            border: '1px solid rgba(245, 242, 238,0.1)',
             borderRadius: 8,
             width: 36,
             height: 36,
-            color: 'white',
+            color: colors.bone,
             fontSize: 18,
             cursor: 'pointer',
             display: 'flex',
@@ -341,10 +342,10 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           ←
         </button>
         <h1 style={{
-          fontFamily: 'JetBrains Mono, monospace',
-          fontSize: '1.1rem',
-          fontWeight: 700,
-          color: 'white',
+          fontFamily: fonts.display,
+          fontSize: '1.3rem',
+          fontWeight: 300,
+          color: colors.bone,
           margin: 0,
         }}>
           {profile.idioma === 'ES' ? 'Configuración' : 'Settings'}
@@ -374,7 +375,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
             onClick={() => picardia ? setPicardia(false) : setShowPicardiaConfirm(true)}
             style={{
               width: 48, height: 28, borderRadius: 14,
-              background: picardia ? '#FF6B6B' : 'rgba(255,255,255,0.1)',
+              background: picardia ? colors.amber : 'rgba(245, 242, 238,0.1)',
               border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
             }}
           >
@@ -403,7 +404,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       <Section label={L('Check-in Times', 'Horarios de Check-in')}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
               {L('Morning check-in', 'Check-in Mañana')}
             </p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -415,7 +416,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
             </div>
           </div>
           <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
               {L('Afternoon check-in', 'Check-in Tarde')}
             </p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -427,7 +428,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
             </div>
           </div>
           <div>
-            <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
               {L('Night check-in', 'Check-in Noche')}
             </p>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -438,7 +439,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
               ))}
             </div>
           </div>
-          <p style={{ color: '#4A5568', fontSize: 11, margin: 0 }}>
+          <p style={{ color: colors.boneFaint, fontSize: 11, margin: 0 }}>
             {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
           </p>
         </div>
@@ -492,8 +493,8 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
                 />
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
-                <span style={{ color: '#4A5568', fontSize: 10, width: '50%', textAlign: 'center' }}>ft</span>
-                <span style={{ color: '#4A5568', fontSize: 10, width: '50%', textAlign: 'center' }}>in</span>
+                <span style={{ color: colors.boneFaint, fontSize: 10, width: '50%', textAlign: 'center' }}>ft</span>
+                <span style={{ color: colors.boneFaint, fontSize: 10, width: '50%', textAlign: 'center' }}>in</span>
               </div>
             </div>
           )}
@@ -525,12 +526,12 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
 
         {bmi !== null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ color: '#4A5568', fontSize: 13 }}>BMI</span>
+            <span style={{ color: colors.boneFaint, fontSize: 13 }}>BMI</span>
             <span style={{
-              fontFamily: 'JetBrains Mono, monospace',
+              fontFamily: fonts.mono,
               fontSize: '1.1rem',
               fontWeight: 700,
-              color: '#FFD93D',
+              color: colors.amber,
             }}>
               {bmi}
             </span>
@@ -739,15 +740,15 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           disabled={saving || saved}
           style={{
             width: '100%',
-            background: saved ? 'rgba(0,200,150,0.2)' : saving ? 'rgba(255,107,107,0.4)' : '#FF6B6B',
-            border: saved ? '1px solid rgba(0,200,150,0.4)' : 'none',
+            background: saved ? 'rgba(93, 202, 165,0.2)' : saving ? 'rgba(239, 159, 39,0.4)' : colors.amber,
+            border: saved ? '1px solid rgba(93, 202, 165,0.4)' : 'none',
             borderRadius: 14,
             padding: '16px',
-            color: saved ? '#00C896' : 'white',
+            color: saved ? colors.success : colors.bone,
             fontSize: '1rem',
             fontWeight: 600,
             cursor: (saving || saved) ? 'default' : 'pointer',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            fontFamily: fonts.body,
             transition: 'background 0.2s, color 0.2s',
           }}
         >
@@ -760,15 +761,15 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
             style={{
               width: '100%',
               marginTop: 12,
-              background: '#FF6B6B',
+              background: colors.amber,
               border: 'none',
               borderRadius: 14,
               padding: '18px',
-              color: 'white',
+              color: colors.bone,
               fontSize: '1rem',
               fontWeight: 600,
               cursor: 'pointer',
-              fontFamily: 'Inter, system-ui, sans-serif',
+              fontFamily: fonts.body,
             }}
           >
             {idioma === 'ES' ? 'Conoce a Jules →' : 'Meet Jules →'}
@@ -783,13 +784,13 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           style={{
             width: '100%',
             background: 'none',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: '1px solid rgba(245, 242, 238,0.08)',
             borderRadius: 14,
             padding: '14px',
-            color: '#4A5568',
+            color: colors.boneFaint,
             fontSize: '0.9rem',
             cursor: 'pointer',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            fontFamily: fonts.body,
           }}
         >
           {L('Sign out', 'Cerrar sesión')}
@@ -799,13 +800,13 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           style={{
             width: '100%',
             background: 'none',
-            border: '1px solid rgba(255,107,107,0.2)',
+            border: '1px solid rgba(239, 159, 39,0.2)',
             borderRadius: 14,
             padding: '14px',
-            color: 'rgba(255,107,107,0.5)',
+            color: 'rgba(239, 159, 39,0.5)',
             fontSize: '0.85rem',
             cursor: 'pointer',
-            fontFamily: 'Inter, system-ui, sans-serif',
+            fontFamily: fonts.body,
           }}
         >
           {L('Delete account', 'Eliminar cuenta')}
@@ -878,14 +879,14 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   return (
     <div style={{ width: '100%', maxWidth: 430, margin: '0 auto' }}>
       <div style={{ padding: '20px 24px 6px' }}>
-        <p style={{ color: '#4A5568', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
+        <p style={{ color: colors.boneFaint, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', margin: 0 }}>
           {label}
         </p>
       </div>
       <div style={{ padding: '8px 24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {children}
       </div>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '0 24px' }} />
+      <div style={{ height: 1, background: 'rgba(245, 242, 238,0.05)', margin: '0 24px' }} />
     </div>
   );
 }
@@ -894,8 +895,8 @@ function FieldRow({ label, sublabel, children }: { label: string; sublabel?: str
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
       <div>
-        <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>{label}</div>
-        {sublabel && <div style={{ color: '#4A5568', fontSize: 11, marginTop: 2 }}>{sublabel}</div>}
+        <div style={{ color: colors.boneDim, fontSize: 14 }}>{label}</div>
+        {sublabel && <div style={{ color: colors.boneFaint, fontSize: 11, marginTop: 2 }}>{sublabel}</div>}
       </div>
       {children}
     </div>
@@ -905,15 +906,15 @@ function FieldRow({ label, sublabel, children }: { label: string; sublabel?: str
 function ReadRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ color: '#4A5568', fontSize: 13 }}>{label}</span>
-      <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontFamily: 'Inter, system-ui, sans-serif' }}>{value}</span>
+      <span style={{ color: colors.boneFaint, fontSize: 13 }}>{label}</span>
+      <span style={{ color: colors.boneDim, fontSize: 13, fontFamily: fonts.body }}>{value}</span>
     </div>
   );
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p style={{ color: '#4A5568', fontSize: 11, letterSpacing: '0.06em', margin: '0 0 6px' }}>
+    <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 6px' }}>
       {children}
     </p>
   );
@@ -924,15 +925,15 @@ function PillButton({ label, active, onClick }: { label: string; active: boolean
     <button
       onClick={onClick}
       style={{
-        background: active ? '#FF6B6B' : 'transparent',
-        border: `1px solid ${active ? '#FF6B6B' : '#4A5568'}`,
+        background: active ? colors.amber : 'transparent',
+        border: `1px solid ${active ? colors.amber : colors.boneFaint}`,
         borderRadius: 8,
         padding: '6px 12px',
-        color: active ? 'white' : '#4A5568',
+        color: active ? colors.bone : colors.boneFaint,
         fontSize: 12,
         fontWeight: active ? 600 : 400,
         cursor: 'pointer',
-        fontFamily: 'Inter, system-ui, sans-serif',
+        fontFamily: fonts.body,
         whiteSpace: 'nowrap',
       }}
     >
@@ -948,7 +949,7 @@ function Modal({ children }: { children: React.ReactNode }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 24,
     }}>
       <div style={{
-        background: '#12122A', border: '1px solid rgba(255,255,255,0.1)',
+        background: colors.midnightDeep, border: '1px solid rgba(245, 242, 238,0.1)',
         borderRadius: 20, padding: 28, maxWidth: 360, width: '100%',
         display: 'flex', flexDirection: 'column', gap: 16,
       }}>
@@ -964,12 +965,12 @@ function ModalBtn({ children, onClick, variant }: { children: React.ReactNode; o
       onClick={onClick}
       style={{
         flex: 1,
-        background: variant === 'coral' ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.06)',
-        border: variant === 'coral' ? '1px solid rgba(255,107,107,0.35)' : '1px solid rgba(255,255,255,0.1)',
+        background: variant === 'coral' ? 'rgba(239, 159, 39,0.15)' : 'rgba(245, 242, 238,0.06)',
+        border: variant === 'coral' ? '1px solid rgba(239, 159, 39,0.35)' : '1px solid rgba(245, 242, 238,0.1)',
         borderRadius: 10, padding: '12px',
-        color: variant === 'coral' ? '#FF6B6B' : '#4A5568',
+        color: variant === 'coral' ? colors.amber : colors.boneFaint,
         cursor: 'pointer', fontSize: 14, fontWeight: variant === 'coral' ? 600 : 400,
-        fontFamily: 'Inter, system-ui, sans-serif',
+        fontFamily: fonts.body,
       }}
     >
       {children}
@@ -980,13 +981,13 @@ function ModalBtn({ children, onClick, variant }: { children: React.ReactNode; o
 // ── Styles ──────────────────────────────────────────────────────────────────
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.04)',
-  border: '1px solid rgba(255,255,255,0.1)',
+  background: 'rgba(245, 242, 238,0.04)',
+  border: '1px solid rgba(245, 242, 238,0.1)',
   borderRadius: 10,
   padding: '10px 12px',
-  color: 'white',
+  color: colors.bone,
   fontSize: '0.9rem',
-  fontFamily: 'Inter, system-ui, sans-serif',
+  fontFamily: fonts.body,
   outline: 'none',
   boxSizing: 'border-box',
 };
@@ -998,14 +999,15 @@ const pillRowStyle: React.CSSProperties = {
 };
 
 const modalHeadingStyle: React.CSSProperties = {
-  fontFamily: 'JetBrains Mono, monospace',
-  color: 'white',
-  fontSize: '1rem',
+  fontFamily: fonts.display,
+  color: colors.bone,
+  fontSize: '1.1rem',
+  fontWeight: 300,
   margin: 0,
 };
 
 const modalBodyStyle: React.CSSProperties = {
-  color: '#4A5568',
+  color: colors.boneFaint,
   fontSize: 13,
   lineHeight: 1.6,
   margin: 0,
