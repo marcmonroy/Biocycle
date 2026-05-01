@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { colors, fonts } from '../lib/tokens';
 
 interface DebugData {
   screen?: string;
@@ -49,7 +50,7 @@ export function DebugOverlay() {
       borderRadius: 8,
       padding: '8px 12px',
       fontSize: 11,
-      fontFamily: 'monospace',
+      fontFamily: fonts.mono,
       color: '#FFD93D',
       maxWidth: 260,
       pointerEvents: 'none',

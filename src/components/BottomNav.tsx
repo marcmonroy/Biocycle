@@ -1,3 +1,5 @@
+import { colors, fonts } from '../lib/tokens';
+
 export type Tab = 'home' | 'forecast' | 'coach' | 'circle' | 'earnings';
 
 interface Props {
@@ -23,8 +25,8 @@ export function BottomNav({ active, onNavigate, idioma = 'EN' }: Props) {
       bottom: 0,
       left: '50%',
       transform: 'translateX(-50%)',
-      background: '#0D0D1F',
-      borderTop: '1px solid rgba(255,255,255,0.12)',
+      background: colors.midnightDeep,
+      borderTop: `1px solid ${colors.surfaceBorderHi}`,
       display: 'flex',
       justifyContent: 'space-around',
       alignItems: 'center',
@@ -49,7 +51,7 @@ export function BottomNav({ active, onNavigate, idioma = 'EN' }: Props) {
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              color: isActive ? '#FF6B6B' : '#8A9BB0',
+              color: isActive ? colors.amber : colors.boneFaint,
               transition: 'color 0.15s',
               padding: '0 2px',
             }}
@@ -59,7 +61,7 @@ export function BottomNav({ active, onNavigate, idioma = 'EN' }: Props) {
               fontSize: 9,
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
-              fontFamily: 'Inter, system-ui, sans-serif',
+              fontFamily: fonts.body,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',

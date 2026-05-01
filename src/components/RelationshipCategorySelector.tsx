@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   name: string;
@@ -52,7 +53,7 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
                 fontSize: 13,
                 fontWeight: isSelected ? 600 : 400,
                 cursor: 'pointer',
-                fontFamily: 'Inter, system-ui, sans-serif',
+                fontFamily: fonts.body,
               }}
             >
               {label}
@@ -88,15 +89,15 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
         onClick={() => selectedCategory && onSelect(selectedCategory, intimacy)}
         disabled={!selectedCategory}
         style={{
-          background: selectedCategory ? '#FF6B6B' : 'rgba(255,255,255,0.06)',
+          background: selectedCategory ? colors.amber : 'rgba(255,255,255,0.06)',
           border: 'none',
           borderRadius: 10,
           padding: '12px',
-          color: selectedCategory ? 'white' : '#4A5568',
+          color: selectedCategory ? colors.bone : '#4A5568',
           fontSize: 14,
           fontWeight: 600,
           cursor: selectedCategory ? 'pointer' : 'default',
-          fontFamily: 'Inter, system-ui, sans-serif',
+          fontFamily: fonts.body,
         }}
       >
         {isES ? 'Guardar' : 'Save'}
