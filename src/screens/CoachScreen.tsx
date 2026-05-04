@@ -940,7 +940,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   }
 
   function shouldCollectRelationship(): boolean {
-    if (sessionRef.current.totalSessions < 2) return false;
+    if (sessionRef.current.totalSessions < 1) return false;
     if (sessionRef.current.relationshipsCollected >= 7) return false;
     if (sessionRef.current.collectedThisSession) return false;
     return true;
@@ -1293,6 +1293,10 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       const onboardingDone = freshProfile?.onboarding_complete === true;
 
       sessionRef.current.onboardingComplete = onboardingDone;
+
+      // Reset per-session flags for fresh start
+      sessionRef.current.collectedThisSession = false;
+      sessionRef.current.pendingRelationshipName = '';
 
       // ── 3. Slot locking — if this slot already completed today, show locked
       const today = new Date().toISOString().split('T')[0];
