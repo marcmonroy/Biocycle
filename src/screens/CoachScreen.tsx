@@ -960,13 +960,20 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     const personName = sessionRef.current.pendingRelationshipName;
     const newRank = sessionRef.current.relationshipsCollected + 1;
 
-    void supabase.from('relationships').insert({
+    const { error: relErr } = await supabase.from('relationships').insert({
       user_id: profile.id,
       rank: newRank,
       name: personName,
       category,
       intimacy,
     });
+    if (relErr) {
+      console.error('[BioCycle] relationship insert failed:', relErr.message, relErr.code, relErr.details);
+      addJulesMsg(isES
+        ? 'Hubo un problema guardando esa persona. Por favor intenta de nuevo.'
+        : 'There was a problem saving that person. Please try again.');
+      return;
+    }
 
     sessionRef.current.relationshipsCollected = newRank;
     sessionRef.current.collectedThisSession = true;
