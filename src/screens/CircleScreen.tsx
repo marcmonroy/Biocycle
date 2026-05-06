@@ -170,7 +170,15 @@ export function CircleScreen({ profile }: Props) {
               }}>
                 <div style={{
                   width: 44, height: 44, borderRadius: '50%',
-                  background: `linear-gradient(135deg, ${colors.amberGlow}, rgba(133,183,235,0.15))`,
+                  background: [
+                    'linear-gradient(135deg, rgba(239,159,39,0.35), rgba(239,159,39,0.1))',
+                    'linear-gradient(135deg, rgba(93,202,165,0.35), rgba(93,202,165,0.1))',
+                    'linear-gradient(135deg, rgba(133,183,235,0.35), rgba(133,183,235,0.1))',
+                    'linear-gradient(135deg, rgba(224,122,95,0.35), rgba(224,122,95,0.1))',
+                    'linear-gradient(135deg, rgba(239,159,39,0.35), rgba(133,183,235,0.1))',
+                    'linear-gradient(135deg, rgba(93,202,165,0.35), rgba(239,159,39,0.1))',
+                    'linear-gradient(135deg, rgba(133,183,235,0.35), rgba(93,202,165,0.1))',
+                  ][r.rank - 1] ?? 'linear-gradient(135deg, rgba(239,159,39,0.2), rgba(133,183,235,0.1))',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 18, flexShrink: 0,
                 }}>{cat.emoji}</div>
