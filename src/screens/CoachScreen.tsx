@@ -989,9 +989,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
 
-    speak(thankMsg, () => {
-      _doSessionComplete();
-    });
+    void saveSession();
+    setTimeout(() => { _doSessionComplete(); }, 200);
+    speak(thankMsg);
   }
 
   function _doSessionComplete() {
@@ -1247,9 +1247,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         addJulesMsg(ackMsg);
         sessionRef.current.state = 'RELATIONSHIP_SCORE_ACK';
         setConvState('RELATIONSHIP_SCORE_ACK');
-        speak(ackMsg, () => {
-          _enterNameCollectionOrClose();
-        });
+        setTimeout(() => { _enterNameCollectionOrClose(); }, 200);
+        speak(ackMsg);
         break;
       }
 
