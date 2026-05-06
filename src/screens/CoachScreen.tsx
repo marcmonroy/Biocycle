@@ -921,8 +921,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     sessionRef.current.scoringRelationship = rel;
 
     const questionText = isES
-      ? `¿Cómo estuvo tu tiempo con ${rel.name} hoy? Del 1 al 10.`
-      : `How was your time with ${rel.name} today? 1 to 10.`;
+      ? `Pensando en ${rel.name} — ¿cómo te dejó ese tiempo? ¿Más cargado o más tranquilo? Del 1 (muy estresante) al 10 (muy reconfortante).`
+      : `Thinking about ${rel.name} — how did that time leave you feeling? More drained or more at ease? 1 (very stressful) to 10 (very restoring).`;
 
     sessionRef.current.state = 'RELATIONSHIP_SCORE_Q';
     setConvState('RELATIONSHIP_SCORE_Q');
@@ -1205,7 +1205,11 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
             phase: getCurrentPhase(profile).phase,
           });
         }
-        const ackMsg = isES ? 'Anotado.' : 'Got it.';
+        const ackMsg = score >= 7
+          ? (isES ? `Qué bueno. ${rel?.name} parece ser una fuente de calma para ti.` : `Good to know. ${rel?.name} seems to be a calming presence for you.`)
+          : score >= 5
+          ? (isES ? `Interesante. Lo voy anotando.` : `Interesting. I'm tracking that.`)
+          : (isES ? `Lo noto. Eso podría estar afectando tu estrés.` : `I notice that. That may be affecting your stress levels.`);
         addJulesMsg(ackMsg);
         sessionRef.current.state = 'RELATIONSHIP_SCORE_ACK';
         setConvState('RELATIONSHIP_SCORE_ACK');

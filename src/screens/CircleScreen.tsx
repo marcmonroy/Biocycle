@@ -15,6 +15,8 @@ interface Relationship {
   intimacy: boolean;
   avgScore: number | null;
   trend: 'up' | 'down' | 'flat' | null;
+  _avgStress?: number | null;
+  _avgAnxiety?: number | null;
 }
 
 const MAX_RELATIONSHIPS = 7;
@@ -67,6 +69,35 @@ export function CircleScreen({ profile }: Props) {
         if (scores.length > 0) {
           avgScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10;
         }
+
+        // Fetch stress scores on days this person was scored
+        const interactionDates = interactions.map((i: any) => i.interaction_date);
+        if (interactionDates.length > 0) {
+          const { data: stressSessions } = await supabase
+            .from('conversation_sessions')
+            .select('factor_estres, factor_ansiedad, session_date')
+            .eq('user_id', profile.id)
+            .eq('session_complete', true)
+            .in('session_date', interactionDates);
+
+          if (stressSessions && stressSessions.length > 0) {
+            const stressVals = (stressSessions as any[])
+              .map((s: any) => s.factor_estres)
+              .filter((v: any) => v != null);
+            const anxietyVals = (stressSessions as any[])
+              .map((s: any) => s.factor_ansiedad)
+              .filter((v: any) => v != null);
+            if (stressVals.length > 0) {
+              const avgStress = stressVals.reduce((a: number, b: number) => a + b, 0) / stressVals.length;
+              const avgAnxiety = anxietyVals.length > 0
+                ? anxietyVals.reduce((a: number, b: number) => a + b, 0) / anxietyVals.length
+                : null;
+              (r as any)._avgStress = Math.round(avgStress * 10) / 10;
+              (r as any)._avgAnxiety = avgAnxiety != null ? Math.round(avgAnxiety * 10) / 10 : null;
+            }
+          }
+        }
+
         if (scores.length >= 4) {
           const half = Math.floor(scores.length / 2);
           const firstAvg = scores.slice(0, half).reduce((a: number, b: number) => a + b, 0) / half;
@@ -76,7 +107,13 @@ export function CircleScreen({ profile }: Props) {
         }
       }
 
-      return { id: r.id, name: r.name, rank: r.rank, category: r.category, intimacy: r.intimacy, avgScore, trend };
+      return {
+        id: r.id, name: r.name, rank: r.rank,
+        category: r.category, intimacy: r.intimacy,
+        avgScore, trend,
+        _avgStress: (r as any)._avgStress ?? null,
+        _avgAnxiety: (r as any)._avgAnxiety ?? null,
+      };
     }));
 
     setRels(enriched);
@@ -186,9 +223,27 @@ export function CircleScreen({ profile }: Props) {
                   <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
                     {r.name} {r.intimacy && <span style={{ fontSize: 12 }}>💞</span>}
                   </div>
-                  <div style={{ color: colors.boneFaint, fontSize: 11 }}>
+                  <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.body }}>
                     {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
                   </div>
+                  {r._avgStress != null && (
+                    <div style={{
+                      fontSize: 10,
+                      color: r._avgStress >= 7
+                        ? colors.danger
+                        : r._avgStress >= 4
+                        ? colors.amber
+                        : colors.success,
+                      fontFamily: fonts.mono,
+                      marginTop: 2,
+                    }}>
+                      {r._avgStress >= 7
+                        ? (idioma === 'ES' ? `↑ estrés ${r._avgStress}/10 con esta persona` : `↑ stress ${r._avgStress}/10 with this person`)
+                        : r._avgStress >= 4
+                        ? (idioma === 'ES' ? `estrés moderado ${r._avgStress}/10` : `moderate stress ${r._avgStress}/10`)
+                        : (idioma === 'ES' ? `↓ estrés bajo ${r._avgStress}/10` : `↓ low stress ${r._avgStress}/10`)}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right', marginRight: 8, minWidth: 80 }}>
                   {r.avgScore != null ? (
