@@ -1231,13 +1231,14 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         addUserMsg(text);
         const rel = sessionRef.current.scoringRelationship;
         if (rel) {
-          void supabase.from('relationship_interactions').insert({
+          const { error: intErr } = await supabase.from('relationship_interactions').insert({
             user_id: profile.id,
             relationship_id: rel.id,
             interaction_date: new Date().toISOString().split('T')[0],
             connection_score: score,
             phase: getCurrentPhase(profile).phase,
           });
+          if (intErr) console.error('[BioCycle] interaction insert failed:', intErr.message);
         }
         const ackMsg = score >= 7
           ? (isES ? `Qué bueno. ${rel?.name} parece ser una fuente de calma para ti.` : `Good to know. ${rel?.name} seems to be a calming presence for you.`)
