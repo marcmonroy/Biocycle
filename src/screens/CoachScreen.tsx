@@ -1181,13 +1181,47 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         if (!personName) break;
         addUserMsg(personName);
         sessionRef.current.pendingRelationshipName = personName;
-        sessionRef.current.state = 'RELATIONSHIP_CATEGORY';
-        setConvState('RELATIONSHIP_CATEGORY');
-        const ackMsg = isES
-          ? `${personName}. ¿Cuál es tu relación con ${personName}?`
-          : `${personName}. What's your relationship with ${personName}?`;
-        addJulesMsg(ackMsg);
-        speak(ackMsg);
+
+        // Check if this person is already in the Circle
+        const { data: existingRels } = await supabase
+          .from('relationships')
+          .select('id, name, rank, category, intimacy')
+          .eq('user_id', profile.id)
+          .order('rank', { ascending: true });
+
+        const normalizedInput = personName.toLowerCase().trim();
+        const knownPerson = (existingRels ?? []).find((r: any) =>
+          r.name.toLowerCase().trim() === normalizedInput
+        );
+
+        if (knownPerson) {
+          // Jules already knows this person — skip category, go straight to scoring
+          sessionRef.current.scoringRelationship = {
+            id: knownPerson.id,
+            name: knownPerson.name,
+            rank: knownPerson.rank,
+            intimacy: knownPerson.intimacy,
+          };
+          sessionRef.current.collectedThisSession = true;
+
+          const recognitionMsg = isES
+            ? `${knownPerson.name} otra vez — ¿cómo te dejó ese tiempo? Del 1 (muy agotador) al 10 (muy reconfortante).`
+            : `${knownPerson.name} again — how did that time leave you feeling? 1 (very draining) to 10 (very restoring).`;
+
+          sessionRef.current.state = 'RELATIONSHIP_SCORE_Q';
+          setConvState('RELATIONSHIP_SCORE_Q');
+          addJulesMsg(recognitionMsg);
+          speak(recognitionMsg);
+        } else {
+          // New person — ask category as before
+          sessionRef.current.state = 'RELATIONSHIP_CATEGORY';
+          setConvState('RELATIONSHIP_CATEGORY');
+          const catPrompt = isES
+            ? `No conozco a ${personName} todavía — ¿cuál es tu relación con esta persona?`
+            : `I don't know ${personName} yet — what is your relationship with them?`;
+          addJulesMsg(catPrompt);
+          speak(catPrompt);
+        }
         break;
       }
 
