@@ -81,20 +81,21 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       const todayStr = new Date().toISOString().split('T')[0];
 
       // Find most recent completed session from today or yesterday
-      const recentSession = allSessions.find((s: any) =>
+      const recentSession = (allSessions as any[]).find((s: any) =>
         s.session_date === todayStr
-      ) || allSessions[0];
+      ) || (allSessions as any[])[0];
 
       if (recentSession) {
+        const rs = recentSession as any;
         setTodayScores({
-          slot:      recentSession.time_slot ?? 'morning',
-          energia:   recentSession.factor_energia   ?? null,
-          cognitivo: recentSession.factor_cognitivo ?? null,
-          estres:    recentSession.factor_estres     ?? null,
-          ansiedad:  recentSession.factor_ansiedad   ?? null,
-          sueno:     recentSession.factor_sueno      ?? null,
-          emocional: recentSession.factor_emocional  ?? null,
-          social:    recentSession.factor_social     ?? null,
+          slot:      rs.time_slot ?? 'morning',
+          energia:   rs.factor_energia   ?? null,
+          cognitivo: rs.factor_cognitivo ?? null,
+          estres:    rs.factor_estres     ?? null,
+          ansiedad:  rs.factor_ansiedad   ?? null,
+          sueno:     rs.factor_sueno      ?? null,
+          emocional: rs.factor_emocional  ?? null,
+          social:    rs.factor_social     ?? null,
         });
       }
       let currentStreak = 0;
