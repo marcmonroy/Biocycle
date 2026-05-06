@@ -155,7 +155,7 @@ export function CircleScreen({ profile }: Props) {
         ) : (
           rels.map(r => {
             const cat = CATEGORY_LABELS[r.category] ?? CATEGORY_LABELS.other;
-            const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.amber;
+            const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.danger;
             const trendArrow = r.trend === 'up' ? '↑' : r.trend === 'down' ? '↓' : r.trend === 'flat' ? '→' : '';
             return (
               <div key={r.id} style={{
@@ -170,7 +170,7 @@ export function CircleScreen({ profile }: Props) {
               }}>
                 <div style={{
                   width: 44, height: 44, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(255,217,61,0.2), rgba(123,97,255,0.2))',
+                  background: `linear-gradient(135deg, ${colors.amberGlow}, rgba(133,183,235,0.15))`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 18, flexShrink: 0,
                 }}>{cat.emoji}</div>
@@ -182,13 +182,52 @@ export function CircleScreen({ profile }: Props) {
                     {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', marginRight: 8 }}>
-                  <div style={{ color: scoreColor, fontWeight: 700, fontSize: 14, fontFamily: fonts.mono }}>
-                    {r.avgScore != null ? `${r.avgScore.toFixed(1)} ${trendArrow}` : '—'}
-                  </div>
-                  <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    {idioma === 'ES' ? '30 días' : '30 days'}
-                  </div>
+                <div style={{ textAlign: 'right', marginRight: 8, minWidth: 80 }}>
+                  {r.avgScore != null ? (
+                    <>
+                      <div style={{
+                        color: scoreColor,
+                        fontWeight: 600,
+                        fontSize: 13,
+                        fontFamily: fonts.mono,
+                        marginBottom: 3,
+                      }}>
+                        {r.avgScore.toFixed(1)} {trendArrow}
+                      </div>
+                      <div style={{
+                        height: 3,
+                        background: colors.surfaceBorder,
+                        borderRadius: 999,
+                        overflow: 'hidden',
+                        marginBottom: 3,
+                        width: 72,
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${(r.avgScore / 10) * 100}%`,
+                          background: scoreColor,
+                          borderRadius: 999,
+                        }} />
+                      </div>
+                      <div style={{
+                        color: colors.boneFaint,
+                        fontSize: 9,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase' as const,
+                        fontFamily: fonts.mono,
+                      }}>
+                        {r.avgScore >= 7
+                          ? (idioma === 'ES' ? 'Te potencia' : 'Energizes')
+                          : r.avgScore >= 5
+                          ? (idioma === 'ES' ? 'Neutral' : 'Neutral')
+                          : (idioma === 'ES' ? 'Te drena' : 'Drains')}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.mono }}>
+                      {idioma === 'ES' ? 'Sin datos' : 'No data'}
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => removeRelationship(r.id)}
