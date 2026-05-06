@@ -14,6 +14,17 @@ interface SessionRow {
   time_slot: string;
   session_complete: boolean;
   integrity_score: number | null;
+  factor_energia: number | null;
+  factor_cognitivo: number | null;
+  factor_estres: number | null;
+  factor_ansiedad: number | null;
+  factor_sueno: number | null;
+  factor_emocional: number | null;
+  factor_social: number | null;
+  factor_sexual: number | null;
+  factor_hidratacion: number | null;
+  factor_alcohol: number | null;
+  day_rating: number | null;
 }
 
 interface RelationshipWithScore {
@@ -40,6 +51,7 @@ export function DataHubScreen({ profile }: Props) {
   const [portfolioValue, setPortfolioValue] = useState(0.10);
   const [qualityScore, setQualityScore] = useState(0);
   const [consistencyScore, setConsistencyScore] = useState(0);
+  const [expandedSession, setExpandedSession] = useState<number | null>(null);
 
   const idioma = profile.idioma ?? 'EN';
   const L = (en: string, es: string) => idioma === 'ES' ? es : en;
@@ -50,7 +62,7 @@ export function DataHubScreen({ profile }: Props) {
     async function load() {
       const { data } = await supabase
         .from('conversation_sessions')
-        .select('session_date, time_slot, session_complete, integrity_score')
+        .select('session_date, time_slot, session_complete, integrity_score, factor_energia, factor_cognitivo, factor_estres, factor_ansiedad, factor_sueno, factor_emocional, factor_social, factor_sexual, factor_hidratacion, factor_alcohol, day_rating')
         .eq('user_id', profile.id)
         .order('session_date', { ascending: false })
         .limit(30);
@@ -305,53 +317,111 @@ export function DataHubScreen({ profile }: Props) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {sessions.slice(0, 14).map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'rgba(245,242,238,0.02)',
-                  border: '1px solid rgba(245,242,238,0.06)',
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 16 }}>{slotEmoji[s.time_slot] ?? '🕐'}</span>
-                  <div>
-                    <div style={{ color: colors.boneDim, fontSize: 13 }}>
-                      {new Date(s.session_date + 'T12:00:00').toLocaleDateString(
-                        idioma === 'ES' ? 'es-DO' : 'en-US',
-                        { month: 'short', day: 'numeric' }
-                      )}
+            {sessions.slice(0, 14).map((s, i) => {
+              const isExpanded = expandedSession === i;
+              const morningDims = [
+                { label: L('Energy','Energía'),  val: s.factor_energia,   color: colors.amber },
+                { label: L('Focus','Enfoque'),   val: s.factor_cognitivo, color: colors.tierElite },
+                { label: L('Stress','Estrés'),   val: s.factor_estres,    color: colors.danger },
+                { label: L('Anxiety','Ansiedad'),val: s.factor_ansiedad,  color: colors.danger },
+                { label: L('Sleep','Sueño'),     val: s.factor_sueno,     color: colors.success },
+              ];
+              const afternoonDims = [
+                { label: L('Mood','Ánimo'),      val: s.factor_emocional, color: colors.amber },
+                { label: L('Social','Social'),   val: s.factor_social,    color: colors.tierElite },
+                { label: L('Sexual','Sexual'),   val: s.factor_sexual,    color: colors.danger },
+                { label: L('Hydration','Hidratación'), val: s.factor_hidratacion, color: colors.success },
+              ];
+              const nightDims = [
+                { label: L('Day rating','Día'),  val: s.day_rating,       color: colors.amber },
+                { label: L('Alcohol','Alcohol'), val: s.factor_alcohol,   color: colors.danger },
+              ];
+              const dims = s.time_slot === 'morning' ? morningDims
+                : s.time_slot === 'afternoon' ? afternoonDims
+                : nightDims;
+              const hasDims = dims.some(d => d.val != null);
+
+              return (
+                <div key={i}>
+                  <div
+                    onClick={() => hasDims && setExpandedSession(isExpanded ? null : i)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: isExpanded ? colors.surfaceMid : colors.surfaceLow,
+                      border: `1px solid ${isExpanded ? colors.surfaceBorderHi : colors.surfaceBorder}`,
+                      borderRadius: isExpanded ? '10px 10px 0 0' : 10,
+                      padding: '10px 14px',
+                      cursor: hasDims ? 'pointer' : 'default',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 16 }}>{slotEmoji[s.time_slot] ?? '🕐'}</span>
+                      <div>
+                        <div style={{ color: colors.boneDim, fontSize: 13, fontFamily: fonts.body }}>
+                          {new Date(s.session_date + 'T12:00:00').toLocaleDateString(
+                            idioma === 'ES' ? 'es-DO' : 'en-US',
+                            { month: 'short', day: 'numeric' }
+                          )}
+                        </div>
+                        <div style={{ color: colors.boneFaint, fontSize: 11, textTransform: 'capitalize' as const, fontFamily: fonts.body }}>
+                          {s.time_slot}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ color: colors.boneFaint, fontSize: 11, textTransform: 'capitalize' }}>
-                      {s.time_slot}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {s.integrity_score != null && (
+                        <span style={{ fontFamily: fonts.mono, fontSize: 12, color: s.integrity_score >= 80 ? colors.success : colors.amber }}>
+                          {s.integrity_score}%
+                        </span>
+                      )}
+                      {hasDims && (
+                        <span style={{ color: colors.boneFaint, fontSize: 10 }}>
+                          {isExpanded ? '▲' : '▼'}
+                        </span>
+                      )}
+                      <span style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: s.session_complete ? colors.success : colors.boneFaint,
+                        display: 'inline-block',
+                      }} />
                     </div>
                   </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {s.integrity_score != null && (
-                    <span style={{
-                      fontFamily: fonts.mono,
-                      fontSize: 12,
-                      color: s.integrity_score >= 80 ? colors.success : colors.amber,
+
+                  {/* Expanded detail */}
+                  {isExpanded && hasDims && (
+                    <div style={{
+                      background: colors.surfaceMid,
+                      border: `1px solid ${colors.surfaceBorderHi}`,
+                      borderTop: 'none',
+                      borderRadius: '0 0 10px 10px',
+                      padding: '12px 14px',
                     }}>
-                      {s.integrity_score}%
-                    </span>
+                      {dims.filter(d => d.val != null).map((d, di) => (
+                        <div key={di} style={{ marginBottom: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                            <span style={{ fontSize: 11, color: colors.boneDim, fontFamily: fonts.body }}>{d.label}</span>
+                            <span style={{ fontSize: 11, color: d.color, fontFamily: fonts.mono, fontWeight: 500 }}>
+                              {d.val}/10
+                            </span>
+                          </div>
+                          <div style={{ height: 3, background: colors.surfaceBorder, borderRadius: 999, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${((d.val as number) / 10) * 100}%`,
+                              background: d.color,
+                              borderRadius: 999,
+                            }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  <span style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: s.session_complete ? colors.success : colors.boneFaint,
-                    display: 'inline-block',
-                  }} />
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
