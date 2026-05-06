@@ -40,6 +40,16 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [portfolioValue, setPortfolioValue] = useState(1.0);
   const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
   const [topRels, setTopRels] = useState<{ name: string; avgScore: number | null; category: string }[]>([]);
+  const [todayScores, setTodayScores] = useState<{
+    slot: string;
+    energia: number | null;
+    cognitivo: number | null;
+    estres: number | null;
+    ansiedad: number | null;
+    sueno: number | null;
+    emocional: number | null;
+    social: number | null;
+  } | null>(null);
   const [sharing, setSharing] = useState(false);
 
   const animatedValue = useCountUp(portfolioValue, 1200);
@@ -69,6 +79,24 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
       const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
       const todayStr = new Date().toISOString().split('T')[0];
+
+      // Find most recent completed session from today or yesterday
+      const recentSession = allSessions.find((s: any) =>
+        s.session_date === todayStr
+      ) || allSessions[0];
+
+      if (recentSession) {
+        setTodayScores({
+          slot:      recentSession.time_slot ?? 'morning',
+          energia:   recentSession.factor_energia   ?? null,
+          cognitivo: recentSession.factor_cognitivo ?? null,
+          estres:    recentSession.factor_estres     ?? null,
+          ansiedad:  recentSession.factor_ansiedad   ?? null,
+          sueno:     recentSession.factor_sueno      ?? null,
+          emocional: recentSession.factor_emocional  ?? null,
+          social:    recentSession.factor_social     ?? null,
+        });
+      }
       let currentStreak = 0;
       let checkDate = todayStr;
       for (const date of uniqueDates) {
@@ -369,6 +397,129 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             )}
           </div>
         </div>
+
+        {/* Today's Score Panel */}
+        {todayScores && (() => {
+          const isMorning = todayScores.slot === 'morning';
+          const isAfternoon = todayScores.slot === 'afternoon';
+
+          const morningDims = [
+            { key: 'energia',   labelEN: 'Energy',    labelES: 'Energía',   val: todayScores.energia },
+            { key: 'cognitivo', labelEN: 'Focus',     labelES: 'Enfoque',   val: todayScores.cognitivo },
+            { key: 'estres',    labelEN: 'Stress',    labelES: 'Estrés',    val: todayScores.estres,    invert: true },
+            { key: 'ansiedad',  labelEN: 'Anxiety',   labelES: 'Ansiedad',  val: todayScores.ansiedad,  invert: true },
+            { key: 'sueno',     labelEN: 'Sleep',     labelES: 'Sueño',     val: todayScores.sueno },
+          ];
+          const afternoonDims = [
+            { key: 'emocional', labelEN: 'Mood',      labelES: 'Ánimo',     val: todayScores.emocional },
+            { key: 'social',    labelEN: 'Social',    labelES: 'Social',    val: todayScores.social },
+            { key: 'estres',    labelEN: 'Stress',    labelES: 'Estrés',    val: todayScores.estres,    invert: true },
+            { key: 'ansiedad',  labelEN: 'Anxiety',   labelES: 'Ansiedad',  val: todayScores.ansiedad,  invert: true },
+          ];
+
+          const dims = isMorning ? morningDims : isAfternoon ? afternoonDims : morningDims;
+          const visibleDims = dims.filter(d => d.val != null);
+          if (visibleDims.length === 0) return null;
+
+          const slotLabel = isMorning
+            ? (idioma === 'ES' ? 'Mañana' : 'Morning')
+            : isAfternoon
+            ? (idioma === 'ES' ? 'Tarde' : 'Afternoon')
+            : (idioma === 'ES' ? 'Noche' : 'Night');
+
+          const getBarColor = (val: number, invert?: boolean) => {
+            const score = invert ? (10 - val) : val;
+            if (score >= 7.5) return colors.success;
+            if (score >= 5)   return colors.amber;
+            return colors.danger;
+          };
+
+          return (
+            <div style={{
+              width: '100%',
+              maxWidth: 430,
+              margin: '0 auto',
+              padding: '0 20px 16px',
+            }}>
+              <div style={{
+                background: colors.surfaceLow,
+                border: `1px solid ${colors.surfaceBorder}`,
+                borderRadius: 14,
+                padding: '14px 16px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 12,
+                }}>
+                  <span style={{
+                    color: colors.boneFaint,
+                    fontSize: 10,
+                    fontWeight: 500,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase' as const,
+                    fontFamily: fonts.mono,
+                  }}>
+                    {idioma === 'ES' ? `Sesión de ${slotLabel}` : `${slotLabel} Session`}
+                  </span>
+                  <span style={{
+                    color: colors.boneFaint,
+                    fontSize: 10,
+                    fontFamily: fonts.mono,
+                  }}>
+                    {idioma === 'ES' ? 'hoy' : 'today'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
+                  {visibleDims.map(dim => {
+                    const val = dim.val as number;
+                    const pct = (val / 10) * 100;
+                    const barColor = getBarColor(val, (dim as any).invert);
+                    const label = idioma === 'ES' ? dim.labelES : dim.labelEN;
+                    return (
+                      <div key={dim.key}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: 4,
+                        }}>
+                          <span style={{
+                            color: colors.boneDim,
+                            fontSize: 12,
+                            fontFamily: fonts.body,
+                          }}>{label}</span>
+                          <span style={{
+                            color: barColor,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            fontFamily: fonts.mono,
+                          }}>{val}/10</span>
+                        </div>
+                        <div style={{
+                          height: 4,
+                          background: colors.surfaceMid,
+                          borderRadius: 999,
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            background: barColor,
+                            borderRadius: 999,
+                            transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)',
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Session CTA */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
