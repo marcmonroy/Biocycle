@@ -23,15 +23,15 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
 
   return (
     <div style={{
-      background: 'rgba(255,217,61,0.04)',
-      border: '1px solid rgba(255,217,61,0.15)',
+      background: colors.amberGlow,
+      border: `1px solid ${colors.amberGlow}`,
       borderRadius: 14,
       padding: '16px',
       display: 'flex',
       flexDirection: 'column',
       gap: 12,
     }}>
-      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: 0 }}>
+      <p style={{ color: colors.boneDim, fontSize: 13, margin: 0 }}>
         {isES ? `¿Cómo conoces a ${name}?` : `How do you know ${name}?`}
       </p>
 
@@ -45,11 +45,11 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
               key={cat.en}
               onClick={() => setSelectedCategory(cat.en)}
               style={{
-                background: isSelected ? 'rgba(255,217,61,0.15)' : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${isSelected ? '#FFD93D' : 'rgba(255,255,255,0.1)'}`,
+                background: isSelected ? colors.amberGlow : 'rgba(245,242,238,0.04)',
+                border: `1px solid ${isSelected ? colors.amber : 'rgba(245,242,238,0.1)'}`,
                 borderRadius: 20,
                 padding: '8px 14px',
-                color: isSelected ? '#FFD93D' : '#4A5568',
+                color: isSelected ? colors.amber : colors.boneFaint,
                 fontSize: 13,
                 fontWeight: isSelected ? 600 : 400,
                 cursor: 'pointer',
@@ -64,17 +64,17 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
 
       {/* Intimacy toggle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
-        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+        <span style={{ color: colors.boneFaint, fontSize: 13 }}>
           {isES ? 'Intimidad sexual' : 'Sexual intimacy'}
         </span>
         <button
           onClick={() => setIntimacy(i => !i)}
           style={{
-            background: intimacy ? 'rgba(255,217,61,0.2)' : 'rgba(255,255,255,0.06)',
-            border: `1px solid ${intimacy ? '#FFD93D' : 'rgba(255,255,255,0.1)'}`,
+            background: intimacy ? colors.amberGlow : 'rgba(245,242,238,0.06)',
+            border: `1px solid ${intimacy ? colors.amber : 'rgba(245,242,238,0.1)'}`,
             borderRadius: 20,
             padding: '4px 14px',
-            color: intimacy ? '#FFD93D' : '#4A5568',
+            color: intimacy ? colors.amber : colors.boneFaint,
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
@@ -93,7 +93,7 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
           border: 'none',
           borderRadius: 10,
           padding: '12px',
-          color: selectedCategory ? colors.bone : '#4A5568',
+          color: selectedCategory ? colors.bone : colors.boneFaint,
           fontSize: 14,
           fontWeight: 600,
           cursor: selectedCategory ? 'pointer' : 'default',
