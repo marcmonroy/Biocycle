@@ -999,7 +999,9 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
     addJulesMsg(text);
-    speak(text, () => void saveSession());
+    // Save immediately — do not wait for audio callback
+    void saveSession();
+    speak(text);
   }
 
   // ── State machine: crisis ─────────────────────────────────────────────────
