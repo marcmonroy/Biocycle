@@ -1043,15 +1043,15 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       setBioState('idle');
 
       addJulesMsg(ackText);
-      speak(ackText, () => {
-        setTimeout(() => {
-          if (nextQ === 'SESSION_COMPLETE') {
-            enterSessionComplete();
-          } else {
-            showQuestion(nextQ as ConversationState);
-          }
-        }, 500);
-      });
+      // Advance state immediately — do not wait for audio
+      setTimeout(() => {
+        if (nextQ === 'SESSION_COMPLETE') {
+          enterSessionComplete();
+        } else {
+          showQuestion(nextQ as ConversationState);
+        }
+      }, 800);
+      speak(ackText);
     } finally {
       isProcessingRef.current = false;
     }
