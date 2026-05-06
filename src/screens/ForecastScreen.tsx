@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/supabase';
 import { generateForecast, type ForecastResult, type ForecastDay } from '../lib/forecastEngine';
 import { getDaysOfData } from '../lib/phaseEngine';
@@ -87,6 +88,16 @@ function DayCard({ day, isToday, idioma, showSexual }: { day: ForecastDay; isTod
 export function ForecastScreen({ profile }: Props) {
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState<Array<{
+    session_date: string;
+    time_slot: string;
+    factor_energia: number | null;
+    factor_estres: number | null;
+    factor_ansiedad: number | null;
+    factor_cognitivo: number | null;
+    factor_sueno: number | null;
+    factor_emocional: number | null;
+  }>>([]);
 
   const idioma = profile.idioma ?? 'EN';
   const daysOfData = getDaysOfData(profile);
@@ -94,8 +105,21 @@ export function ForecastScreen({ profile }: Props) {
   const showSexual = age >= 18;
 
   useEffect(() => {
-    generateForecast(profile).then(r => {
-      setForecast(r);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    Promise.all([
+      generateForecast(profile),
+      supabase
+        .from('conversation_sessions')
+        .select('session_date,time_slot,factor_energia,factor_estres,factor_ansiedad,factor_cognitivo,factor_sueno,factor_emocional')
+        .eq('user_id', profile.id)
+        .eq('session_complete', true)
+        .gte('session_date', sevenDaysAgo.toISOString().split('T')[0])
+        .order('session_date', { ascending: true }),
+    ]).then(([forecastResult, { data: sessions }]) => {
+      setForecast(forecastResult);
+      if (sessions) setTrendData(sessions as any[]);
       setLoading(false);
     });
   }, [profile.id]);
@@ -196,6 +220,142 @@ export function ForecastScreen({ profile }: Props) {
           </div>
         </div>
       )}
+
+      {/* Real data trend — last 7 days */}
+      {trendData.length > 0 && (() => {
+        const dims = [
+          { key: 'factor_energia',   labelEN: 'Energy',   labelES: 'Energía',  color: colors.amber },
+          { key: 'factor_cognitivo', labelEN: 'Focus',    labelES: 'Enfoque',  color: colors.tierElite },
+          { key: 'factor_estres',    labelEN: 'Stress',   labelES: 'Estrés',   color: colors.danger,  invert: true },
+          { key: 'factor_ansiedad',  labelEN: 'Anxiety',  labelES: 'Ansiedad', color: colors.danger,  invert: true },
+          { key: 'factor_sueno',     labelEN: 'Sleep',    labelES: 'Sueño',    color: colors.success },
+        ];
+
+        // Group by date, average across slots
+        const byDate: Record<string, Record<string, number[]>> = {};
+        trendData.forEach((s: any) => {
+          if (!byDate[s.session_date]) byDate[s.session_date] = {};
+          dims.forEach(d => {
+            const v = s[d.key];
+            if (v != null) {
+              if (!byDate[s.session_date][d.key]) byDate[s.session_date][d.key] = [];
+              byDate[s.session_date][d.key].push(v);
+            }
+          });
+        });
+
+        const dates = Object.keys(byDate).sort();
+        const W = 36; // spark point spacing
+        const H = 36; // spark height
+        const chartW = Math.max(dates.length * W, 200);
+
+        const getAvg = (date: string, key: string) => {
+          const vals = byDate[date]?.[key];
+          if (!vals || vals.length === 0) return null;
+          return vals.reduce((a, b) => a + b, 0) / vals.length;
+        };
+
+        const sparkPath = (key: string, invert?: boolean) => {
+          const points = dates.map((d, i) => {
+            const v = getAvg(d, key);
+            if (v == null) return null;
+            const norm = invert ? (10 - v) / 10 : v / 10;
+            const x = i * W + W / 2;
+            const y = H - norm * H;
+            return `${x},${y}`;
+          }).filter(Boolean);
+          if (points.length < 2) return '';
+          return `M ${points.join(' L ')}`;
+        };
+
+        const dayLabels = dates.map(d => {
+          const dt = new Date(d + 'T12:00:00');
+          const names = idioma === 'ES' ? DAY_NAMES_ES : DAY_NAMES_EN;
+          return names[dt.getDay()];
+        });
+
+        return (
+          <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px 16px' }}>
+            <div style={{
+              background: colors.surfaceLow,
+              border: `1px solid ${colors.surfaceBorder}`,
+              borderRadius: 14,
+              padding: '14px 16px',
+            }}>
+              <div style={{
+                fontSize: 10,
+                fontWeight: 500,
+                letterSpacing: '0.12em',
+                color: colors.boneFaint,
+                fontFamily: fonts.mono,
+                textTransform: 'uppercase' as const,
+                marginBottom: 12,
+              }}>
+                {idioma === 'ES' ? 'Tus últimos 7 días' : 'Your last 7 days'}
+              </div>
+
+              {/* Spark lines */}
+              <div style={{ overflowX: 'auto' }}>
+                <svg width={chartW} height={H + 20} style={{ display: 'block' }}>
+                  {/* Day labels */}
+                  {dayLabels.map((label, i) => (
+                    <text
+                      key={i}
+                      x={i * W + W / 2}
+                      y={H + 14}
+                      textAnchor="middle"
+                      fontSize={9}
+                      fill={colors.boneFaint}
+                      fontFamily={fonts.mono}
+                    >{label}</text>
+                  ))}
+                  {/* Spark lines */}
+                  {dims.map(d => {
+                    const path = sparkPath(d.key, d.invert);
+                    if (!path) return null;
+                    return (
+                      <path
+                        key={d.key}
+                        d={path}
+                        stroke={d.color}
+                        strokeWidth={1.5}
+                        fill="none"
+                        opacity={0.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    );
+                  })}
+                  {/* Dots for last point */}
+                  {dims.map(d => {
+                    const lastDate = dates[dates.length - 1];
+                    const v = getAvg(lastDate, d.key);
+                    if (v == null) return null;
+                    const norm = d.invert ? (10 - v) / 10 : v / 10;
+                    const x = (dates.length - 1) * W + W / 2;
+                    const y = H - norm * H;
+                    return (
+                      <circle key={d.key} cx={x} cy={y} r={3} fill={d.color} />
+                    );
+                  })}
+                </svg>
+              </div>
+
+              {/* Legend */}
+              <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px 14px', marginTop: 8 }}>
+                {dims.map(d => (
+                  <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 16, height: 2, background: d.color, borderRadius: 1 }} />
+                    <span style={{ fontSize: 10, color: colors.boneFaint, fontFamily: fonts.body }}>
+                      {idioma === 'ES' ? d.labelES : d.labelEN}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Day cards */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px' }}>
