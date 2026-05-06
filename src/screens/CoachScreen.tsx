@@ -1050,7 +1050,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         } else {
           showQuestion(nextQ as ConversationState);
         }
-      }, 800);
+      }, 200);
       speak(ackText);
     } finally {
       isProcessingRef.current = false;
