@@ -522,6 +522,71 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           );
         })()}
 
+        {/* Stress & Anxiety Status Widget */}
+        {todayScores && (todayScores.estres != null || todayScores.ansiedad != null) && (() => {
+          const stress  = todayScores.estres;
+          const anxiety = todayScores.ansiedad;
+
+          const stressLevel  = stress  == null ? null : stress  >= 7 ? 'high' : stress  >= 4 ? 'moderate' : 'low';
+          const anxietyLevel = anxiety == null ? null : anxiety >= 7 ? 'high' : anxiety >= 4 ? 'moderate' : 'low';
+
+          const stressColor  = stressLevel  === 'high' ? colors.danger : stressLevel  === 'moderate' ? colors.amber : colors.success;
+          const anxietyColor = anxietyLevel === 'high' ? colors.danger : anxietyLevel === 'moderate' ? colors.amber : colors.success;
+
+          const stressLabelEN  = stressLevel  === 'high' ? 'High' : stressLevel  === 'moderate' ? 'Moderate' : 'Low';
+          const anxietyLabelEN = anxietyLevel === 'high' ? 'High' : anxietyLevel === 'moderate' ? 'Moderate' : 'Low';
+          const stressLabelES  = stressLevel  === 'high' ? 'Alto' : stressLevel  === 'moderate' ? 'Moderado' : 'Bajo';
+          const anxietyLabelES = anxietyLevel === 'high' ? 'Alta' : anxietyLevel === 'moderate' ? 'Moderada' : 'Baja';
+
+          const overallHigh = (stressLevel === 'high' || anxietyLevel === 'high');
+          const overallMod  = !overallHigh && (stressLevel === 'moderate' || anxietyLevel === 'moderate');
+
+          const headerEN = overallHigh ? 'Elevated tension today' : overallMod ? 'Moderate tension today' : 'Low tension today';
+          const headerES = overallHigh ? 'Tensión elevada hoy' : overallMod ? 'Tensión moderada hoy' : 'Tensión baja hoy';
+          const borderColor = overallHigh ? colors.danger : overallMod ? colors.amber : colors.success;
+
+          return (
+            <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
+              <div style={{ background: 'rgba(245,242,238,0.03)', border: `1px solid ${borderColor}44`, borderRadius: 12, padding: '12px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: borderColor, fontFamily: fonts.mono }}>
+                    {idioma === 'ES' ? 'Estrés · Ansiedad' : 'Stress · Anxiety'}
+                  </span>
+                  <span style={{ fontSize: 11, color: borderColor, fontWeight: 600 }}>
+                    {idioma === 'ES' ? headerES : headerEN}
+                  </span>
+                </div>
+                {stress != null && (
+                  <div style={{ marginBottom: anxiety != null ? 8 : 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: colors.boneFaint }}>{idioma === 'ES' ? 'Estrés' : 'Stress'}</span>
+                      <span style={{ fontSize: 11, color: stressColor, fontWeight: 600, fontFamily: fonts.mono }}>
+                        {stress}/10 · {idioma === 'ES' ? stressLabelES : stressLabelEN}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(stress/10)*100}%`, background: stressColor, borderRadius: 999, transition: 'width 0.6s ease' }} />
+                    </div>
+                  </div>
+                )}
+                {anxiety != null && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, color: colors.boneFaint }}>{idioma === 'ES' ? 'Ansiedad' : 'Anxiety'}</span>
+                      <span style={{ fontSize: 11, color: anxietyColor, fontWeight: 600, fontFamily: fonts.mono }}>
+                        {anxiety}/10 · {idioma === 'ES' ? anxietyLabelES : anxietyLabelEN}
+                      </span>
+                    </div>
+                    <div style={{ height: 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(anxiety/10)*100}%`, background: anxietyColor, borderRadius: 999, transition: 'width 0.6s ease' }} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Session CTA */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
           <button onClick={onStartCoach} style={{ width: '100%', background: colors.amber, border: 'none', borderRadius: 14, padding: '16px 24px', color: colors.midnight, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>

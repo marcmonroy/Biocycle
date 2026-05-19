@@ -72,10 +72,12 @@ function DayCard({ day, isToday, idioma, showSexual }: { day: ForecastDay; isTod
         </div>
       </div>
 
-      <DimBar label={idioma === 'ES' ? 'Energía' : 'Energy'}          value={day.energy}    color={colors.amber} />
-      <DimBar label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'}     value={day.cognitive} color={colors.tierElite} />
-      <DimBar label={idioma === 'ES' ? 'Emocional' : 'Emotional'}     value={day.emotional} color={colors.amber} />
-      <DimBar label={idioma === 'ES' ? 'Físico' : 'Physical'}         value={day.physical}  color={colors.success} />
+      <DimBar label={idioma === 'ES' ? 'Energía' : 'Energy'}    value={day.energy}           color={colors.amber} />
+      <DimBar label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'} value={day.cognitive}        color={colors.tierElite} />
+      <DimBar label={idioma === 'ES' ? 'Emocional' : 'Emotional'} value={day.emotional}        color={colors.amber} />
+      <DimBar label={idioma === 'ES' ? 'Físico' : 'Physical'}     value={day.physical}         color={colors.success} />
+      <DimBar label={idioma === 'ES' ? 'Estrés' : 'Stress'}       value={100 - day.stress}     color={day.stress >= 60 ? colors.danger : day.stress >= 40 ? colors.amber : colors.success} />
+      <DimBar label={idioma === 'ES' ? 'Ansiedad' : 'Anxiety'}    value={100 - day.anxiety}    color={day.anxiety >= 60 ? colors.danger : day.anxiety >= 40 ? colors.amber : colors.success} />
       {showSexual && <DimBar label="Sexual" value={day.sexual} color={colors.amber} />}
 
       <p style={{ color: 'rgba(245, 242, 238,0.55)', fontSize: 12, lineHeight: 1.5, margin: '10px 0 0', paddingTop: 10, borderTop: '1px solid rgba(245, 242, 238,0.06)' }}>
