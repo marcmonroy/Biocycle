@@ -34,10 +34,18 @@ const CATEGORY_LABELS: Record<string, { en: string; es: string; emoji: string }>
 export function CircleScreen({ profile }: Props) {
   const [rels, setRels] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Add state
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('friend');
   const [newIntimacy, setNewIntimacy] = useState(false);
+
+  // Edit state
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('friend');
+  const [editIntimacy, setEditIntimacy] = useState(false);
 
   const idioma = profile.idioma ?? 'EN';
 
@@ -70,7 +78,6 @@ export function CircleScreen({ profile }: Props) {
           avgScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10;
         }
 
-        // Fetch stress scores on days this person was scored
         const interactionDates = interactions.map((i: any) => i.interaction_date);
         if (interactionDates.length > 0) {
           const { data: stressSessions } = await supabase
@@ -124,7 +131,6 @@ export function CircleScreen({ profile }: Props) {
 
   async function addRelationship() {
     if (!newName.trim() || rels.length >= MAX_RELATIONSHIPS) return;
-
     const nextRank = rels.length + 1;
     await supabase.from('relationships').insert({
       user_id: profile.id,
@@ -137,12 +143,40 @@ export function CircleScreen({ profile }: Props) {
     loadRelationships();
   }
 
-  async function removeRelationship(id: string) {
-    if (!confirm(idioma === 'ES' ? '¿Eliminar esta relación?' : 'Remove this relationship?')) return;
-    await supabase.from('relationships').delete().eq('id', id);
+  function openEdit(r: Relationship) {
+    setEditId(r.id);
+    setEditName(r.name);
+    setEditCategory(r.category);
+    setEditIntimacy(r.intimacy);
+    setShowAdd(false);
+  }
+
+  function closeEdit() {
+    setEditId(null);
+    setEditName('');
+    setEditCategory('friend');
+    setEditIntimacy(false);
+  }
+
+  async function saveEdit() {
+    if (!editId || !editName.trim()) return;
+    await supabase.from('relationships')
+      .update({ name: editName.trim(), category: editCategory, intimacy: editIntimacy })
+      .eq('id', editId);
+    closeEdit();
     loadRelationships();
   }
 
+  async function removeRelationship(id: string) {
+    if (!confirm(idioma === 'ES' ? '¿Eliminar esta relación?' : 'Remove this relationship?')) return;
+    await supabase.from('relationships').delete().eq('id', id);
+    if (editId === id) closeEdit();
+    loadRelationships();
+  }
+
+  const stressInsights = rels.filter(r => r._avgStress != null);
+  const highStress = stressInsights.filter(r => (r._avgStress ?? 0) >= 7);
+  const lowStress  = stressInsights.filter(r => (r._avgStress ?? 10) <= 3);
   const atCap = rels.length >= MAX_RELATIONSHIPS;
 
   return (
@@ -152,13 +186,7 @@ export function CircleScreen({ profile }: Props) {
           <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
           <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
         </div>
-        <h1 style={{
-          fontFamily: fonts.display,
-          fontSize: '1.3rem',
-          fontWeight: 300,
-          color: colors.bone,
-          margin: 0,
-        }}>
+        <h1 style={{ fontFamily: fonts.display, fontSize: '1.3rem', fontWeight: 300, color: colors.bone, margin: 0 }}>
           {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
         </h1>
         <p style={{ color: colors.boneFaint, fontSize: 12, margin: '6px 0 0' }}>
@@ -167,18 +195,50 @@ export function CircleScreen({ profile }: Props) {
       </div>
 
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px' }}>
+
+        {/* Stress & Anxiety Insight Panel */}
+        {stressInsights.length > 0 && (
+          <div style={{ background: 'rgba(245,242,238,0.03)', border: '1px solid rgba(245,242,238,0.08)', borderRadius: 12, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: colors.amber, marginBottom: 10, fontFamily: fonts.mono }}>
+              {idioma === 'ES' ? 'Tu estrés y tu círculo' : 'Your stress & your circle'}
+            </div>
+            {highStress.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: colors.boneDim, lineHeight: 1.55, marginBottom: 4, paddingLeft: 10, borderLeft: `2px solid ${colors.danger}` }}>
+                {idioma === 'ES'
+                  ? `Tu estrés es consistentemente más alto los días con ${r.name} — promedio ${r._avgStress}/10.`
+                  : `Your stress is consistently higher on days with ${r.name} — avg ${r._avgStress}/10.`}
+                {r._avgAnxiety != null && (
+                  <span style={{ color: colors.boneFaint }}>
+                    {idioma === 'ES' ? ` Ansiedad: ${r._avgAnxiety}/10.` : ` Anxiety: ${r._avgAnxiety}/10.`}
+                  </span>
+                )}
+              </div>
+            ))}
+            {lowStress.map(r => (
+              <div key={r.id} style={{ fontSize: 12, color: colors.boneDim, lineHeight: 1.55, marginBottom: 4, paddingLeft: 10, borderLeft: `2px solid ${colors.success}` }}>
+                {idioma === 'ES'
+                  ? `Tu estrés es más bajo los días con ${r.name} — promedio ${r._avgStress}/10.`
+                  : `Your stress is lowest on days with ${r.name} — avg ${r._avgStress}/10.`}
+              </div>
+            ))}
+            {highStress.length === 0 && lowStress.length === 0 && (
+              <div style={{ fontSize: 12, color: colors.boneFaint }}>
+                {idioma === 'ES' ? 'Tus niveles de estrés son moderados con todos en tu círculo.' : 'Your stress levels are moderate with everyone in your circle.'}
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: colors.boneFaint, marginTop: 8, fontStyle: 'italic' }}>
+              {idioma === 'ES' ? 'Basado en los últimos 30 días de sesiones.' : 'Based on the last 30 days of sessions.'}
+            </div>
+          </div>
+        )}
+
+        {/* Relationship cards */}
         {loading ? (
           <div style={{ color: colors.boneFaint, textAlign: 'center', padding: 40 }}>
             {idioma === 'ES' ? 'Cargando...' : 'Loading...'}
           </div>
         ) : rels.length === 0 ? (
-          <div style={{
-            background: 'rgba(245, 242, 238,0.03)',
-            border: '1px dashed rgba(245, 242, 238,0.1)',
-            borderRadius: 14,
-            padding: '32px 20px',
-            textAlign: 'center',
-          }}>
+          <div style={{ background: 'rgba(245,242,238,0.03)', border: '1px dashed rgba(245,242,238,0.1)', borderRadius: 14, padding: '32px 20px', textAlign: 'center' }}>
             <div style={{ width: 36, height: 36, borderRadius: '50%', border: `3px solid ${colors.amber}`, margin: '0 auto 12px' }} />
             <div style={{ color: colors.bone, fontWeight: 600, marginBottom: 8 }}>
               {idioma === 'ES' ? 'Tu círculo está vacío' : 'Your circle is empty'}
@@ -194,243 +254,155 @@ export function CircleScreen({ profile }: Props) {
             const cat = CATEGORY_LABELS[r.category] ?? CATEGORY_LABELS.other;
             const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.danger;
             const trendArrow = r.trend === 'up' ? '↑' : r.trend === 'down' ? '↓' : r.trend === 'flat' ? '→' : '';
+            const isEditing = editId === r.id;
+
             return (
-              <div key={r.id} style={{
-                background: 'rgba(245, 242, 238,0.03)',
-                border: '1px solid rgba(245, 242, 238,0.06)',
-                borderRadius: 12,
-                padding: '14px 16px',
-                marginBottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}>
+              <div key={r.id} style={{ marginBottom: 8 }}>
+                {/* Card row */}
                 <div style={{
-                  width: 44, height: 44, borderRadius: '50%',
-                  background: [
-                    'linear-gradient(135deg, rgba(239,159,39,0.35), rgba(239,159,39,0.1))',
-                    'linear-gradient(135deg, rgba(93,202,165,0.35), rgba(93,202,165,0.1))',
-                    'linear-gradient(135deg, rgba(133,183,235,0.35), rgba(133,183,235,0.1))',
-                    'linear-gradient(135deg, rgba(224,122,95,0.35), rgba(224,122,95,0.1))',
-                    'linear-gradient(135deg, rgba(239,159,39,0.35), rgba(133,183,235,0.1))',
-                    'linear-gradient(135deg, rgba(93,202,165,0.35), rgba(239,159,39,0.1))',
-                    'linear-gradient(135deg, rgba(133,183,235,0.35), rgba(93,202,165,0.1))',
-                  ][r.rank - 1] ?? 'linear-gradient(135deg, rgba(239,159,39,0.2), rgba(133,183,235,0.1))',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18, flexShrink: 0,
-                }}>{cat.emoji}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
-                    {r.name} {r.intimacy && <span style={{ fontSize: 12 }}>💞</span>}
-                  </div>
-                  <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.body }}>
-                    {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
-                  </div>
-                  {r._avgStress != null && (
-                    <div style={{
-                      fontSize: 10,
-                      color: r._avgStress >= 7
-                        ? colors.danger
-                        : r._avgStress >= 4
-                        ? colors.amber
-                        : colors.success,
-                      fontFamily: fonts.mono,
-                      marginTop: 2,
-                    }}>
-                      {r._avgStress >= 7
-                        ? (idioma === 'ES' ? `↑ estrés ${r._avgStress}/10 con esta persona` : `↑ stress ${r._avgStress}/10 with this person`)
-                        : r._avgStress >= 4
-                        ? (idioma === 'ES' ? `estrés moderado ${r._avgStress}/10` : `moderate stress ${r._avgStress}/10`)
-                        : (idioma === 'ES' ? `↓ estrés bajo ${r._avgStress}/10` : `↓ low stress ${r._avgStress}/10`)}
+                  background: isEditing ? 'rgba(239,159,39,0.05)' : 'rgba(245,242,238,0.03)',
+                  border: `1px solid ${isEditing ? 'rgba(239,159,39,0.25)' : 'rgba(245,242,238,0.06)'}`,
+                  borderRadius: isEditing ? '12px 12px 0 0' : 12,
+                  padding: '14px 16px',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  cursor: 'pointer', transition: 'border-color 0.2s',
+                }} onClick={() => isEditing ? closeEdit() : openEdit(r)}>
+
+                  {/* Avatar */}
+                  <div style={{
+                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                    background: ['linear-gradient(135deg,rgba(239,159,39,.35),rgba(239,159,39,.1))','linear-gradient(135deg,rgba(93,202,165,.35),rgba(93,202,165,.1))','linear-gradient(135deg,rgba(133,183,235,.35),rgba(133,183,235,.1))','linear-gradient(135deg,rgba(224,122,95,.35),rgba(224,122,95,.1))','linear-gradient(135deg,rgba(239,159,39,.35),rgba(133,183,235,.1))','linear-gradient(135deg,rgba(93,202,165,.35),rgba(239,159,39,.1))','linear-gradient(135deg,rgba(133,183,235,.35),rgba(93,202,165,.1))'][r.rank-1] ?? 'linear-gradient(135deg,rgba(239,159,39,.2),rgba(133,183,235,.1))',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                  }}>{cat.emoji}</div>
+
+                  {/* Name + label + stress */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
+                      {r.name} {r.intimacy && <span style={{ fontSize: 12 }}>💞</span>}
                     </div>
-                  )}
-                </div>
-                <div style={{ textAlign: 'right', marginRight: 8, minWidth: 80 }}>
-                  {r.avgScore != null ? (
-                    <>
-                      <div style={{
-                        color: scoreColor,
-                        fontWeight: 600,
-                        fontSize: 13,
-                        fontFamily: fonts.mono,
-                        marginBottom: 3,
-                      }}>
-                        {r.avgScore.toFixed(1)} {trendArrow}
-                      </div>
-                      <div style={{
-                        height: 3,
-                        background: colors.surfaceBorder,
-                        borderRadius: 999,
-                        overflow: 'hidden',
-                        marginBottom: 3,
-                        width: 72,
-                      }}>
-                        <div style={{
-                          height: '100%',
-                          width: `${(r.avgScore / 10) * 100}%`,
-                          background: scoreColor,
-                          borderRadius: 999,
-                        }} />
-                      </div>
-                      <div style={{
-                        color: colors.boneFaint,
-                        fontSize: 9,
-                        letterSpacing: '0.06em',
-                        textTransform: 'uppercase' as const,
-                        fontFamily: fonts.mono,
-                      }}>
-                        {r.avgScore >= 7
-                          ? (idioma === 'ES' ? 'Te potencia' : 'Energizes')
-                          : r.avgScore >= 5
-                          ? (idioma === 'ES' ? 'Neutral' : 'Neutral')
-                          : (idioma === 'ES' ? 'Te drena' : 'Drains')}
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.mono }}>
-                      {idioma === 'ES' ? 'Sin datos' : 'No data'}
+                    <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.body }}>
+                      {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
                     </div>
-                  )}
+                    {r._avgStress != null && (
+                      <div style={{ fontSize: 10, color: r._avgStress >= 7 ? colors.danger : r._avgStress >= 4 ? colors.amber : colors.success, fontFamily: fonts.mono, marginTop: 2 }}>
+                        {r._avgStress >= 7
+                          ? (idioma === 'ES' ? `↑ estrés ${r._avgStress}/10` : `↑ stress ${r._avgStress}/10`)
+                          : r._avgStress >= 4
+                          ? (idioma === 'ES' ? `estrés moderado ${r._avgStress}/10` : `moderate stress ${r._avgStress}/10`)
+                          : (idioma === 'ES' ? `↓ estrés bajo ${r._avgStress}/10` : `↓ low stress ${r._avgStress}/10`)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Score bar */}
+                  <div style={{ textAlign: 'right' as const, marginRight: 8, minWidth: 80 }}>
+                    {r.avgScore != null ? (
+                      <>
+                        <div style={{ color: scoreColor, fontWeight: 600, fontSize: 13, fontFamily: fonts.mono, marginBottom: 3 }}>
+                          {r.avgScore.toFixed(1)} {trendArrow}
+                        </div>
+                        <div style={{ height: 3, background: colors.surfaceBorder, borderRadius: 999, overflow: 'hidden', marginBottom: 3, width: 72 }}>
+                          <div style={{ height: '100%', width: `${(r.avgScore/10)*100}%`, background: scoreColor, borderRadius: 999 }} />
+                        </div>
+                        <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: fonts.mono }}>
+                          {r.avgScore >= 7 ? (idioma === 'ES' ? 'Te potencia' : 'Energizes') : r.avgScore >= 5 ? 'Neutral' : (idioma === 'ES' ? 'Te drena' : 'Drains')}
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.mono }}>
+                        {idioma === 'ES' ? 'Sin datos' : 'No data'}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Edit + Delete buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 4, flexShrink: 0 }}>
+                    <button onClick={e => { e.stopPropagation(); isEditing ? closeEdit() : openEdit(r); }}
+                      style={{ background: isEditing ? 'rgba(239,159,39,.25)' : 'rgba(245,242,238,.06)', border: `1px solid ${isEditing ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 6, width: 28, height: 28, color: isEditing ? colors.amber : colors.boneFaint, fontSize: 13, cursor: 'pointer' }}
+                      aria-label="Edit">✎</button>
+                    <button onClick={e => { e.stopPropagation(); removeRelationship(r.id); }}
+                      style={{ background: 'rgba(239,159,39,.1)', border: '1px solid rgba(239,159,39,.2)', borderRadius: 6, width: 28, height: 28, color: colors.amber, fontSize: 14, cursor: 'pointer' }}
+                      aria-label="Remove">×</button>
+                  </div>
                 </div>
-                <button
-                  onClick={() => removeRelationship(r.id)}
-                  style={{
-                    background: 'rgba(239, 159, 39,0.1)',
-                    border: '1px solid rgba(239, 159, 39,0.2)',
-                    borderRadius: 6,
-                    width: 28, height: 28,
-                    color: colors.amber,
-                    fontSize: 14,
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                  aria-label="Remove"
-                >
-                  ×
-                </button>
+
+                {/* Edit panel — slides in below card when open */}
+                {isEditing && (
+                  <div style={{ background: 'rgba(239,159,39,0.04)', border: '1px solid rgba(239,159,39,0.2)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '14px 16px' }}>
+                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                      placeholder={idioma === 'ES' ? 'Nombre' : 'Name'} autoFocus
+                      style={{ width: '100%', background: 'rgba(245,242,238,.05)', border: '1px solid rgba(245,242,238,.12)', borderRadius: 8, padding: '9px 12px', color: colors.bone, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' as const, outline: 'none' }}
+                    />
+                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
+                      {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
+                        <button key={key} onClick={() => setEditCategory(key)}
+                          style={{ background: editCategory===key ? 'rgba(239,159,39,.2)' : 'rgba(245,242,238,.04)', border: `1px solid ${editCategory===key ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 20, padding: '4px 10px', color: editCategory===key ? colors.amber : colors.boneFaint, fontSize: 11, cursor: 'pointer' }}>
+                          {val.emoji} {idioma === 'ES' ? val.es : val.en}
+                        </button>
+                      ))}
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+                      <div onClick={() => setEditIntimacy(v => !v)}
+                        style={{ width: 36, height: 20, borderRadius: 10, background: editIntimacy ? colors.amber : 'rgba(245,242,238,.1)', position: 'relative' as const, cursor: 'pointer', transition: 'background 0.2s' }}>
+                        <div style={{ position: 'absolute' as const, top: 2, left: editIntimacy ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                      </div>
+                      <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={closeEdit}
+                        style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
+                        {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
+                      </button>
+                      <button onClick={saveEdit} disabled={!editName.trim()}
+                        style={{ flex: 1, padding: '9px', background: editName.trim() ? colors.amber : 'rgba(239,159,39,.2)', border: 'none', borderRadius: 8, color: colors.midnight, fontSize: 13, fontWeight: 600, cursor: editName.trim() ? 'pointer' : 'default' }}>
+                        {idioma === 'ES' ? 'Guardar' : 'Save'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })
         )}
 
-        {/* Add relationship */}
+        {/* Add person */}
         {!showAdd ? (
-          <button
-            onClick={() => setShowAdd(true)}
-            disabled={atCap}
-            style={{
-              width: '100%',
-              marginTop: 12,
-              background: atCap ? 'rgba(245, 242, 238,0.02)' : 'rgba(239, 159, 39,0.08)',
-              border: `1px dashed ${atCap ? 'rgba(245, 242, 238,0.08)' : 'rgba(239, 159, 39,0.3)'}`,
-              borderRadius: 12,
-              padding: '14px',
-              color: atCap ? colors.boneFaint : colors.amber,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: atCap ? 'default' : 'pointer',
-            }}
-          >
-            {atCap
-              ? (idioma === 'ES' ? 'Máximo 7 personas alcanzado' : 'Maximum 7 people reached')
-              : (idioma === 'ES' ? '+ Agregar persona' : '+ Add person')}
+          <button onClick={() => { setShowAdd(true); closeEdit(); }} disabled={atCap}
+            style={{ width: '100%', marginTop: 12, background: atCap ? 'rgba(245,242,238,.02)' : 'rgba(239,159,39,.08)', border: `1px dashed ${atCap ? 'rgba(245,242,238,.08)' : 'rgba(239,159,39,.3)'}`, borderRadius: 12, padding: '14px', color: atCap ? colors.boneFaint : colors.amber, fontSize: 13, fontWeight: 600, cursor: atCap ? 'default' : 'pointer' }}>
+            {atCap ? (idioma === 'ES' ? 'Máximo 7 personas alcanzado' : 'Maximum 7 people reached') : (idioma === 'ES' ? '+ Agregar persona' : '+ Add person')}
           </button>
         ) : (
-          <div style={{
-            marginTop: 12,
-            background: 'rgba(245, 242, 238,0.03)',
-            border: '1px solid rgba(245, 242, 238,0.1)',
-            borderRadius: 14,
-            padding: '20px',
-          }}>
+          <div style={{ marginTop: 12, background: 'rgba(245,242,238,.03)', border: '1px solid rgba(245,242,238,.1)', borderRadius: 14, padding: '20px' }}>
             <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 14 }}>
               {idioma === 'ES' ? 'Nueva persona' : 'New person'}
             </div>
-
-            <input
-              type="text"
-              placeholder={idioma === 'ES' ? 'Nombre' : 'Name'}
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addRelationship()}
-              style={{
-                width: '100%',
-                background: 'rgba(245, 242, 238,0.05)',
-                border: '1px solid rgba(245, 242, 238,0.12)',
-                borderRadius: 8,
-                padding: '10px 12px',
-                color: colors.bone,
-                fontSize: 14,
-                marginBottom: 12,
-                boxSizing: 'border-box',
-                outline: 'none',
-              }}
+            <input type="text" placeholder={idioma === 'ES' ? 'Nombre' : 'Name'} value={newName}
+              onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRelationship()} autoFocus
+              style={{ width: '100%', background: 'rgba(245,242,238,.05)', border: '1px solid rgba(245,242,238,.12)', borderRadius: 8, padding: '10px 12px', color: colors.bone, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' as const, outline: 'none' }}
             />
-
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
               {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
-                <button
-                  key={key}
-                  onClick={() => setNewCategory(key)}
-                  style={{
-                    background: newCategory === key ? 'rgba(239, 159, 39,0.2)' : 'rgba(245, 242, 238,0.04)',
-                    border: `1px solid ${newCategory === key ? colors.amber : 'rgba(245, 242, 238,0.1)'}`,
-                    borderRadius: 20,
-                    padding: '4px 10px',
-                    color: newCategory === key ? colors.amber : colors.boneFaint,
-                    fontSize: 11,
-                    cursor: 'pointer',
-                  }}
-                >
+                <button key={key} onClick={() => setNewCategory(key)}
+                  style={{ background: newCategory===key ? 'rgba(239,159,39,.2)' : 'rgba(245,242,238,.04)', border: `1px solid ${newCategory===key ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 20, padding: '4px 10px', color: newCategory===key ? colors.amber : colors.boneFaint, fontSize: 11, cursor: 'pointer' }}>
                   {val.emoji} {idioma === 'ES' ? val.es : val.en}
                 </button>
               ))}
             </div>
-
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' }}>
-              <div
-                onClick={() => setNewIntimacy(v => !v)}
-                style={{
-                  width: 36, height: 20, borderRadius: 10,
-                  background: newIntimacy ? colors.amber : 'rgba(245, 242, 238,0.1)',
-                  position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-                }}
-              >
-                <div style={{
-                  position: 'absolute', top: 2,
-                  left: newIntimacy ? 18 : 2,
-                  width: 16, height: 16, borderRadius: '50%',
-                  background: 'white', transition: 'left 0.2s',
-                }} />
+              <div onClick={() => setNewIntimacy(v => !v)}
+                style={{ width: 36, height: 20, borderRadius: 10, background: newIntimacy ? colors.amber : 'rgba(245,242,238,.1)', position: 'relative' as const, cursor: 'pointer', transition: 'background 0.2s' }}>
+                <div style={{ position: 'absolute' as const, top: 2, left: newIntimacy ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
               </div>
-              <span style={{ color: colors.boneFaint, fontSize: 12 }}>
-                {idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}
-              </span>
+              <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
             </label>
-
             <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => { setShowAdd(false); setNewName(''); setNewCategory('friend'); setNewIntimacy(false); }}
-                style={{
-                  flex: 1, padding: '10px',
-                  background: 'transparent',
-                  border: '1px solid rgba(245, 242, 238,0.1)',
-                  borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer',
-                }}
-              >
+              <button onClick={() => { setShowAdd(false); setNewName(''); setNewCategory('friend'); setNewIntimacy(false); }}
+                style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
                 {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
               </button>
-              <button
-                onClick={addRelationship}
-                disabled={!newName.trim()}
-                style={{
-                  flex: 1, padding: '10px',
-                  background: newName.trim() ? colors.amber : 'rgba(239, 159, 39,0.2)',
-                  border: 'none',
-                  borderRadius: 8, color: colors.bone, fontSize: 13, fontWeight: 600,
-                  cursor: newName.trim() ? 'pointer' : 'default',
-                }}
-              >
+              <button onClick={addRelationship} disabled={!newName.trim()}
+                style={{ flex: 1, padding: '10px', background: newName.trim() ? colors.amber : 'rgba(239,159,39,.2)', border: 'none', borderRadius: 8, color: colors.midnight, fontSize: 13, fontWeight: 600, cursor: newName.trim() ? 'pointer' : 'default' }}>
                 {idioma === 'ES' ? 'Agregar' : 'Add'}
               </button>
             </div>
