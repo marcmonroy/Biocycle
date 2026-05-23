@@ -203,7 +203,11 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
     if (isFemale && is40Plus) {
       phase = 'perimenopause';
     } else if (isMale && is40Plus) {
-      phase = 'andropause';
+      // Use daily testosterone rhythm across the 7-day window
+      // so each day varies rather than showing flat andropause
+      const dayOfWeek = date.getDay(); // 0=Sun to 6=Sat
+      const rhythmPhases = ['morning_peak', 'midday_transition', 'morning_peak', 'evening_balance', 'afternoon_dip', 'morning_peak', 'evening_balance'];
+      phase = rhythmPhases[dayOfWeek];
     } else if (isFemale && profile.cycle_start_date) {
       const start = new Date(profile.cycle_start_date);
       const diffMs = date.getTime() - start.getTime();

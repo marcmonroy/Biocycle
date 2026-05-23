@@ -49,6 +49,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     sueno: number | null;
     emocional: number | null;
     social: number | null;
+    sexual: number | null;
   } | null>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -96,6 +97,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           sueno:     rs.factor_sueno      ?? null,
           emocional: rs.factor_emocional  ?? null,
           social:    rs.factor_social     ?? null,
+          sexual:    rs.factor_sexual     ?? null,
         });
       }
       let currentStreak = 0;
@@ -425,8 +427,9 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             { key: 'sueno',     labelEN: 'Sleep',     labelES: 'Sueño',     val: todayScores.sueno },
           ];
           const afternoonDims = [
-            { key: 'emocional', labelEN: 'Mood',      labelES: 'Ánimo',     val: todayScores.emocional },
-            { key: 'social',    labelEN: 'Social',    labelES: 'Social',    val: todayScores.social },
+            { key: 'emocional', labelEN: 'Mood',    labelES: 'Ánimo',  val: todayScores.emocional },
+            { key: 'social',    labelEN: 'Social',  labelES: 'Social', val: todayScores.social },
+            { key: 'sexual',    labelEN: 'Sexual',  labelES: 'Sexual', val: todayScores.sexual },
           ];
 
           const dims = isMorning ? morningDims : isAfternoon ? afternoonDims : morningDims;

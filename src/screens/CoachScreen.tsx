@@ -671,11 +671,13 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       const today = new Date().toISOString().split('T')[0];
       console.log('[saveSession] saving for user:', profile.id, 'date:', today, 'slot:', sessionRef.current.slot);
 
+      const currentPhaseLabel = getCurrentPhase(profile).phase ?? 'morning_peak';
       const { error } = await supabase.from('conversation_sessions').insert({
         user_id:           profile.id,
         session_date:      today,
         session_complete:  true,
         time_slot:         dbSlot(),
+        phase_at_session:  currentPhaseLabel,
         factor_energia:    scoresRef.current.factor_energia     ?? null,
         factor_cognitivo:  scoresRef.current.factor_cognitivo  ?? null,
         factor_estres:     scoresRef.current.factor_estres     ?? null,
@@ -905,19 +907,38 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       return;
     }
 
-    const { data: topRelationships } = await supabase
+    const today = new Date().toISOString().split('T')[0];
+
+    // Get all relationships
+    const { data: allRels } = await supabase
       .from('relationships')
       .select('id, name, rank, intimacy')
       .eq('user_id', profile.id)
-      .order('rank', { ascending: true })
-      .limit(2);
+      .order('rank', { ascending: true });
 
-    if (!topRelationships || topRelationships.length === 0) {
+    if (!allRels || allRels.length === 0) {
       _enterNameCollectionOrClose();
       return;
     }
 
-    const rel = topRelationships[0] as { id: string; name: string; rank: number; intimacy: boolean };
+    // Find which relationships have already been scored today
+    const { data: todayInteractions } = await supabase
+      .from('relationship_interactions')
+      .select('relationship_id')
+      .eq('user_id', profile.id)
+      .eq('interaction_date', today);
+
+    const scoredTodayIds = new Set((todayInteractions ?? []).map((i: any) => i.relationship_id));
+
+    // Pick the first relationship NOT yet scored today
+    const rel = (allRels as any[]).find((r: any) => !scoredTodayIds.has(r.id));
+
+    if (!rel) {
+      // All relationships already scored today — skip
+      _enterNameCollectionOrClose();
+      return;
+    }
+
     sessionRef.current.scoringRelationship = rel;
 
     const questionText = isES
@@ -928,7 +949,6 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     setConvState('RELATIONSHIP_SCORE_Q');
     addJulesMsg(questionText);
     speak(questionText);
-    // handleUserInput RELATIONSHIP_SCORE_Q case calls _enterNameCollectionOrClose()
   }
 
   function _enterNameCollectionOrClose() {
@@ -948,8 +968,8 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   function collectRelationshipName() {
     const questionText = isES
-      ? `Antes de cerrar — ¿con quién pasas más tiempo? Solo su nombre.`
-      : `Before we close — who do you spend the most time with? Just their first name.`;
+      ? `Antes de cerrar — ¿con quién pasaste más tiempo hoy? Solo su nombre. Si estuviste solo/a, di "solo".`
+      : `Before we close — who did you spend the most time with today? Just their name. If you were alone, say "solo".`;
     sessionRef.current.state = 'RELATIONSHIP_NAME_Q';
     setConvState('RELATIONSHIP_NAME_Q');
     addJulesMsg(questionText);
@@ -1180,6 +1200,19 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
         const personName = text.trim();
         if (!personName) break;
         addUserMsg(personName);
+
+        // Handle "solo / no one / alone / nadie" — user was by themselves
+        const soloWords = ['solo', 'sola', 'alone', 'no one', 'nadie', 'nobody', 'myself', 'yo solo', 'yo sola', 'ninguno', 'ninguna'];
+        if (soloWords.some(w => personName.toLowerCase().trim() === w || personName.toLowerCase().includes(w))) {
+          const soloAck = isES
+            ? 'Tiempo para ti. Eso también cuenta.'
+            : 'Time for yourself. That counts too.';
+          addJulesMsg(soloAck);
+          sessionRef.current.collectedThisSession = true;
+          speak(soloAck, () => { _doSessionComplete(); });
+          break;
+        }
+
         sessionRef.current.pendingRelationshipName = personName;
 
         // Check if this person is already in the Circle
@@ -1462,9 +1495,23 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
           ? `Hola ${name}, buenos ${slotWord}. Día ${liveDays} — estás construyendo algo real.`
           : `Hey ${name}, good ${slotWord}. Day ${liveDays} — you're building something real.`;
       } else if (liveDays < 90) {
-        openingText = isES
-          ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
-          : `Hey ${name}. I've been noticing some patterns — let's check in.`;
+        // Build a pattern-aware opening using session context
+        const ctx = sessionRef.current.sessionContext;
+        if (ctx) {
+          const sys = isES
+            ? `${noIntro}Eres Jules. Tienes acceso a las últimas sesiones del usuario. Escribe UNA oración de apertura cálida y específica que mencione algo concreto que hayas notado en sus patrones recientes (estrés, energía, sueño, o una relación). No preguntes nada. No uses su nombre. Máximo 20 palabras.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are Jules. You have the user's recent session data. Write ONE warm specific opening sentence that references something concrete you have noticed in their recent patterns (stress, energy, sleep, or a relationship). Do not ask anything. Do not use their name. Maximum 20 words.\n\nRecent context:\n${ctx}`;
+          const patternLine = await callCoachAPI([{ role: 'user', content: 'opening' }], sys, 40);
+          openingText = patternLine
+            ? `Hey ${name}. ${patternLine}`
+            : (isES
+              ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
+              : `Hey ${name}. I've been noticing some patterns — let's check in.`);
+        } else {
+          openingText = isES
+            ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
+            : `Hey ${name}. I've been noticing some patterns — let's check in.`;
+        }
       } else {
         openingText = isES
           ? `Hola ${name}. Buenos ${slotWord}.`
