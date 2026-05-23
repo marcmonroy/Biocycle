@@ -616,15 +616,33 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
 
   async function callAckAPI(qState: ConversationState, userValue: string): Promise<string> {
     const dimLabel = getDimLabel(qState, isES);
+    const phase = getCurrentPhase(profile);
+    const phaseLabel = isES ? phase.displayNameES : phase.displayName;
     const ctx = sessionRef.current.sessionContext
-      ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
+      ? `\n\nRecent context:\n${sessionRef.current.sessionContext}`
       : '';
+
+    // For stress and anxiety, Jules should be more interpretive
+    const isHighImpact = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && parseInt(userValue, 10) >= 7;
+    const isLowImpact  = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && parseInt(userValue, 10) <= 2;
+    const isSleepPoor  = qState === 'SLEEP_Q' && (userValue === 'Restless' || userValue === 'Mal');
+
     const sys = isES
-      ? `${noIntro}MODO RESPUESTA BREVE. Genera EXACTAMENTE UNA oración reconociendo lo que dijo el usuario. PROHIBIDO hacer preguntas. PROHIBIDO dar consejos. PROHIBIDO decir tu nombre. Solo una oración de reconocimiento cálido y para. El usuario dijo que su ${dimLabel} es: ${userValue}.${ctx}`
-      : `${noIntro}BRIEF ACKNOWLEDGMENT MODE. Generate EXACTLY ONE sentence acknowledging what the user said. FORBIDDEN to ask questions. FORBIDDEN to give advice. FORBIDDEN to say your name. One warm acknowledgment sentence and stop. The user said their ${dimLabel} is: ${userValue}.${ctx}`;
-    // For ACK calls, use minimal context — just the user's answer
+      ? `${noIntro}RESPUESTA BREVE. Una sola oración de reconocimiento.
+Fase del usuario: ${phaseLabel}. El usuario reportó ${dimLabel}: ${userValue}.
+${isHighImpact ? 'El valor es alto — menciona brevemente la conexión con su fase hormonal.' : ''}
+${isLowImpact ? 'El valor es notablemente bajo — un reconocimiento cálido y específico.' : ''}
+${isSleepPoor ? 'Sueño deficiente — conecta con el impacto en cognición o energía de hoy.' : ''}
+PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración cálida y directa.${ctx}`
+      : `${noIntro}BRIEF ACKNOWLEDGMENT. One sentence only.
+User's phase: ${phaseLabel}. User reported ${dimLabel}: ${userValue}.
+${isHighImpact ? 'The value is high — briefly connect it to their hormonal phase.' : ''}
+${isLowImpact ? 'The value is notably low — warm specific acknowledgment.' : ''}
+${isSleepPoor ? 'Poor sleep — connect to the impact on today\'s cognition or energy.' : ''}
+FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${ctx}`;
+
     const ackMessages: Message[] = [{ role: 'user', content: userValue }];
-    const text = await callCoachAPI(ackMessages, sys, 40);
+    const text = await callCoachAPI(ackMessages, sys, 50);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
 
@@ -1014,13 +1032,103 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
     speak(thankMsg);
   }
 
-  function _doSessionComplete() {
+  async function _doSessionComplete() {
+    // Save session first
+    void saveSession();
+
+    // Build coaching synthesis from today's scores + phase + context
+    const scores = scoresRef.current;
+    const slot = sessionRef.current.slot;
+    const ctx = sessionRef.current.sessionContext;
+    const phase = getCurrentPhase(profile);
+    const phaseLabel = isES ? phase.displayNameES : phase.displayName;
+    const daysData = liveDaysRef.current;
+
+    // Only deliver coaching synthesis if we have meaningful scores
+    const hasScores = scores.factor_energia != null || scores.factor_estres != null || scores.factor_ansiedad != null || scores.factor_emocional != null;
+
+    if (hasScores && daysData >= 5) {
+      // Build a rich context string for Jules to interpret
+      const scoreLines: string[] = [];
+      if (scores.factor_energia   != null) scoreLines.push(`Energy: ${scores.factor_energia}/10`);
+      if (scores.factor_cognitivo != null) scoreLines.push(`Focus: ${scores.factor_cognitivo}/10`);
+      if (scores.factor_estres    != null) scoreLines.push(`Stress: ${scores.factor_estres}/10`);
+      if (scores.factor_ansiedad  != null) scoreLines.push(`Anxiety: ${scores.factor_ansiedad}/10`);
+      if (scores.factor_sueno     != null) scoreLines.push(`Sleep: ${scores.factor_sueno}/10`);
+      if (scores.factor_emocional != null) scoreLines.push(`Mood: ${scores.factor_emocional}/10`);
+      if (scores.factor_social    != null) scoreLines.push(`Social energy: ${scores.factor_social}/10`);
+      if (scores.factor_sexual    != null) scoreLines.push(`Sexual energy: ${scores.factor_sexual}/10`);
+      if (scores.factor_cafeina   != null) scoreLines.push(`Caffeine: ${scores.factor_cafeina}`);
+      if (scores.factor_alcohol   != null) scoreLines.push(`Alcohol: ${scores.factor_alcohol ? 'yes' : 'no'}`);
+      if (scores.day_rating       != null) scoreLines.push(`Day rating: ${scores.day_rating}/10`);
+      if (scores.day_memory) scoreLines.push(`Memorable moment: "${scores.day_memory}"`);
+
+      const recentCtx = ctx
+        ? `\n\nPattern context from recent sessions:\n${ctx}`
+        : '';
+
+      const coachSys = isES
+        ? `${noIntro}Eres Jules, coach de inteligencia biológica de BioCycle. El usuario acaba de completar su check-in de ${slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche'}.
+
+Fase actual: ${phaseLabel} (día ${daysData} de datos).
+Puntuaciones de hoy:
+${scoreLines.join('\n')}${recentCtx}
+
+Tu tarea: escribe exactamente 2-3 oraciones de interpretación coaching.
+
+REGLAS CRÍTICAS:
+- Interpreta los números en contexto de su fase hormonal — no los repitas
+- Menciona algo específico que los patrones revelan sobre su estado biológico actual
+- Si hay una tensión interesante (ej. energía baja + ansiedad baja), nómbrala
+- Si hay una ventana de oportunidad o protección hoy, señálala
+- Tono: mentor biológico cálido y directo. Nunca "deberías". Nunca genérico.
+- NUNCA digas tu nombre. NUNCA saludes. Empieza directo con la interpretación.
+- Máximo 3 oraciones. Sin preguntas.`
+        : `${noIntro}You are Jules, BioCycle's biological intelligence coach. The user just completed their ${slot} check-in.
+
+Current phase: ${phaseLabel} (day ${daysData} of data).
+Today's scores:
+${scoreLines.join('\n')}${recentCtx}
+
+Your task: write exactly 2-3 sentences of coaching interpretation.
+
+CRITICAL RULES:
+- Interpret the numbers in the context of their hormonal phase — do not repeat the numbers back
+- Name something specific that the pattern reveals about their current biological state
+- If there is an interesting tension (e.g. low energy + low anxiety), name it
+- If there is a window of opportunity or protection today, point to it
+- Tone: warm, direct biological mentor. Never "you should." Never generic.
+- NEVER say your name. NEVER greet. Start directly with the interpretation.
+- Maximum 3 sentences. No questions.`;
+
+      setBioState('thinking');
+      const coachingText = await callCoachAPI(
+        [{ role: 'user', content: scoreLines.join(', ') }],
+        coachSys,
+        120
+      );
+      setBioState('idle');
+
+      if (coachingText) {
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        addJulesMsg(coachingText);
+
+        // After coaching, deliver farewell
+        speak(coachingText, () => {
+          const farewell = getCompletionText(slot, name, isES);
+          addJulesMsg(farewell);
+          speak(farewell);
+        });
+        return;
+      }
+    }
+
+    // Fallback if no scores or API fails
     const text = getCompletionText(sessionRef.current.slot, name, isES);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
     addJulesMsg(text);
-    // Save immediately — do not wait for audio callback
-    void saveSession();
     speak(text);
   }
 
@@ -1495,18 +1603,17 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
           ? `Hola ${name}, buenos ${slotWord}. Día ${liveDays} — estás construyendo algo real.`
           : `Hey ${name}, good ${slotWord}. Day ${liveDays} — you're building something real.`;
       } else if (liveDays < 90) {
-        // Build a pattern-aware opening using session context
         const ctx = sessionRef.current.sessionContext;
         if (ctx) {
-          const sys = isES
-            ? `${noIntro}Eres Jules. Tienes acceso a las últimas sesiones del usuario. Escribe UNA oración de apertura cálida y específica que mencione algo concreto que hayas notado en sus patrones recientes (estrés, energía, sueño, o una relación). No preguntes nada. No uses su nombre. Máximo 20 palabras.\n\nContexto reciente:\n${ctx}`
-            : `${noIntro}You are Jules. You have the user's recent session data. Write ONE warm specific opening sentence that references something concrete you have noticed in their recent patterns (stress, energy, sleep, or a relationship). Do not ask anything. Do not use their name. Maximum 20 words.\n\nRecent context:\n${ctx}`;
-          const patternLine = await callCoachAPI([{ role: 'user', content: 'opening' }], sys, 40);
+          const phase = getCurrentPhase(profile);
+          const phaseLabel = isES ? phase.displayNameES : phase.displayName;
+          const openSys = isES
+            ? `${noIntro}Eres Jules. Abre la sesión con UNA oración que mencione algo específico y concreto que hayas notado en los patrones recientes del usuario. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras. Directo y cálido.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are Jules. Open with ONE sentence that references something specific and concrete you have noticed in the user's recent patterns. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words. Direct and warm.\n\nRecent context:\n${ctx}`;
+          const patternLine = await callCoachAPI([{ role: 'user', content: 'open' }], openSys, 40);
           openingText = patternLine
             ? `Hey ${name}. ${patternLine}`
-            : (isES
-              ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
-              : `Hey ${name}. I've been noticing some patterns — let's check in.`);
+            : (isES ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.` : `Hey ${name}. I've been noticing some patterns — let's check in.`);
         } else {
           openingText = isES
             ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.`
