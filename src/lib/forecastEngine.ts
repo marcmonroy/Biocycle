@@ -187,7 +187,8 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
   const isMale = profile.genero === 'male';
   const is40Plus = age >= 40;
 
-  const vector = (profile.pattern_delta_vector as Record<string, number>) ?? {};
+  // Always compute fresh delta vector from real sessions — profile.pattern_delta_vector may be stale or empty
+  const vector = mode !== 'learning' ? await computeDeltaVector(profile) : {};
 
   const days: ForecastDay[] = [];
   const today = new Date();

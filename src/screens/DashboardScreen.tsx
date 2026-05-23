@@ -73,7 +73,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         .eq('user_id', profile.id)
         .eq('session_complete', true)
         .order('session_date', { ascending: false })
-        .limit(90);
+        .limit(300);
 
       if (!allSessions) return;
 
@@ -313,9 +313,24 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         <h2 style={{ fontFamily: fonts.mono, fontSize: '1.1rem', fontWeight: 700, color: colors.bone, margin: 0, lineHeight: 1.2 }}>
           {greeting}
         </h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <span style={{ fontSize: 13 }}>{phase.emoji}</span>
           <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
+          {todayScores?.ansiedad != null && (() => {
+            const a = todayScores.ansiedad as number;
+            const color = a >= 7 ? colors.danger : a >= 4 ? colors.amber : colors.success;
+            const label = a >= 7
+              ? (idioma === 'ES' ? 'Ansiedad alta' : 'High anxiety')
+              : a >= 4
+              ? (idioma === 'ES' ? 'Ansiedad moderada' : 'Moderate anxiety')
+              : (idioma === 'ES' ? 'Ansiedad baja' : 'Low anxiety');
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${color}18`, border: `1px solid ${color}44`, borderRadius: 20, padding: '2px 8px' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, color: color, fontWeight: 600, fontFamily: fonts.mono }}>{label}</span>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -407,15 +422,11 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           const morningDims = [
             { key: 'energia',   labelEN: 'Energy',    labelES: 'Energía',   val: todayScores.energia },
             { key: 'cognitivo', labelEN: 'Focus',     labelES: 'Enfoque',   val: todayScores.cognitivo },
-            { key: 'estres',    labelEN: 'Stress',    labelES: 'Estrés',    val: todayScores.estres,    invert: true },
-            { key: 'ansiedad',  labelEN: 'Anxiety',   labelES: 'Ansiedad',  val: todayScores.ansiedad,  invert: true },
             { key: 'sueno',     labelEN: 'Sleep',     labelES: 'Sueño',     val: todayScores.sueno },
           ];
           const afternoonDims = [
             { key: 'emocional', labelEN: 'Mood',      labelES: 'Ánimo',     val: todayScores.emocional },
             { key: 'social',    labelEN: 'Social',    labelES: 'Social',    val: todayScores.social },
-            { key: 'estres',    labelEN: 'Stress',    labelES: 'Estrés',    val: todayScores.estres,    invert: true },
-            { key: 'ansiedad',  labelEN: 'Anxiety',   labelES: 'Ansiedad',  val: todayScores.ansiedad,  invert: true },
           ];
 
           const dims = isMorning ? morningDims : isAfternoon ? afternoonDims : morningDims;
