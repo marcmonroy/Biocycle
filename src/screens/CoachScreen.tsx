@@ -689,7 +689,15 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
       const today = new Date().toISOString().split('T')[0];
       console.log('[saveSession] saving for user:', profile.id, 'date:', today, 'slot:', sessionRef.current.slot);
 
-      const currentPhaseLabel = getCurrentPhase(profile).phase ?? 'morning_peak';
+      // For andropause/perimenopause, use time-slot based phase so calibration
+      // matches the MALE_TEXTBOOK/FEMALE_TEXTBOOK keys correctly
+      let currentPhaseLabel = getCurrentPhase(profile).phase ?? 'morning_peak';
+      const currentSlot = dbSlot();
+      if (currentPhaseLabel === 'andropause') {
+        currentPhaseLabel = currentSlot === 'morning' ? 'morning_peak' : currentSlot === 'afternoon' ? 'afternoon_dip' : 'evening_balance';
+      } else if (currentPhaseLabel === 'perimenopause') {
+        currentPhaseLabel = currentSlot === 'morning' ? 'follicular' : currentSlot === 'afternoon' ? 'luteal' : 'late_luteal';
+      }
       const { error } = await supabase.from('conversation_sessions').insert({
         user_id:           profile.id,
         session_date:      today,
@@ -1027,7 +1035,6 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
 
-    void saveSession();
     setTimeout(() => { _doSessionComplete(); }, 200);
     speak(thankMsg);
   }

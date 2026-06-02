@@ -4,6 +4,7 @@ import type { Profile, UserState } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { getCardForUser, getArcStage } from '../lib/cardSystem';
 import { computePortfolioMetrics } from '../lib/portfolioValue';
+import { generateForecast, type ForecastDay } from '../lib/forecastEngine';
 import type { Tab } from '../components/BottomNav';
 import { colors, fonts } from '../lib/tokens';
 
@@ -33,6 +34,20 @@ function useCountUp(target: number, duration = 1200): number {
   return value;
 }
 
+function ForecastBar({ label, value, color, large = false }: { label: string; value: number; color: string; large?: boolean }) {
+  return (
+    <div style={{ marginBottom: large ? 14 : 9 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ color: colors.boneDim, fontSize: large ? 13 : 11, fontFamily: fonts.body, fontWeight: large ? 600 : 400 }}>{label}</span>
+        <span style={{ color, fontSize: large ? 13 : 11, fontWeight: 700, fontFamily: fonts.mono }}>{value}%</span>
+      </div>
+      <div style={{ height: large ? 6 : 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 999, transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfile, onNavigate }: Props) {
   const [streak, setStreak] = useState(0);
   const [qualityScore, setQualityScore] = useState(0);
@@ -40,17 +55,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [portfolioValue, setPortfolioValue] = useState(1.0);
   const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
   const [topRels, setTopRels] = useState<{ name: string; avgScore: number | null; category: string }[]>([]);
-  const [todayScores, setTodayScores] = useState<{
-    slot: string;
-    energia: number | null;
-    cognitivo: number | null;
-    estres: number | null;
-    ansiedad: number | null;
-    sueno: number | null;
-    emocional: number | null;
-    social: number | null;
-    sexual: number | null;
-  } | null>(null);
+  const [todayForecast, setTodayForecast] = useState<ForecastDay | null>(null);
   const [sharing, setSharing] = useState(false);
 
   const animatedValue = useCountUp(portfolioValue, 1200);
@@ -64,61 +69,44 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     async function loadStats() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const dims = ['factor_energia','factor_cognitivo','factor_estres','factor_ansiedad',
-        'factor_sueno','factor_cafeina','factor_emocional','factor_social','factor_sexual',
-        'factor_hidratacion','day_rating','day_memory','factor_alcohol'];
 
+      // Load forecast for today
+      const forecast = await generateForecast(profile);
+      if (forecast.days.length > 0) {
+        setTodayForecast(forecast.days[0]);
+      }
+
+      // Streak calculation
       const { data: allSessions } = await supabase
         .from('conversation_sessions')
-        .select(['session_date', ...dims].join(','))
+        .select('session_date')
         .eq('user_id', profile.id)
         .eq('session_complete', true)
         .order('session_date', { ascending: false })
         .limit(300);
 
-      if (!allSessions) return;
-
-      const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      // Find most recent completed session from today or yesterday
-      const recentSession = (allSessions as any[]).find((s: any) =>
-        s.session_date === todayStr
-      ) || (allSessions as any[])[0];
-
-      if (recentSession) {
-        const rs = recentSession as any;
-        setTodayScores({
-          slot:      rs.time_slot ?? 'morning',
-          energia:   rs.factor_energia   ?? null,
-          cognitivo: rs.factor_cognitivo ?? null,
-          estres:    rs.factor_estres     ?? null,
-          ansiedad:  rs.factor_ansiedad   ?? null,
-          sueno:     rs.factor_sueno      ?? null,
-          emocional: rs.factor_emocional  ?? null,
-          social:    rs.factor_social     ?? null,
-          sexual:    rs.factor_sexual     ?? null,
-        });
+      if (allSessions) {
+        const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
+        const todayStr = new Date().toISOString().split('T')[0];
+        let currentStreak = 0;
+        let checkDate = todayStr;
+        for (const date of uniqueDates) {
+          if (date === checkDate) {
+            currentStreak++;
+            const prev = new Date(checkDate);
+            prev.setDate(prev.getDate() - 1);
+            checkDate = prev.toISOString().split('T')[0];
+          } else break;
+        }
+        setStreak(currentStreak);
       }
-      let currentStreak = 0;
-      let checkDate = todayStr;
-      for (const date of uniqueDates) {
-        if (date === checkDate) {
-          currentStreak++;
-          const prev = new Date(checkDate);
-          prev.setDate(prev.getDate() - 1);
-          checkDate = prev.toISOString().split('T')[0];
-        } else break;
-      }
-      setStreak(currentStreak);
-
 
       const metrics = await computePortfolioMetrics(profile);
       setPortfolioValue(metrics.value);
       setQualityScore(metrics.qualityScore);
       setConsistencyScore(metrics.consistencyScore);
 
-      // Forecast accuracy (rolling 30d)
+      // Forecast accuracy (30+ days only)
       if (daysOfData >= 30) {
         const { data: accRows } = await supabase
           .from('forecast_accuracy')
@@ -176,19 +164,15 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const arcLabel  = idioma === 'ES' ? arcData?.labelES : arcData?.label;
   const arcTeaser = idioma === 'ES' ? arcData?.teaserES : arcData?.teaser;
 
-  // Canvas-based share with one-liner baked in
   async function shareCard() {
     if (sharing) return;
     setSharing(true);
     try {
       const canvas = document.createElement('canvas');
       const W = 720, H = 900;
-      const imgH = H; // image fills the full canvas — no footer
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
       if (!ctx) { setSharing(false); return; }
-
-      // Load card image
       const img = new Image();
       img.crossOrigin = 'anonymous';
       await new Promise<void>((resolve, reject) => {
@@ -196,76 +180,51 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         img.onerror = () => reject(new Error('img load failed'));
         img.src = card.imageUrl ?? '';
       });
-      const scale = Math.max(W / img.width, imgH / img.height);
+      const scale = Math.max(W / img.width, H / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
-      const dx = (W - dw) / 2;
-      const dy = (imgH - dh) / 2;
       ctx.fillStyle = colors.midnight;
       ctx.fillRect(0, 0, W, H);
-      ctx.drawImage(img, dx, dy, dw, dh);
-
-      // Gradient overlay bottom of image
-      const grad = ctx.createLinearGradient(0, imgH - 200, 0, imgH);
+      ctx.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      const grad = ctx.createLinearGradient(0, H - 200, 0, H);
       grad.addColorStop(0, 'rgba(0,0,0,0)');
       grad.addColorStop(1, 'rgba(0,0,0,0.85)');
       ctx.fillStyle = grad;
-      ctx.fillRect(0, imgH - 200, W, 200);
-
-      // One-liner text (word-wrapped)
+      ctx.fillRect(0, H - 200, W, 200);
       ctx.fillStyle = colors.bone;
       ctx.font = 'bold 34px -apple-system, system-ui, sans-serif';
       ctx.textAlign = 'left';
       const words = cardHeadline.split(' ');
-      const maxWidth = W - 80;
       const lines: string[] = [];
       let line = '';
       for (const w of words) {
         const test = line + w + ' ';
-        if (ctx.measureText(test).width > maxWidth && line) {
-          lines.push(line.trim());
-          line = w + ' ';
-        } else {
-          line = test;
-        }
+        if (ctx.measureText(test).width > W - 80 && line) { lines.push(line.trim()); line = w + ' '; }
+        else { line = test; }
       }
       if (line.trim()) lines.push(line.trim());
-
-      let y = imgH - 50 - (lines.length - 1) * 42;
-      for (const l of lines) {
-        ctx.fillText(l, 40, y);
-        y += 42;
-      }
-
+      let y = H - 50 - (lines.length - 1) * 42;
+      for (const l of lines) { ctx.fillText(l, 40, y); y += 42; }
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
       if (!blob) { setSharing(false); return; }
-
       const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          text: idioma === 'ES' ? 'Pronostica tu futuro — biocycle.app' : 'Forecast your future — biocycle.app',
-        });
+        await navigator.share({ files: [file], text: idioma === 'ES' ? 'Pronostica tu futuro — biocycle.app' : 'Forecast your future — biocycle.app' });
       } else {
-        // Fallback: copy image to clipboard
         try {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
           alert(idioma === 'ES' ? 'Imagen copiada' : 'Image copied');
         } catch {
           const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url; a.download = 'biocycle-card.png'; a.click();
+          const a = document.createElement('a'); a.href = url; a.download = 'biocycle-card.png'; a.click();
           URL.revokeObjectURL(url);
         }
       }
-    } catch (e) {
-      console.error('share failed', e);
-    } finally {
-      setSharing(false);
-    }
+    } catch (e) { console.error('share failed', e); }
+    finally { setSharing(false); }
   }
 
-  const flameColor = streak >= 7 ? colors.amber : streak >= 3 ? colors.amber : colors.boneFaint;
+  const flameColor = streak >= 3 ? colors.amber : colors.boneFaint;
   const tierColors = {
     FOUNDING: { bg: `${colors.amber}22`, border: `${colors.amber}44`, text: colors.amber },
     ELITE:    { bg: `${colors.tierElite}22`, border: `${colors.tierElite}44`, text: colors.tierElite },
@@ -277,66 +236,59 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const tierKey = ((profile as any).tier?.toUpperCase() ?? 'NEW') as TierKey;
   const tierStyle = tierColors[tierKey] ?? tierColors.NEW;
 
+  // Sexual energy forecast color
+  const sexualColor = todayForecast
+    ? todayForecast.sexual >= 70 ? colors.success : todayForecast.sexual >= 45 ? colors.amber : colors.danger
+    : colors.boneFaint;
+
   return (
     <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: colors.midnight, fontFamily: fonts.body, paddingBottom: 80, overflowX: 'hidden' }}>
 
-      {/* Top bar: streak + greeting + settings + tier */}
+      {/* Top bar */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '28px 20px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        {/* Brand mark */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
           <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
         </div>
-
-        {/* Compact streak */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 21 }}>🔥</span>
-          <span style={{ fontFamily: fonts.mono, fontSize: 17, fontWeight: 700, color: flameColor, lineHeight: 1 }}>
-            {streak}
-          </span>
+          <span style={{ fontFamily: fonts.mono, fontSize: 17, fontWeight: 700, color: flameColor, lineHeight: 1 }}>{streak}</span>
           <span style={{ color: colors.boneFaint, fontSize: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             {idioma === 'ES' ? 'días' : 'day streak'}
           </span>
         </div>
-
-        {/* Tier badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ background: tierStyle.bg, border: `1px solid ${tierStyle.border}`, borderRadius: 4, padding: '2px 8px', color: tierStyle.text, fontSize: 9, fontWeight: 500, letterSpacing: '0.14em', fontFamily: fonts.mono }}>
             {tierKey}
           </div>
-          <button onClick={onOpenProfile} style={{ background: 'rgba(245, 242, 238,0.05)', border: '1px solid rgba(245, 242, 238,0.1)', borderRadius: 8, width: 34, height: 34, color: colors.bone, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Settings">
-            ⚙
-          </button>
+          <button onClick={onOpenProfile} style={{ background: 'rgba(245,242,238,0.05)', border: '1px solid rgba(245,242,238,0.1)', borderRadius: 8, width: 34, height: 34, color: colors.bone, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} aria-label="Settings">⚙</button>
         </div>
       </div>
 
-      {/* Greeting + phase */}
+      {/* Greeting + phase + anxiety indicator */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-        <h2 style={{ fontFamily: fonts.mono, fontSize: '1.1rem', fontWeight: 700, color: colors.bone, margin: 0, lineHeight: 1.2 }}>
-          {greeting}
-        </h2>
+        <h2 style={{ fontFamily: fonts.mono, fontSize: '1.1rem', fontWeight: 700, color: colors.bone, margin: 0, lineHeight: 1.2 }}>{greeting}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <span style={{ fontSize: 13 }}>{phase.emoji}</span>
           <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
-          {todayScores?.ansiedad != null && (() => {
-            const a = todayScores.ansiedad as number;
-            const color = a >= 7 ? colors.danger : a >= 4 ? colors.amber : colors.success;
-            const label = a >= 7
-              ? (idioma === 'ES' ? 'Ansiedad alta' : 'High anxiety')
-              : a >= 4
-              ? (idioma === 'ES' ? 'Ansiedad moderada' : 'Moderate anxiety')
-              : (idioma === 'ES' ? 'Ansiedad baja' : 'Low anxiety');
+          {todayForecast && (() => {
+            const a = todayForecast.anxiety;
+            const color = a >= 60 ? colors.danger : a >= 40 ? colors.amber : colors.success;
+            const label = a >= 60
+              ? (idioma === 'ES' ? 'Tensión elevada' : 'Elevated tension')
+              : a >= 40
+              ? (idioma === 'ES' ? 'Tensión moderada' : 'Moderate tension')
+              : (idioma === 'ES' ? 'Tensión baja' : 'Low tension');
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${color}18`, border: `1px solid ${color}44`, borderRadius: 20, padding: '2px 8px' }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color: color, fontWeight: 600, fontFamily: fonts.mono }}>{label}</span>
+                <span style={{ fontSize: 10, color, fontWeight: 600, fontFamily: fonts.mono }}>{label}</span>
               </div>
             );
           })()}
         </div>
       </div>
 
-      {/* Paused state */}
       {isPaused && (
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '40px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⏸</div>
@@ -355,55 +307,36 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       )}
 
       {!isPaused && (<>
+
         {/* HERO CARD */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
-          <div style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(245, 242, 238,0.07)', background: 'rgba(245, 242, 238,0.02)' }}>
+          <div style={{ borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(245,242,238,0.07)', background: 'rgba(245,242,238,0.02)' }}>
             <div style={{ position: 'relative', width: '100%', aspectRatio: '4/5' }}>
               {card.imageUrl ? (
-                <img
-                  ref={cardImgRef}
-                  src={card.imageUrl}
-                  alt={cardHeadline}
-                  crossOrigin="anonymous"
+                <img ref={cardImgRef} src={card.imageUrl} alt={cardHeadline} crossOrigin="anonymous"
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
               ) : (
-                <div style={{ width: '100%', height: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239, 159, 39, 0.45) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
+                <div style={{ width: '100%', height: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239,159,39,0.45) 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>
                   {card.phaseEmoji}
                 </div>
               )}
-              {/* Bottom gradient + one-liner */}
               <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '35%', background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.5) 50%, transparent 100%)', display: 'flex', alignItems: 'flex-end', padding: '0 18px 22px' }}>
-                <span style={{ color: colors.bone, fontWeight: 400, fontSize: 16, lineHeight: 1.3, textShadow: '0 1px 4px rgba(0,0,0,0.7)', fontFamily: fonts.display, fontStyle: 'italic' }}>
-                  {cardHeadline}
-                </span>
+                <span style={{ color: colors.bone, fontWeight: 400, fontSize: 16, lineHeight: 1.3, textShadow: '0 1px 4px rgba(0,0,0,0.7)', fontFamily: fonts.display, fontStyle: 'italic' }}>{cardHeadline}</span>
               </div>
-              {/* Share button */}
-              <button onClick={shareCard} disabled={sharing} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(245, 242, 238,0.25)', borderRadius: 10, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)', opacity: sharing ? 0.5 : 1 }} aria-label="Share">
+              <button onClick={shareCard} disabled={sharing} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(245,242,238,0.25)', borderRadius: 10, width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(6px)', opacity: sharing ? 0.5 : 1 }} aria-label="Share">
                 <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx={18} cy={5} r={3} />
-                  <circle cx={6} cy={12} r={3} />
-                  <circle cx={18} cy={19} r={3} />
-                  <line x1={8.59} y1={13.51} x2={15.42} y2={17.49} />
-                  <line x1={15.41} y1={6.51} x2={8.59} y2={10.49} />
+                  <circle cx={18} cy={5} r={3} /><circle cx={6} cy={12} r={3} /><circle cx={18} cy={19} r={3} />
+                  <line x1={8.59} y1={13.51} x2={15.42} y2={17.49} /><line x1={15.41} y1={6.51} x2={8.59} y2={10.49} />
                 </svg>
               </button>
             </div>
-
-            {/* Below card: copy + arc teaser */}
             <div style={{ padding: '16px 18px 18px' }}>
-              <p style={{ color: 'rgba(245, 242, 238,0.7)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 }}>{cardCopy}</p>
-              {arcTeaser && (
-                <p style={{ color: colors.amber, fontSize: '0.8rem', lineHeight: 1.5, margin: '12px 0 0', fontStyle: 'italic' }}>
-                  {arcTeaser}
-                </p>
-              )}
+              <p style={{ color: 'rgba(245,242,238,0.7)', fontSize: '0.85rem', lineHeight: 1.55, margin: 0 }}>{cardCopy}</p>
+              {arcTeaser && <p style={{ color: colors.amber, fontSize: '0.8rem', lineHeight: 1.5, margin: '12px 0 0', fontStyle: 'italic' }}>{arcTeaser}</p>}
             </div>
-
-            {/* Arc strip */}
             {arcData && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px 14px', borderTop: '1px solid rgba(245, 242, 238,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px 14px', borderTop: '1px solid rgba(245,242,238,0.06)' }}>
                 <img src={arcData.imageUrl} alt={arcLabel} style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ color: colors.bone, fontSize: '0.78rem', fontWeight: 600, lineHeight: 1.2 }}>{arcLabel}</div>
@@ -416,204 +349,105 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           </div>
         </div>
 
-        {/* Today's Score Panel */}
-        {todayScores && (() => {
-          const isMorning = todayScores.slot === 'morning';
-          const isAfternoon = todayScores.slot === 'afternoon';
+        {/* TODAY'S BIOLOGICAL FORECAST — algorithm output, not reported values */}
+        {todayForecast && (
+          <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
+            <div style={{ background: colors.surfaceLow, border: `1px solid ${colors.surfaceBorder}`, borderRadius: 14, padding: '16px 18px' }}>
 
-          const morningDims = [
-            { key: 'energia',   labelEN: 'Energy',    labelES: 'Energía',   val: todayScores.energia },
-            { key: 'cognitivo', labelEN: 'Focus',     labelES: 'Enfoque',   val: todayScores.cognitivo },
-            { key: 'sueno',     labelEN: 'Sleep',     labelES: 'Sueño',     val: todayScores.sueno },
-          ];
-          const afternoonDims = [
-            { key: 'emocional', labelEN: 'Mood',    labelES: 'Ánimo',  val: todayScores.emocional },
-            { key: 'social',    labelEN: 'Social',  labelES: 'Social', val: todayScores.social },
-            { key: 'sexual',    labelEN: 'Sexual',  labelES: 'Sexual', val: todayScores.sexual },
-          ];
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <span style={{ color: colors.boneFaint, fontSize: 10, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontFamily: fonts.mono }}>
+                  {idioma === 'ES' ? 'Pronóstico de hoy' : "Today's forecast"}
+                </span>
+                <button onClick={() => onNavigate('forecast')} style={{ background: 'none', border: 'none', color: colors.amber, fontSize: 11, cursor: 'pointer', fontFamily: fonts.body }}>
+                  {idioma === 'ES' ? 'Ver 7 días →' : 'See 7 days →'}
+                </button>
+              </div>
 
-          const dims = isMorning ? morningDims : isAfternoon ? afternoonDims : morningDims;
-          const visibleDims = dims.filter(d => d.val != null);
-          if (visibleDims.length === 0) return null;
-
-          const slotLabel = isMorning
-            ? (idioma === 'ES' ? 'Mañana' : 'Morning')
-            : isAfternoon
-            ? (idioma === 'ES' ? 'Tarde' : 'Afternoon')
-            : (idioma === 'ES' ? 'Noche' : 'Night');
-
-          const getBarColor = (val: number, invert?: boolean) => {
-            const score = invert ? (10 - val) : val;
-            if (score >= 7.5) return colors.success;
-            if (score >= 5)   return colors.amber;
-            return colors.danger;
-          };
-
-          return (
-            <div style={{
-              width: '100%',
-              maxWidth: 430,
-              margin: '0 auto',
-              padding: '0 20px 16px',
-            }}>
+              {/* SEXUAL ENERGY — primary, prominent */}
               <div style={{
-                background: colors.surfaceLow,
-                border: `1px solid ${colors.surfaceBorder}`,
-                borderRadius: 14,
-                padding: '14px 16px',
+                background: `${sexualColor}12`,
+                border: `1px solid ${sexualColor}33`,
+                borderRadius: 10,
+                padding: '12px 14px',
+                marginBottom: 14,
               }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}>
-                  <span style={{
-                    color: colors.boneFaint,
-                    fontSize: 10,
-                    fontWeight: 500,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase' as const,
-                    fontFamily: fonts.mono,
-                  }}>
-                    {idioma === 'ES' ? `Sesión de ${slotLabel}` : `${slotLabel} Session`}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ color: colors.bone, fontSize: 13, fontWeight: 700, fontFamily: fonts.body }}>
+                    {idioma === 'ES' ? 'Energía Sexual' : 'Sexual Energy'}
                   </span>
-                  <span style={{
-                    color: colors.boneFaint,
-                    fontSize: 10,
-                    fontFamily: fonts.mono,
-                  }}>
-                    {idioma === 'ES' ? 'hoy' : 'today'}
+                  <span style={{ color: sexualColor, fontSize: 18, fontWeight: 800, fontFamily: fonts.mono }}>
+                    {todayForecast.sexual}%
                   </span>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 9 }}>
-                  {visibleDims.map(dim => {
-                    const val = dim.val as number;
-                    const pct = (val / 10) * 100;
-                    const barColor = getBarColor(val, (dim as any).invert);
-                    const label = idioma === 'ES' ? dim.labelES : dim.labelEN;
-                    return (
-                      <div key={dim.key}>
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginBottom: 4,
-                        }}>
-                          <span style={{
-                            color: colors.boneDim,
-                            fontSize: 12,
-                            fontFamily: fonts.body,
-                          }}>{label}</span>
-                          <span style={{
-                            color: barColor,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            fontFamily: fonts.mono,
-                          }}>{val}/10</span>
-                        </div>
-                        <div style={{
-                          height: 4,
-                          background: colors.surfaceMid,
-                          borderRadius: 999,
-                          overflow: 'hidden',
-                        }}>
-                          <div style={{
-                            height: '100%',
-                            width: `${pct}%`,
-                            background: barColor,
-                            borderRadius: 999,
-                            transition: 'width 0.6s cubic-bezier(0.16,1,0.3,1)',
-                          }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                <div style={{ height: 6, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${todayForecast.sexual}%`, background: sexualColor, borderRadius: 999, transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
+                </div>
+                <div style={{ color: sexualColor, fontSize: 10, fontWeight: 600, marginTop: 6, fontFamily: fonts.mono, letterSpacing: '0.06em' }}>
+                  {todayForecast.sexual >= 70
+                    ? (idioma === 'ES' ? '↑ VENTANA ALTA' : '↑ HIGH WINDOW')
+                    : todayForecast.sexual >= 45
+                    ? (idioma === 'ES' ? '→ MODERADA' : '→ MODERATE')
+                    : (idioma === 'ES' ? '↓ BAJA HOY' : '↓ LOW TODAY')}
                 </div>
               </div>
-            </div>
-          );
-        })()}
 
-        {/* Stress & Anxiety Status Widget */}
-        {todayScores && (todayScores.estres != null || todayScores.ansiedad != null) && (() => {
-          const stress  = todayScores.estres;
-          const anxiety = todayScores.ansiedad;
+              {/* Secondary metrics */}
+              <ForecastBar
+                label={idioma === 'ES' ? 'Energía' : 'Energy'}
+                value={todayForecast.energy}
+                color={todayForecast.energy >= 70 ? colors.success : todayForecast.energy >= 45 ? colors.amber : colors.danger}
+              />
+              <ForecastBar
+                label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'}
+                value={todayForecast.cognitive}
+                color={todayForecast.cognitive >= 70 ? colors.tierElite : todayForecast.cognitive >= 45 ? colors.amber : colors.danger}
+              />
+              <ForecastBar
+                label={idioma === 'ES' ? 'Estrés' : 'Stress'}
+                value={100 - todayForecast.stress}
+                color={todayForecast.stress >= 60 ? colors.danger : todayForecast.stress >= 40 ? colors.amber : colors.success}
+              />
+              <ForecastBar
+                label={idioma === 'ES' ? 'Ansiedad' : 'Anxiety'}
+                value={100 - todayForecast.anxiety}
+                color={todayForecast.anxiety >= 60 ? colors.danger : todayForecast.anxiety >= 40 ? colors.amber : colors.success}
+              />
+              <ForecastBar
+                label={idioma === 'ES' ? 'Emocional' : 'Emotional'}
+                value={todayForecast.emotional}
+                color={todayForecast.emotional >= 70 ? colors.success : todayForecast.emotional >= 45 ? colors.amber : colors.danger}
+              />
 
-          const stressLevel  = stress  == null ? null : stress  >= 7 ? 'high' : stress  >= 4 ? 'moderate' : 'low';
-          const anxietyLevel = anxiety == null ? null : anxiety >= 7 ? 'high' : anxiety >= 4 ? 'moderate' : 'low';
+              {/* Phase insight */}
+              {(idioma === 'ES' ? todayForecast.insightES : todayForecast.insight) && (
+                <p style={{ color: colors.boneFaint, fontSize: 11, lineHeight: 1.55, margin: '12px 0 0', paddingTop: 12, borderTop: '1px solid rgba(245,242,238,0.06)', fontStyle: 'italic' }}>
+                  {idioma === 'ES' ? todayForecast.insightES : todayForecast.insight}
+                </p>
+              )}
 
-          const stressColor  = stressLevel  === 'high' ? colors.danger : stressLevel  === 'moderate' ? colors.amber : colors.success;
-          const anxietyColor = anxietyLevel === 'high' ? colors.danger : anxietyLevel === 'moderate' ? colors.amber : colors.success;
-
-          const stressLabelEN  = stressLevel  === 'high' ? 'High' : stressLevel  === 'moderate' ? 'Moderate' : 'Low';
-          const anxietyLabelEN = anxietyLevel === 'high' ? 'High' : anxietyLevel === 'moderate' ? 'Moderate' : 'Low';
-          const stressLabelES  = stressLevel  === 'high' ? 'Alto' : stressLevel  === 'moderate' ? 'Moderado' : 'Bajo';
-          const anxietyLabelES = anxietyLevel === 'high' ? 'Alta' : anxietyLevel === 'moderate' ? 'Moderada' : 'Baja';
-
-          const overallHigh = (stressLevel === 'high' || anxietyLevel === 'high');
-          const overallMod  = !overallHigh && (stressLevel === 'moderate' || anxietyLevel === 'moderate');
-
-          const headerEN = overallHigh ? 'Elevated tension today' : overallMod ? 'Moderate tension today' : 'Low tension today';
-          const headerES = overallHigh ? 'Tensión elevada hoy' : overallMod ? 'Tensión moderada hoy' : 'Tensión baja hoy';
-          const borderColor = overallHigh ? colors.danger : overallMod ? colors.amber : colors.success;
-
-          return (
-            <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-              <div style={{ background: 'rgba(245,242,238,0.03)', border: `1px solid ${borderColor}44`, borderRadius: 12, padding: '12px 16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: borderColor, fontFamily: fonts.mono }}>
-                    {idioma === 'ES' ? 'Estrés · Ansiedad' : 'Stress · Anxiety'}
-                  </span>
-                  <span style={{ fontSize: 11, color: borderColor, fontWeight: 600 }}>
-                    {idioma === 'ES' ? headerES : headerEN}
-                  </span>
-                </div>
-                {stress != null && (
-                  <div style={{ marginBottom: anxiety != null ? 8 : 0 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: colors.boneFaint }}>{idioma === 'ES' ? 'Estrés' : 'Stress'}</span>
-                      <span style={{ fontSize: 11, color: stressColor, fontWeight: 600, fontFamily: fonts.mono }}>
-                        {stress}/10 · {idioma === 'ES' ? stressLabelES : stressLabelEN}
-                      </span>
-                    </div>
-                    <div style={{ height: 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${(stress/10)*100}%`, background: stressColor, borderRadius: 999, transition: 'width 0.6s ease' }} />
-                    </div>
-                  </div>
-                )}
-                {anxiety != null && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: colors.boneFaint }}>{idioma === 'ES' ? 'Ansiedad' : 'Anxiety'}</span>
-                      <span style={{ fontSize: 11, color: anxietyColor, fontWeight: 600, fontFamily: fonts.mono }}>
-                        {anxiety}/10 · {idioma === 'ES' ? anxietyLabelES : anxietyLabelEN}
-                      </span>
-                    </div>
-                    <div style={{ height: 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${(anxiety/10)*100}%`, background: anxietyColor, borderRadius: 999, transition: 'width 0.6s ease' }} />
-                    </div>
-                  </div>
-                )}
+              {/* Mode indicator */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                <span style={{ fontSize: 9, color: colors.boneFaint, fontFamily: fonts.mono, letterSpacing: '0.08em' }}>
+                  {daysOfData < 30
+                    ? (idioma === 'ES' ? `MODELO BASE · ${30 - daysOfData} DÍAS PARA TU PRONÓSTICO` : `BASE MODEL · ${30 - daysOfData} DAYS TO YOUR FORECAST`)
+                    : daysOfData < 90
+                    ? (idioma === 'ES' ? `CALIBRANDO · DÍA ${daysOfData}` : `CALIBRATING · DAY ${daysOfData}`)
+                    : (idioma === 'ES' ? `PERSONALIZADO · DÍA ${daysOfData}` : `PERSONALIZED · DAY ${daysOfData}`)}
+                </span>
               </div>
             </div>
-          );
-        })()}
+          </div>
+        )}
 
         {/* Session CTA */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
           <button onClick={onStartCoach} style={{ width: '100%', background: colors.amber, border: 'none', borderRadius: 14, padding: '16px 24px', color: colors.midnight, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
             {idioma === 'ES' ? 'Hablar con Jules →' : 'Talk to Jules →'}
           </button>
-          {daysOfData < 30 && (
-            <p style={{ color: colors.boneFaint, fontSize: 11, textAlign: 'center', margin: '10px 0 0' }}>
-              {idioma === 'ES' ? `${30 - daysOfData} días para el pronóstico personalizado` : `${30 - daysOfData} days to your personalized forecast`}
-            </p>
-          )}
         </div>
 
-        {/* Forecast accuracy (30+ days only) */}
+        {/* Forecast accuracy */}
         {accuracyPct != null && (
           <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
             <button onClick={() => onNavigate('forecast')} style={{ width: '100%', background: 'rgba(0,200,150,0.08)', border: '1px solid rgba(0,200,150,0.25)', borderRadius: 12, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', textAlign: 'left' }}>
@@ -635,7 +469,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         {/* Relationships preview */}
         {topRels.length > 0 && (
           <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-            <button onClick={() => onNavigate('circle')} style={{ width: '100%', background: 'rgba(245, 242, 238,0.03)', border: '1px solid rgba(245, 242, 238,0.08)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' }}>
+            <button onClick={() => onNavigate('circle')} style={{ width: '100%', background: 'rgba(245,242,238,0.03)', border: '1px solid rgba(245,242,238,0.08)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ color: colors.bone, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                   {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
@@ -644,15 +478,13 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 {topRels.map((r, i) => {
-                  const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.amber;
+                  const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : colors.amber;
                   return (
                     <div key={i} style={{ flex: 1, textAlign: 'center' }}>
                       <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,217,61,0.2), rgba(123,97,255,0.2))', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.bone, fontWeight: 700, fontSize: 13 }}>
                         {r.name.charAt(0).toUpperCase()}
                       </div>
-                      <div style={{ color: colors.bone, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {r.name}
-                      </div>
+                      <div style={{ color: colors.bone, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
                       <div style={{ color: scoreColor, fontSize: 10, fontFamily: fonts.mono, fontWeight: 700 }}>
                         {r.avgScore != null ? r.avgScore.toFixed(1) : '—'}
                       </div>
@@ -664,9 +496,9 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           </div>
         )}
 
-        {/* Portfolio snippet (secondary) */}
+        {/* Portfolio */}
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
-          <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239, 159, 39, 0.45) 100%)`, border: `1px solid ${colors.boneTrace}`, borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239,159,39,0.45) 100%)`, border: `1px solid ${colors.boneTrace}`, borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
                 {idioma === 'ES' ? 'Valor de tus Datos' : 'Data Value'}
@@ -681,6 +513,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             <div style={{ color: colors.amber, fontSize: 18 }}>→</div>
           </button>
         </div>
+
       </>)}
     </div>
   );
