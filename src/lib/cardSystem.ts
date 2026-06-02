@@ -847,12 +847,17 @@ export function getCardForUser(profile: Profile): Card {
   const picardiaMode = profile.picardia_mode ?? false;
   const age          = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
 
+  // Use calendar date as rotation index — card changes every day regardless of pool size
+  const today = new Date();
+  const dateIndex = today.getFullYear() * 1000 +
+    Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000);
+
   // Milestone cards take priority on exact days — morning slot only
   if (MILESTONE_DAYS[daysOfData] && slot === 'morning') {
     return MILESTONE_DAYS[daysOfData](formatValue(daysOfData));
   }
 
-  // Determine demographic key with 40+ routing
+  // Determine demographic key
   let genderKey: string;
   if (gender === 'female' && age >= 40) {
     genderKey = 'female_peri';
@@ -871,21 +876,21 @@ export function getCardForUser(profile: Profile): Card {
     || DISCOVERY_CARDS['nonbinary_morning']
     || [];
 
-  // Filter picardia cards — only shown in picardia mode
-  const filtered = picardiaMode
-    ? allCards
-    : allCards.filter(c => !c.picardiaOnly);
-
+  // Filter picardia cards
+  const filtered = picardiaMode ? allCards : allCards.filter(c => !c.picardiaOnly);
   const pool = filtered.length > 0 ? filtered : allCards;
 
-  // Days 0-29: discovery cards
+  // Days 0-29: rotate daily through discovery cards
   if (daysOfData < 30) {
-    return pool[daysOfData % pool.length];
+    return pool[dateIndex % pool.length];
   }
 
-  // Day 30+: same pool but with real phase tag from phaseEngine
+  // Day 30+: exclude financial/promotional cards — user earned real insights
+  const companionPool = pool.filter(c => c.pillar !== 'financial');
+  const finalPool = companionPool.length > 0 ? companionPool : pool;
+
   const phaseResult = getCurrentPhase(profile);
-  const baseCard = pool[daysOfData % pool.length];
+  const baseCard = finalPool[dateIndex % finalPool.length];
 
   return {
     ...baseCard,

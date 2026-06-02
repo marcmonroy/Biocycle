@@ -57,6 +57,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [topRels, setTopRels] = useState<{ name: string; avgScore: number | null; category: string }[]>([]);
   const [todayForecast, setTodayForecast] = useState<ForecastDay | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [liveDays, setLiveDays] = useState<number>(getDaysOfData(profile));
 
   const animatedValue = useCountUp(portfolioValue, 1200);
   const daysOfData = getDaysOfData(profile);
@@ -99,6 +100,16 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           } else break;
         }
         setStreak(currentStreak);
+      }
+
+      // Load fresh days_of_data from Supabase — profile prop may be stale
+      const { data: freshProfile } = await supabase
+        .from('profiles')
+        .select('days_of_data')
+        .eq('id', profile.id)
+        .single();
+      if (freshProfile?.days_of_data != null) {
+        setLiveDays(freshProfile.days_of_data);
       }
 
       const metrics = await computePortfolioMetrics(profile);
@@ -160,7 +171,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
   const gender = (profile.genero ?? 'nonbinary') as 'female' | 'male' | 'nonbinary';
   const picardiaMode = profile.picardia_mode ?? false;
-  const arcData   = getArcStage(daysOfData, gender, picardiaMode);
+  const arcData   = getArcStage(liveDays, gender, picardiaMode);
   const arcLabel  = idioma === 'ES' ? arcData?.labelES : arcData?.label;
   const arcTeaser = idioma === 'ES' ? arcData?.teaserES : arcData?.teaser;
 
@@ -271,21 +282,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
           <span style={{ fontSize: 13 }}>{phase.emoji}</span>
           <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
-          {todayForecast && (() => {
-            const a = todayForecast.anxiety;
-            const color = a >= 60 ? colors.danger : a >= 40 ? colors.amber : colors.success;
-            const label = a >= 60
-              ? (idioma === 'ES' ? 'Tensión elevada' : 'Elevated tension')
-              : a >= 40
-              ? (idioma === 'ES' ? 'Tensión moderada' : 'Moderate tension')
-              : (idioma === 'ES' ? 'Tensión baja' : 'Low tension');
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: `${color}18`, border: `1px solid ${color}44`, borderRadius: 20, padding: '2px 8px' }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                <span style={{ fontSize: 10, color, fontWeight: 600, fontFamily: fonts.mono }}>{label}</span>
-              </div>
-            );
-          })()}
         </div>
       </div>
 
@@ -383,12 +379,18 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
                 <div style={{ height: 6, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
                   <div style={{ height: '100%', width: `${todayForecast.sexual}%`, background: sexualColor, borderRadius: 999, transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
                 </div>
-                <div style={{ color: sexualColor, fontSize: 10, fontWeight: 600, marginTop: 6, fontFamily: fonts.mono, letterSpacing: '0.06em' }}>
+                <div style={{ color: sexualColor, fontSize: 11, fontWeight: 600, marginTop: 8, fontFamily: fonts.body, lineHeight: 1.4 }}>
                   {todayForecast.sexual >= 70
-                    ? (idioma === 'ES' ? '↑ VENTANA ALTA' : '↑ HIGH WINDOW')
+                    ? (idioma === 'ES'
+                        ? `Ventana de alta energía sexual hoy — ${todayForecast.sexual}%. Aprovecha esta ventana.`
+                        : `High sexual energy window today — ${todayForecast.sexual}%. This window is open.`)
                     : todayForecast.sexual >= 45
-                    ? (idioma === 'ES' ? '→ MODERADA' : '→ MODERATE')
-                    : (idioma === 'ES' ? '↓ BAJA HOY' : '↓ LOW TODAY')}
+                    ? (idioma === 'ES'
+                        ? `Energía sexual moderada hoy — ${todayForecast.sexual}%.`
+                        : `Moderate sexual energy today — ${todayForecast.sexual}%.`)
+                    : (idioma === 'ES'
+                        ? `Energía sexual baja hoy — ${todayForecast.sexual}%. Día de recuperación.`
+                        : `Low sexual energy today — ${todayForecast.sexual}%. Recovery day.`)}
                 </div>
               </div>
 
@@ -429,11 +431,11 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
               {/* Mode indicator */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                 <span style={{ fontSize: 9, color: colors.boneFaint, fontFamily: fonts.mono, letterSpacing: '0.08em' }}>
-                  {daysOfData < 30
-                    ? (idioma === 'ES' ? `MODELO BASE · ${30 - daysOfData} DÍAS PARA TU PRONÓSTICO` : `BASE MODEL · ${30 - daysOfData} DAYS TO YOUR FORECAST`)
-                    : daysOfData < 90
-                    ? (idioma === 'ES' ? `CALIBRANDO · DÍA ${daysOfData}` : `CALIBRATING · DAY ${daysOfData}`)
-                    : (idioma === 'ES' ? `PERSONALIZADO · DÍA ${daysOfData}` : `PERSONALIZED · DAY ${daysOfData}`)}
+                  {liveDays < 30
+                    ? (idioma === 'ES' ? `MODELO BASE · ${30 - liveDays} DÍAS PARA TU PRONÓSTICO` : `BASE MODEL · ${30 - liveDays} DAYS TO YOUR FORECAST`)
+                    : liveDays < 90
+                    ? (idioma === 'ES' ? `CALIBRANDO · DÍA ${liveDays}` : `CALIBRATING · DAY ${liveDays}`)
+                    : (idioma === 'ES' ? `PERSONALIZADO · DÍA ${liveDays}` : `PERSONALIZED · DAY ${liveDays}`)}
                 </span>
               </div>
             </div>
