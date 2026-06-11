@@ -637,32 +637,36 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
               ? 'Enviamos un código de 6 dígitos a tu WhatsApp. Ingrésalo abajo.'
               : 'We sent a 6-digit code to your WhatsApp. Enter it below.'}
           </p>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-            {verificationCode.map((digit, idx) => (
-              <input
-                key={idx}
-                id={`code-${idx}`}
-                type="text"
-                inputMode="numeric"
-                maxLength={1}
-                value={digit}
-                onChange={e => handleCodeInput(e.target.value, idx)}
-                onKeyDown={e => {
-                  if (e.key === 'Backspace' && !digit && idx > 0) {
-                    document.getElementById(`code-${idx - 1}`)?.focus();
-                  }
-                }}
-                style={{
-                  ...inputStyle,
-                  width: 44,
-                  textAlign: 'center',
-                  fontSize: '1.4rem',
-                  fontFamily: fonts.mono,
-                  padding: '12px 0',
-                }}
-              />
-            ))}
-          </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="______"
+            value={verificationCode.join('')}
+            onChange={e => {
+              const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+              const arr = val.split('');
+              while (arr.length < 6) arr.push('');
+              setVerificationCode(arr as [string,string,string,string,string,string]);
+            }}
+            style={{
+              width: '100%',
+              background: 'rgba(245,242,238,0.05)',
+              border: `1px solid ${colors.amber}44`,
+              borderRadius: 12,
+              padding: '16px',
+              color: colors.bone,
+              fontSize: '2rem',
+              fontFamily: fonts.mono,
+              fontWeight: 700,
+              letterSpacing: '0.5em',
+              textAlign: 'center',
+              outline: 'none',
+              boxSizing: 'border-box' as const,
+            }}
+          />
 
           {error && (
             <p style={errorStyle}>
