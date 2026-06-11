@@ -65,9 +65,10 @@ exports.handler = async (event) => {
     console.log('[send-whatsapp] TEST sending 999999 to:', toNumber, 'from:', from);
 
     const testPayload = new URLSearchParams({
-      From: from,
-      To:   toNumber,
-      Body: 'BioCycle TEST: Your verification code is 999999. It expires in 10 minutes.',
+      From:             from,
+      To:               toNumber,
+      ContentSid:       'HXfd5c75c1b32d3758bb171483d9598bf8',
+      ContentVariables: JSON.stringify({ '1': '999999' }),
     });
 
     try {
@@ -171,18 +172,19 @@ exports.handler = async (event) => {
       };
     }
 
-    // Send plain text — simpler and more reliable than template for verification codes
-    const bodyText = language === 'es'
-      ? `BioCycle: Tu código de verificación es ${code}. Ingrésalo en la app para verificar tu cuenta.`
-      : `BioCycle: Your verification code is ${code}. Enter it in the BioCycle app to verify your account.`;
+    // Send using approved WhatsApp authentication template
+    const verificationTemplateSid = language === 'es'
+      ? 'HX1f50aaf2631e92ccade44d1ca80109ec'
+      : 'HXfd5c75c1b32d3758bb171483d9598bf8';
 
     const tmplPayload = new URLSearchParams({
-      From: from,
-      To:   toNumber,
-      Body: bodyText,
+      From:             from,
+      To:               toNumber,
+      ContentSid:       verificationTemplateSid,
+      ContentVariables: JSON.stringify({ '1': code }),
     });
 
-    console.log('[send-whatsapp] Sending plain text verification to:', toNumber, 'from:', from);
+    console.log('[send-whatsapp] Sending verification template to:', toNumber, 'from:', from, 'template:', verificationTemplateSid);
 
     const twilioRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
