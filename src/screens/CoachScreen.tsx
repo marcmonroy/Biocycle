@@ -1161,7 +1161,8 @@ REGLAS CRÍTICAS:
 - Menciona algo específico que los patrones revelan sobre su estado biológico actual
 - Si hay una tensión interesante (ej. energía baja + ansiedad baja), nómbrala
 - Si hay una ventana de oportunidad o protección hoy, señálala
-- Tono: mentor biológico cálido y directo. Nunca "deberías". Nunca genérico.
+- Tono: ${picardiaMode ? 'directo, ligeramente provocador, seguro — Sienna. Nunca vulgar. Nunca genérico.' : 'mentor biológico cálido y directo. Nunca "deberías". Nunca genérico.'}
+- Si hay contexto del Círculo en los patrones recientes, refiérete a él específicamente — nombra a la persona y lo que muestra el patrón.
 - NUNCA digas tu nombre. NUNCA saludes. Empieza directo con la interpretación.
 - Máximo 3 oraciones. Sin preguntas.`
         : `${noIntro}You are Jules, BioCycle's biological intelligence coach. The user just completed their ${slot} check-in.
@@ -1177,7 +1178,8 @@ CRITICAL RULES:
 - Name something specific that the pattern reveals about their current biological state
 - If there is an interesting tension (e.g. low energy + low anxiety), name it
 - If there is a window of opportunity or protection today, point to it
-- Tone: warm, direct biological mentor. Never "you should." Never generic.
+- Tone: ${picardiaMode ? 'direct, slightly provocative, confident — Sienna. Never crude. Never generic.' : 'warm, direct biological mentor. Never "you should." Never generic.'}
+- If Circle context is present in the recent patterns, reference it specifically — name the person and what the pattern shows.
 - NEVER say your name. NEVER greet. Start directly with the interpretation.
 - Maximum 3 sentences. No questions.`;
 
@@ -1647,10 +1649,35 @@ CRITICAL RULES:
         .select('id', { count: 'exact', head: true })
         .eq('user_id', profile.id);
 
+      // Load recent Circle interactions for opening commentary
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const { data: recentInteractions } = await supabase
+        .from('relationship_interactions')
+        .select('connection_score, relationship_id, relationships(name)')
+        .eq('user_id', profile.id)
+        .gte('interaction_date', yesterday.toISOString().split('T')[0])
+        .order('interaction_date', { ascending: false })
+        .limit(3);
+
       if (cancelled) return;
 
       sessionRef.current.totalSessions = sessCount ?? 0;
       sessionRef.current.relationshipsCollected = relCount ?? 0;
+
+      // Build circle context string for opening
+      const circleContext = (recentInteractions ?? [])
+        .filter((i: any) => i.connection_score != null)
+        .map((i: any) => {
+          const relName = (i.relationships as any)?.name ?? 'someone';
+          return `${relName}: ${i.connection_score}/10`;
+        })
+        .join(', ');
+      if (circleContext) {
+        sessionRef.current.sessionContext = sessionRef.current.sessionContext
+          ? `${sessionRef.current.sessionContext}\nRecent Circle: ${circleContext}`
+          : `Recent Circle: ${circleContext}`;
+      }
 
       // ── 7. Check if validated instruments are due
       const validationDue = freshProfile?.validation_due_date;
@@ -1675,7 +1702,34 @@ CRITICAL RULES:
 
       let openingText = '';
 
-      if (isGap) {
+      // Milestone days — special opening
+      const MILESTONE_OPENINGS: Record<number, { en: string; es: string; sienna_en?: string; sienna_es?: string }> = {
+        30: {
+          en: `Hey ${name}. 30 days. Nobody who didn't want to understand themselves makes it here. Let's go deeper.`,
+          es: `Hola ${name}. 30 días. Nadie que no quisiera entenderse llega hasta aquí. Vamos más profundo.`,
+          sienna_en: `${name}. 30 days. I know things about you now that you haven't figured out yet. Ready?`,
+          sienna_es: `${name}. 30 días. Ahora sé cosas sobre ti que tú aún no has descubierto. ¿Listo?`,
+        },
+        60: {
+          en: `Hey ${name}. 60 days of showing up. The data is yours now. Nobody can take it.`,
+          es: `Hola ${name}. 60 días apareciendo. Los datos son tuyos ahora. Nadie puede quitártelos.`,
+          sienna_en: `60 days, ${name}. Most people quit at 30. You didn't. I noticed.`,
+          sienna_es: `60 días, ${name}. La mayoría se rinde a los 30. Tú no. Lo noté.`,
+        },
+        90: {
+          en: `Hey ${name}. 90 days. You have your own forecast now. This is what knowing yourself looks like.`,
+          es: `Hola ${name}. 90 días. Ahora tienes tu propio pronóstico. Así es como se ve conocerse a uno mismo.`,
+          sienna_en: `${name}. 90 days. You earned this forecast. Now let's see what you do with it.`,
+          sienna_es: `${name}. 90 días. Te ganaste este pronóstico. Ahora veamos qué haces con él.`,
+        },
+      };
+
+      if (MILESTONE_OPENINGS[liveDays]) {
+        const m = MILESTONE_OPENINGS[liveDays];
+        openingText = picardiaMode
+          ? (isES ? (m.sienna_es ?? m.es) : (m.sienna_en ?? m.en))
+          : (isES ? m.es : m.en);
+      } else if (isGap) {
         openingText = isES
           ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
           : `Hey ${name} — good to have you back. It's been a few days.`;
@@ -1693,12 +1747,17 @@ CRITICAL RULES:
         if (ctx) {
           const phase = getCurrentPhase(profile);
           const phaseLabel = isES ? phase.displayNameES : phase.displayName;
+          const persona = picardiaMode
+            ? (isES
+                ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
+                : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
+            : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
           const openSys = isES
-            ? `${noIntro}Eres Jules. Abre la sesión con UNA oración que mencione algo específico y concreto que hayas notado en los patrones recientes del usuario. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras. Directo y cálido.\n\nContexto reciente:\n${ctx}`
-            : `${noIntro}You are Jules. Open with ONE sentence that references something specific and concrete you have noticed in the user's recent patterns. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words. Direct and warm.\n\nRecent context:\n${ctx}`;
+            ? `${noIntro}Eres ${persona} Abre la sesión con UNA oración que mencione algo específico y concreto que hayas notado en los patrones recientes del usuario. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras. Directo y cálido.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are ${persona} Open with ONE sentence that references something specific and concrete you have noticed in the user's recent patterns. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words. Direct and warm.\n\nRecent context:\n${ctx}`;
           const patternLine = await callCoachAPI([{ role: 'user', content: 'open' }], openSys, 40);
           openingText = patternLine
-            ? `Hey ${name}. ${patternLine}`
+            ? `${isES ? 'Hola' : 'Hey'} ${name}. ${patternLine}`
             : (isES ? `Hola ${name}. He notado algunos patrones — hagamos el check-in.` : `Hey ${name}. I've been noticing some patterns — let's check in.`);
         } else {
           openingText = isES
