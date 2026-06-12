@@ -9,6 +9,10 @@ export interface Card {
   headlineES: string;
   copyText: string;
   copyTextES: string;
+  headlinePicardia?: string;
+  headlinePicardiaES?: string;
+  copyTextPicardia?: string;
+  copyTextPicardiaES?: string;
   phaseTag: string;
   phaseEmoji: string;
   pillar: 'life' | 'biology' | 'financial';
@@ -639,6 +643,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'The cartoon old man is panicking because nobody told him what to expect. Jules tells you exactly what is happening and when. Andropause has a pattern. Your pattern is trackable.',
       copyTextES: 'El viejo de caricatura está en pánico porque nadie le dijo qué esperar. Jules te dice exactamente qué está pasando y cuándo. La andropausia tiene un patrón. Tu patrón es rastreable.',
       phaseTag: 'Andropause', phaseEmoji: '⚖️', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'Your body is changing. I\'ve been watching.',
+      headlinePicardiaES: 'Tu cuerpo está cambiando. Yo he estado mirando.',
+      copyTextPicardia: 'After 40 everything shifts. Jules tracks the pattern. I\'m here to tell you what it means — before your doctor does.',
+      copyTextPicardiaES: 'Después de los 40 todo cambia. Jules rastrea el patrón. Estoy aquí para decirte qué significa — antes de que lo haga tu médico.',
     },
     {
       id: 'm_andro_yoga_morning', imagePath: '732.png', imageUrl: img('732.png'),
@@ -647,6 +655,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'One guy is doing cobra. The other is just lying there. Both are on the mat. Jules tracks your exercise motivation alongside testosterone levels. The correlation is very real.',
       copyTextES: 'Un tipo está haciendo cobra. El otro está simplemente tirado. Ambos están en el tapete. Jules rastrea tu motivación para ejercitarte junto con los niveles de testosterona. La correlación es muy real.',
       phaseTag: 'Physical', phaseEmoji: '🧘', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'You showed up. That already puts you ahead.',
+      headlinePicardiaES: 'Apareciste. Eso ya te pone adelante.',
+      copyTextPicardia: 'The gap between who you want to be and who you are right now is data. Jules measures it. I read it.',
+      copyTextPicardiaES: 'La brecha entre quien quieres ser y quien eres ahora mismo es un dato. Jules lo mide. Yo lo leo.',
     },
     {
       id: 'm_andro_clarity_morning', imagePath: '720.png', imageUrl: img('720.png'),
@@ -655,6 +667,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'After 40 the cognitive peak mornings are more variable — but they still come. Jules tracks the conditions that produce them so you can start stacking those variables deliberately.',
       copyTextES: 'Después de los 40 las mañanas de pico cognitivo son más variables — pero siguen llegando. Jules rastrea las condiciones que las producen para que puedas empezar a apilar esas variables deliberadamente.',
       phaseTag: 'Cognitive', phaseEmoji: '💡', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'Peak morning. I noticed before you did.',
+      headlinePicardiaES: 'Mañana pico. Lo noté antes que tú.',
+      copyTextPicardia: 'Your best mornings have a biological signature. Jules maps them. I\'ll tell you when the next one is coming — so you don\'t waste it.',
+      copyTextPicardiaES: 'Tus mejores mañanas tienen una firma biológica. Jules las mapea. Te diré cuándo viene la próxima — para que no la desperdicies.',
     },
     {
       id: 'm_andro_resilience_morning', imagePath: '322.png', imageUrl: img('322.png'),
@@ -663,6 +679,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'After 40 consistency beats peak. Jules tracks your resilience patterns. The men who perform best at this stage are the ones who know when to push and when to recover.',
       copyTextES: 'Después de los 40 la consistencia supera al pico. Jules rastrea tus patrones de resiliencia. Los hombres que mejor se desempeñan en esta etapa son los que saben cuándo empujar y cuándo recuperarse.',
       phaseTag: 'Resilience', phaseEmoji: '🛡️', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'You\'re still running. Good.',
+      headlinePicardiaES: 'Sigues corriendo. Bien.',
+      copyTextPicardia: 'After 40 the men who know when to push and when to recover are the ones worth watching. Jules is deciding which one you are.',
+      copyTextPicardiaES: 'Después de los 40 los hombres que saben cuándo empujar y cuándo recuperarse son los que vale la pena observar. Jules está decidiendo cuál eres tú.',
     },
   ],
 
@@ -674,6 +694,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Male longitudinal data after 40 is among the rarest in clinical research. Your patterns over the next 90 days will be worth significantly more than standard data.',
       copyTextES: 'Los datos longitudinales masculinos después de los 40 son de los más raros en la investigación clínica. Tus patrones en los próximos 90 días valdrán significativamente más que los datos estándar.',
       phaseTag: 'Portfolio', phaseEmoji: '💰', pillar: 'financial', picardiaOnly: false,
+      headlinePicardia: 'Your data is valuable. So is your time.',
+      headlinePicardiaES: 'Tus datos son valiosos. También tu tiempo.',
+      copyTextPicardia: 'Male biological data after 40 is rare. What you\'re building here has real worth. Jules is making sure every data point counts.',
+      copyTextPicardiaES: 'Los datos biológicos masculinos después de los 40 son raros. Lo que estás construyendo aquí tiene valor real. Jules se asegura de que cada dato cuente.',
     },
     {
       id: 'm_andro_mirror_midday', imagePath: '251.png', imageUrl: img('251.png'),
@@ -682,6 +706,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Self-perception at midday follows testosterone patterns after 40. Jules tracks how you see yourself alongside your actual biological scores. The gap between the two is data.',
       copyTextES: 'La autopercepción al mediodía sigue los patrones de testosterona después de los 40. Jules rastrea cómo te ves junto con tus puntuaciones biológicas reales. La brecha entre los dos es información.',
       phaseTag: 'Self', phaseEmoji: '🪞', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'The mirror isn\'t lying. Neither am I.',
+      headlinePicardiaES: 'El espejo no miente. Yo tampoco.',
+      copyTextPicardia: 'Self-perception shifts with testosterone. Jules tracks how you see yourself versus what the data actually shows. The gap between the two is the most interesting part.',
+      copyTextPicardiaES: 'La autopercepción cambia con la testosterona. Jules rastrea cómo te ves frente a lo que los datos realmente muestran. La brecha entre los dos es lo más interesante.',
     },
     {
       id: 'm_andro_stress_midday', imagePath: '710.png', imageUrl: img('710.png'),
@@ -690,6 +718,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Cortisol and declining testosterone create a specific stress signature in andropause. Jules tracks yours. Understanding your pattern is the first step to managing it.',
       copyTextES: 'El cortisol y la disminución de testosterona crean una firma de estrés específica en la andropausia. Jules rastrea la tuya. Entender tu patrón es el primer paso para manejarlo.',
       phaseTag: 'Stress', phaseEmoji: '📊', pillar: 'life', picardiaOnly: false,
+      headlinePicardia: 'That tension has a name. Jules found it.',
+      headlinePicardiaES: 'Esa tensión tiene un nombre. Jules lo encontró.',
+      copyTextPicardia: 'After 40 cortisol and declining testosterone create a very specific stress signature. Yours is already in the data. I\'m reading it.',
+      copyTextPicardiaES: 'Después de los 40 el cortisol y la disminución de testosterona crean una firma de estrés muy específica. La tuya ya está en los datos. La estoy leyendo.',
     },
   ],
 
@@ -701,6 +733,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'After 40 the afternoon energy crash hits differently. Jules tracks your energy scores across the day to find your real second wind — not the one you think you have, but the one you actually have.',
       copyTextES: 'Después de los 40 la caída de energía de la tarde golpea diferente. Jules rastrea tus puntuaciones de energía a lo largo del día para encontrar tu verdadero segundo aire.',
       phaseTag: 'Energy', phaseEmoji: '🔋', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'The 6pm crash is real. You\'re not weak.',
+      headlinePicardiaES: 'El bajón de las 6pm es real. No eres débil.',
+      copyTextPicardia: 'Energy after 40 follows patterns your schedule doesn\'t account for. Jules tracks yours. Soon you\'ll know which evenings to protect — and which to use.',
+      copyTextPicardiaES: 'La energía después de los 40 sigue patrones que tu agenda no considera. Jules rastrea la tuya. Pronto sabrás qué noches proteger — y cuáles usar.',
     },
     {
       id: 'm_andro_connection_evening', imagePath: '722.png', imageUrl: img('722.png'),
@@ -709,6 +745,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Evening connection with people you care about predicts next-morning testosterone more reliably than most supplements. Jules tracks both. The correlation is clear.',
       copyTextES: 'La conexión nocturna con personas que te importan predice la testosterona de la mañana siguiente con más confiabilidad que la mayoría de los suplementos. Jules rastrea ambos. La correlación es clara.',
       phaseTag: 'Connection', phaseEmoji: '❤️', pillar: 'life', picardiaOnly: false,
+      headlinePicardia: 'Tonight matters more than you think.',
+      headlinePicardiaES: 'Esta noche importa más de lo que crees.',
+      copyTextPicardia: 'The quality of your evening connections directly affects tomorrow\'s testosterone. Jules tracks both. The correlation will change how you spend your evenings.',
+      copyTextPicardiaES: 'La calidad de tus conexiones nocturnas afecta directamente la testosterona de mañana. Jules rastrea ambos. La correlación cambiará cómo pasas tus noches.',
     },
     {
       id: 'm_andro_friends_evening', imagePath: '707.png', imageUrl: img('707.png'),
@@ -717,6 +757,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Male social bonding at this life stage produces measurable hormonal benefits. Jules tracks your evening social scores. The data will show you just how biological brotherhood actually is.',
       copyTextES: 'La vinculación social masculina en esta etapa de vida produce beneficios hormonales medibles. Jules rastrea tus puntuaciones sociales nocturnas. Los datos te mostrarán qué tan biológica es realmente la fraternidad.',
       phaseTag: 'Social', phaseEmoji: '🍺', pillar: 'life', picardiaOnly: false,
+      headlinePicardia: 'The people you choose are biological data.',
+      headlinePicardiaES: 'Las personas que eliges son datos biológicos.',
+      copyTextPicardia: 'Social bonding after 40 produces measurable hormonal benefits. Jules tracks your evening social scores. Some of your friendships are literally making you stronger.',
+      copyTextPicardiaES: 'La vinculación social después de los 40 produce beneficios hormonales medibles. Jules rastrea tus puntajes sociales nocturnos. Algunas de tus amistades literalmente te están haciendo más fuerte.',
     },
   ],
 
@@ -728,6 +772,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'Sleep is where testosterone is rebuilt. Every hour past midnight costs you the next morning. Jules tracks your sleep patterns and shows you the direct correlation to your energy scores.',
       copyTextES: 'El sueño es donde se reconstruye la testosterona. Cada hora después de la medianoche te cuesta la mañana siguiente. Jules rastrea tus patrones de sueño y te muestra la correlación directa.',
       phaseTag: 'Sleep', phaseEmoji: '🌙', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'Go to sleep. I mean it.',
+      headlinePicardiaES: 'Ve a dormir. Lo digo en serio.',
+      copyTextPicardia: 'Every hour past midnight is testosterone you won\'t have tomorrow. Jules is counting them. I\'m not judging — much.',
+      copyTextPicardiaES: 'Cada hora después de la medianoche es testosterona que no tendrás mañana. Jules las está contando. No te juzgo — mucho.',
     },
     {
       id: 'm_andro_couch_night', imagePath: '481.png', imageUrl: img('481.png'),
@@ -736,6 +784,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'After 40 the body sometimes asks for complete shutdown disguised as laziness. Jules tracks your recovery needs. Some nights the couch is the right call.',
       copyTextES: 'Después de los 40 el cuerpo a veces pide un apagado completo disfrazado de pereza. Jules rastrea tus necesidades de recuperación. Algunas noches el sofá es la decisión correcta.',
       phaseTag: 'Recovery', phaseEmoji: '🍕', pillar: 'life', picardiaOnly: false,
+      headlinePicardia: 'Smart. Your body asked for this.',
+      headlinePicardiaES: 'Inteligente. Tu cuerpo lo pidió.',
+      copyTextPicardia: 'After 40 rest isn\'t laziness. It\'s hormone recovery. Jules tracks which nights your body needs complete shutdown. Tonight is one of them.',
+      copyTextPicardiaES: 'Después de los 40 el descanso no es pereza. Es recuperación hormonal. Jules rastrea qué noches tu cuerpo necesita apagado completo. Esta noche es una de ellas.',
     },
     {
       id: 'm_andro_late_night', imagePath: '737.png', imageUrl: img('737.png'),
@@ -744,6 +796,10 @@ const DISCOVERY_CARDS: Record<string, Card[]> = {
       copyText: 'The dark circles at midnight tell the story. Sleep quality after 40 is not optional — it is the foundation of your hormone recovery. Jules tracks every night.',
       copyTextES: 'Las ojeras a la medianoche cuentan la historia. La calidad del sueño después de los 40 no es opcional — es la base de tu recuperación hormonal. Jules rastrea cada noche.',
       phaseTag: 'Sleep', phaseEmoji: '🌙', pillar: 'biology', picardiaOnly: false,
+      headlinePicardia: 'The dark circles tell the story. So does Jules.',
+      headlinePicardiaES: 'Las ojeras cuentan la historia. Jules también.',
+      copyTextPicardia: 'Sleep quality after 40 isn\'t optional — it\'s the foundation. Jules tracks every night. The data will show you exactly what you\'re costing yourself.',
+      copyTextPicardiaES: 'La calidad del sueño después de los 40 no es opcional — es la base. Jules rastrea cada noche. Los datos te mostrarán exactamente lo que te estás costando.',
     },
   ],
 
@@ -882,7 +938,14 @@ export function getCardForUser(profile: Profile): Card {
 
   // Days 0-29: rotate daily through discovery cards
   if (daysOfData < 30) {
-    return pool[dateIndex % pool.length];
+    const dayCard = pool[dateIndex % pool.length];
+    const dayHeadlineOverride = picardiaMode && dayCard.headlinePicardia
+      ? { headline: dayCard.headlinePicardia, headlineES: dayCard.headlinePicardiaES ?? dayCard.headlineES }
+      : {};
+    const dayCopyOverride = picardiaMode && dayCard.copyTextPicardia
+      ? { copyText: dayCard.copyTextPicardia, copyTextES: dayCard.copyTextPicardiaES ?? dayCard.copyTextES }
+      : {};
+    return { ...dayCard, ...dayHeadlineOverride, ...dayCopyOverride };
   }
 
   // Day 30+: exclude financial/promotional cards — user earned real insights
@@ -892,8 +955,18 @@ export function getCardForUser(profile: Profile): Card {
   const phaseResult = getCurrentPhase(profile);
   const baseCard = finalPool[dateIndex % finalPool.length];
 
+  // Apply picardia voice variants if available and mode is on
+  const headlineOverride = picardiaMode && baseCard.headlinePicardia
+    ? { headline: baseCard.headlinePicardia, headlineES: baseCard.headlinePicardiaES ?? baseCard.headlineES }
+    : {};
+  const copyOverride = picardiaMode && baseCard.copyTextPicardia
+    ? { copyText: baseCard.copyTextPicardia, copyTextES: baseCard.copyTextPicardiaES ?? baseCard.copyTextES }
+    : {};
+
   return {
     ...baseCard,
+    ...headlineOverride,
+    ...copyOverride,
     phaseTag: phaseResult.displayName,
     phaseEmoji: phaseResult.emoji,
   };
