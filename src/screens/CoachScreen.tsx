@@ -1043,6 +1043,58 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
     // Save session first
     void saveSession();
 
+    // Write session summary for Jules's memory
+    void (async () => {
+      try {
+        const scores = scoresRef.current;
+        const parts: string[] = [];
+        if (scores.factor_energia   != null) parts.push(`Energy ${scores.factor_energia}`);
+        if (scores.factor_estres    != null) parts.push(`Stress ${scores.factor_estres}`);
+        if (scores.factor_ansiedad  != null) parts.push(`Anxiety ${scores.factor_ansiedad}`);
+        if (scores.factor_sexual    != null) parts.push(`Sexual ${scores.factor_sexual}`);
+        if (scores.factor_cognitivo != null) parts.push(`Focus ${scores.factor_cognitivo}`);
+        if (scores.factor_emocional != null) parts.push(`Mood ${scores.factor_emocional}`);
+        if (scores.factor_social    != null) parts.push(`Social ${scores.factor_social}`);
+        if (scores.factor_sueno     != null) parts.push(`Sleep ${scores.factor_sueno === 7 ? 'good' : 'poor'}`);
+        if (scores.factor_cafeina   != null) parts.push(`Caffeine ${scores.factor_cafeina}`);
+        if (scores.factor_alcohol   === true) parts.push('Alcohol yes');
+        if (scores.day_rating       != null) parts.push(`Day ${scores.day_rating}`);
+        if (scores.day_memory) parts.push(`Moment: "${scores.day_memory.slice(0, 60)}"`);
+
+        // Add most recent Circle interaction if scored this session
+        if (sessionRef.current.scoringRelationship) {
+          const rel = sessionRef.current.scoringRelationship;
+          const { data: lastInteraction } = await supabase
+            .from('relationship_interactions')
+            .select('connection_score')
+            .eq('relationship_id', rel.id)
+            .order('interaction_date', { ascending: false })
+            .limit(1)
+            .single();
+          if (lastInteraction?.connection_score != null) {
+            parts.push(`Circle: ${rel.name} ${lastInteraction.connection_score}`);
+          }
+        }
+
+        if (parts.length === 0) return;
+
+        const summary = parts.join(', ');
+        const today = new Date().toISOString().split('T')[0];
+
+        await supabase
+          .from('conversation_sessions')
+          .update({ session_summary: summary })
+          .eq('user_id', profile.id)
+          .eq('session_date', today)
+          .eq('time_slot', dbSlot())
+          .eq('session_complete', true);
+
+        console.log('[BioCycle] session summary written:', summary);
+      } catch (err) {
+        console.warn('[BioCycle] session summary write failed (non-blocking):', err);
+      }
+    })();
+
     // Build coaching synthesis from today's scores + phase + context
     const scores = scoresRef.current;
     const slot = sessionRef.current.slot;
