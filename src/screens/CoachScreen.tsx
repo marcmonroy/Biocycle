@@ -207,11 +207,27 @@ function getChoiceOptions(state: ConversationState, isES: boolean): string[] {
 
 // ── State transition graph ────────────────────────────────────────────────
 
-function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: boolean): ConversationState | 'SESSION_COMPLETE' {
+function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: boolean, liveDays = 0): ConversationState | 'SESSION_COMPLETE' {
   if (isGap) {
     if (qState === 'ENERGY_Q') return 'STRESS_Q';
     return 'SESSION_COMPLETE';
   }
+
+  // Day 30+: consolidated single session flow
+  // ENERGY → STRESS → ANXIETY → SEXUAL → SLEEP → SESSION_COMPLETE
+  const isDayThirtyPlus = liveDays >= 30;
+  if (isDayThirtyPlus) {
+    switch (qState) {
+      case 'ENERGY_Q':    return 'STRESS_Q';
+      case 'STRESS_Q':    return 'ANXIETY_Q';
+      case 'ANXIETY_Q':   return 'SEXUAL_Q';
+      case 'SEXUAL_Q':    return 'SLEEP_Q';
+      case 'SLEEP_Q':     return 'SESSION_COMPLETE';
+      default:            return 'SESSION_COMPLETE';
+    }
+  }
+
+  // Days 1-29: original slot-based flow
   switch (slot) {
     case 'morning':
       switch (qState) {
@@ -959,13 +975,19 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
   }
 
   function enterFirstDimension() {
+    // Day 30+: always start with energy regardless of time of day
+    if (liveDaysRef.current >= 30) {
+      showQuestion('ENERGY_Q');
+      return;
+    }
+    // Days 1-29: slot-based entry
     const slot = sessionRef.current.slot;
     if (slot === 'afternoon') {
       showQuestion('EMOTIONAL_Q');
     } else if (slot === 'night') {
       showQuestion('DAY_RATING_Q');
     } else {
-      showQuestion('ENERGY_Q'); // morning — always
+      showQuestion('ENERGY_Q');
     }
   }
 
@@ -1218,7 +1240,7 @@ CRITICAL RULES:
       addUserMsg(rawInput);
 
       const ackState = (qState.replace('_Q', '_ACK')) as ConversationState;
-      const nextQ    = getNextQState(qState, sessionRef.current.slot, sessionRef.current.isGap);
+      const nextQ    = getNextQState(qState, sessionRef.current.slot, sessionRef.current.isGap, liveDaysRef.current);
 
       sessionRef.current.state = ackState;
       setConvState(ackState); // shows 'none' input UI — no input while Jules responds
@@ -1551,15 +1573,21 @@ CRITICAL RULES:
       const completedSlots = completedToday?.map((s: { time_slot: string }) => s.time_slot) ?? [];
       const currentSlot = sessionRef.current.slot;
 
-      if (completedSlots.includes(currentSlot)) {
-        const nextTime = currentSlot === 'morning'
-          ? (isES ? 'esta tarde' : 'this afternoon')
-          : currentSlot === 'afternoon'
-          ? (isES ? 'esta noche' : 'tonight')
-          : (isES ? 'mañana por la mañana' : 'tomorrow morning');
-        const lockedMsg = isES
-          ? `Ya completaste tu sesión de esta ${getSlotLabel(currentSlot, true)}, ${name}. Nos vemos ${nextTime}.`
-          : `You already completed your ${getSlotLabel(currentSlot, false)} check-in, ${name}. See you ${nextTime}.`;
+      // Day 30+: one session per calendar day total
+      // Days 1-29: one session per slot per day (original behavior)
+      const isDayThirtyPlus = liveDays >= 30;
+      const alreadyDoneToday = isDayThirtyPlus
+        ? completedSlots.length > 0
+        : completedSlots.includes(currentSlot);
+
+      if (alreadyDoneToday) {
+        const lockedMsg = isDayThirtyPlus
+          ? (isES
+              ? `Ya completaste tu sesión de hoy, ${name}. Nos vemos mañana.`
+              : `You already completed today's session, ${name}. See you tomorrow.`)
+          : (isES
+              ? `Ya completaste tu sesión de esta ${getSlotLabel(currentSlot, true)}, ${name}. Nos vemos ${getNextSessionSlot(currentSlot, true)}.`
+              : `You already completed your ${getSlotLabel(currentSlot, false)} check-in, ${name}. See you ${getNextSessionSlot(currentSlot, false)}.`);
         setMessages([]);
         convHistoryRef.current = [];
         sessionRef.current.state = 'SESSION_COMPLETE';
