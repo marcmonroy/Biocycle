@@ -639,26 +639,39 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       : '';
 
     // For stress and anxiety, Jules should be more interpretive
-    const isHighImpact = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && parseInt(userValue, 10) >= 7;
-    const isLowImpact  = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && parseInt(userValue, 10) <= 2;
+    const val = parseInt(userValue, 10);
+    const isHighImpact = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && val >= 7;
+    const isLowImpact  = (qState === 'STRESS_Q' || qState === 'ANXIETY_Q') && val <= 2;
     const isSleepPoor  = qState === 'SLEEP_Q' && (userValue === 'Restless' || userValue === 'Mal');
+    const isSexualHigh = qState === 'SEXUAL_Q' && val >= 7;
+    const isSexualLow  = qState === 'SEXUAL_Q' && val <= 3;
+    const isEnergyLow  = qState === 'ENERGY_Q' && val <= 3;
+    const isEnergyHigh = qState === 'ENERGY_Q' && val >= 8;
 
     const sys = isES
       ? `${noIntro}RESPUESTA BREVE. Una sola oración de reconocimiento.
 Fase del usuario: ${phaseLabel}. El usuario reportó ${dimLabel}: ${userValue}.
-${isHighImpact ? 'El valor es alto — menciona brevemente la conexión con su fase hormonal.' : ''}
-${isLowImpact ? 'El valor es notablemente bajo — un reconocimiento cálido y específico.' : ''}
-${isSleepPoor ? 'Sueño deficiente — conecta con el impacto en cognición o energía de hoy.' : ''}
+${isHighImpact ? 'Valor alto — conecta brevemente con su estado hormonal o lo que le cuesta.' : ''}
+${isLowImpact ? 'Notablemente bajo — reconocimiento cálido y específico de lo que significa biológicamente.' : ''}
+${isSleepPoor ? 'Sueño deficiente — nombra el impacto específico en cognición, testosterona o energía hoy.' : ''}
+${isSexualHigh ? 'Energía sexual alta — reconócela directamente y conecta con la ventana de testosterona de la andropausia.' : ''}
+${isSexualLow ? 'Energía sexual baja — reconoce sin alarma, conecta con el contexto de recuperación o estrés.' : ''}
+${isEnergyLow ? 'Energía baja — conecta con el ritmo de la andropausia o la calidad del sueño si es relevante.' : ''}
+${isEnergyHigh ? 'Energía alta — reconoce directamente la ventana pico.' : ''}
 PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración cálida y directa.${ctx}`
       : `${noIntro}BRIEF ACKNOWLEDGMENT. One sentence only.
 User's phase: ${phaseLabel}. User reported ${dimLabel}: ${userValue}.
-${isHighImpact ? 'The value is high — briefly connect it to their hormonal phase.' : ''}
-${isLowImpact ? 'The value is notably low — warm specific acknowledgment.' : ''}
-${isSleepPoor ? 'Poor sleep — connect to the impact on today\'s cognition or energy.' : ''}
+${isHighImpact ? 'High value — connect briefly to their hormonal state or what it costs them.' : ''}
+${isLowImpact ? 'Notably low — warm specific acknowledgment of what that means biologically.' : ''}
+${isSleepPoor ? 'Poor sleep — name the specific impact on cognition, testosterone, or energy today.' : ''}
+${isSexualHigh ? 'High sexual energy — acknowledge it directly and connect to their andropause testosterone window.' : ''}
+${isSexualLow ? 'Low sexual energy — acknowledge without alarm, connect to recovery or stress context.' : ''}
+${isEnergyLow ? 'Low energy — connect to andropause rhythm or sleep quality if relevant.' : ''}
+${isEnergyHigh ? 'High energy — acknowledge the peak window directly.' : ''}
 FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${ctx}`;
 
     const ackMessages: Message[] = [{ role: 'user', content: userValue }];
-    const text = await callCoachAPI(ackMessages, sys, 50);
+    const text = await callCoachAPI(ackMessages, sys, 80);
     return text || (isES ? 'Anotado.' : 'Got it.');
   }
 
@@ -1145,9 +1158,48 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
       if (scores.day_rating       != null) scoreLines.push(`Day rating: ${scores.day_rating}/10`);
       if (scores.day_memory) scoreLines.push(`Memorable moment: "${scores.day_memory}"`);
 
+      // Load 7-day averages for baseline comparison
+      let baselineCtx = '';
+      try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const { data: recentSessions } = await (supabase as any)
+          .from('conversation_sessions')
+          .select('factor_energia, factor_estres, factor_ansiedad, factor_sexual, factor_sueno, factor_cognitivo')
+          .eq('user_id', profile.id)
+          .eq('session_complete', true)
+          .gte('session_date', sevenDaysAgo.toISOString().split('T')[0])
+          .order('session_date', { ascending: false })
+          .limit(14);
+
+        if (recentSessions && recentSessions.length >= 3) {
+          const avg = (key: string) => {
+            const vals = recentSessions.map((s: any) => s[key]).filter((v: any) => v != null);
+            if (vals.length === 0) return null;
+            return Math.round(vals.reduce((a: number, b: number) => a + b, 0) / vals.length * 10) / 10;
+          };
+          const lines: string[] = [];
+          const aEnergy  = avg('factor_energia');
+          const aStress  = avg('factor_estres');
+          const aAnxiety = avg('factor_ansiedad');
+          const aSexual  = avg('factor_sexual');
+          const aSleep   = avg('factor_sueno');
+          if (aEnergy  != null) lines.push(`Energy 7-day avg: ${aEnergy}`);
+          if (aStress  != null) lines.push(`Stress 7-day avg: ${aStress}`);
+          if (aAnxiety != null) lines.push(`Anxiety 7-day avg: ${aAnxiety}`);
+          if (aSexual  != null) lines.push(`Sexual energy 7-day avg: ${aSexual}`);
+          if (aSleep   != null) lines.push(`Sleep 7-day avg: ${aSleep}`);
+          if (lines.length > 0) {
+            baselineCtx = `\n\nUser's 7-day baseline averages:\n${lines.join('\n')}`;
+          }
+        }
+      } catch (err) {
+        console.warn('[_doSessionComplete] baseline query failed:', err);
+      }
+
       const recentCtx = ctx
-        ? `\n\nPattern context from recent sessions:\n${ctx}`
-        : '';
+        ? `\n\nPattern context from recent sessions:\n${ctx}${baselineCtx}`
+        : baselineCtx;
 
       const coachSys = isES
         ? `${noIntro}Eres Jules, coach de inteligencia biológica de BioCycle. El usuario acaba de completar su check-in de ${slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche'}.
@@ -1156,53 +1208,51 @@ Fase actual: ${phaseLabel} (día ${daysData} de datos).
 Puntuaciones de hoy:
 ${scoreLines.join('\n')}${recentCtx}
 
-Tu tarea: escribe exactamente 2-3 oraciones de interpretación coaching.
+Tu tarea: escribe exactamente 2-3 oraciones de interpretación coaching, luego una pregunta corta y abierta.
 
 REGLAS CRÍTICAS:
-- Interpreta los números en contexto de su fase hormonal — no los repitas
-- Menciona algo específico que los patrones revelan sobre su estado biológico actual
-- Si hay una tensión interesante (ej. energía baja + ansiedad baja), nómbrala
-- Si hay una ventana de oportunidad o protección hoy, señálala
+- Compara las puntuaciones de hoy con los promedios de 7 días si están disponibles — di "por debajo de tu línea base reciente" o "lo más alto de la semana" cuando sea relevante
+- Nombra algo específico que el patrón revela — no qué son los números, sino qué significan biológicamente
+- Si hay una tensión interesante (ej. energía sexual alta + sueño deficiente, o estrés bajo + energía baja), nómbrala directamente
+- Si una persona del Círculo aparece en el contexto reciente con un patrón (puntuaciones consistentemente altas o bajas), menciónala por nombre
 - Tono: ${picardiaMode ? 'directo, ligeramente provocador, seguro — Sienna. Nunca vulgar. Nunca genérico.' : 'mentor biológico cálido y directo. Nunca "deberías". Nunca genérico.'}
-- Si hay contexto del Círculo en los patrones recientes, refiérete a él específicamente — nombra a la persona y lo que muestra el patrón.
+- Termina con UNA pregunta corta y abierta que invite al usuario a reflexionar — no una pregunta de datos, una pregunta de vida. Ejemplos: "¿Qué crees que está detrás de eso?" / "¿Algo cambió esta semana?" / "¿Qué necesita tu cuerpo esta noche?"
 - NUNCA digas tu nombre. NUNCA saludes. Empieza directo con la interpretación.
-- Máximo 3 oraciones. Sin preguntas.`
+- Máximo 3 oraciones + 1 pregunta. Menos de 60 palabras en total.`
         : `${noIntro}You are Jules, BioCycle's biological intelligence coach. The user just completed their ${slot} check-in.
 
 Current phase: ${phaseLabel} (day ${daysData} of data).
 Today's scores:
 ${scoreLines.join('\n')}${recentCtx}
 
-Your task: write exactly 2-3 sentences of coaching interpretation.
+Your task: write exactly 2-3 sentences of coaching interpretation, then one short open question.
 
 CRITICAL RULES:
-- Interpret the numbers in the context of their hormonal phase — do not repeat the numbers back
-- Name something specific that the pattern reveals about their current biological state
-- If there is an interesting tension (e.g. low energy + low anxiety), name it
-- If there is a window of opportunity or protection today, point to it
+- Compare today's scores to the 7-day averages if available — say "lower than your recent baseline" or "highest this week" when relevant
+- Name something specific the pattern reveals — not what the numbers are, but what they mean biologically
+- If there is an interesting tension (e.g. high sexual energy + poor sleep, or low stress + low energy), name it directly
+- If a Circle person appears in recent context with a pattern (consistently high or low scores), mention them by name
 - Tone: ${picardiaMode ? 'direct, slightly provocative, confident — Sienna. Never crude. Never generic.' : 'warm, direct biological mentor. Never "you should." Never generic.'}
-- If Circle context is present in the recent patterns, reference it specifically — name the person and what the pattern shows.
+- End with ONE short open question that invites the user to reflect — not a data question, a life question. Examples: "What do you think is driving that?" / "Has anything shifted this week?" / "What does your body need tonight?"
 - NEVER say your name. NEVER greet. Start directly with the interpretation.
-- Maximum 3 sentences. No questions.`;
+- Maximum 3 sentences + 1 question. Keep it under 60 words total.`;
 
       setBioState('thinking');
       const coachingText = await callCoachAPI(
         [{ role: 'user', content: scoreLines.join(', ') }],
         coachSys,
-        120
+        200
       );
       setBioState('idle');
 
       if (coachingText) {
-        sessionRef.current.state = 'SESSION_COMPLETE';
-        setConvState('SESSION_COMPLETE');
         addJulesMsg(coachingText);
 
-        // After coaching, deliver farewell
+        // After coaching synthesis, enter ADHOC mode so user can respond
+        // Jules asked a question — user should be able to answer it
         speak(coachingText, () => {
-          const farewell = getCompletionText(slot, name, isES);
-          addJulesMsg(farewell);
-          speak(farewell);
+          sessionRef.current.state = 'ADHOC';
+          setConvState('ADHOC');
         });
         return;
       }
