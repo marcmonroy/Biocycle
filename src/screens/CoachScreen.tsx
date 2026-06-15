@@ -658,7 +658,8 @@ ${isSexualHigh ? 'Energía sexual alta — reconócela directamente y conecta co
 ${isSexualLow ? 'Energía sexual baja — reconoce sin alarma, conecta con el contexto de recuperación o estrés.' : ''}
 ${isEnergyLow ? 'Energía baja — conecta con el ritmo de la andropausia o la calidad del sueño si es relevante.' : ''}
 ${isEnergyHigh ? 'Energía alta — reconoce directamente la ventana pico.' : ''}
-PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración cálida y directa.${ctx}`
+${picardiaMode ? 'Voz: Sienna — directa, ligeramente provocadora, nunca genérica. No Jules.' : 'Voz: Jules — mentor biológico cálido.'}
+PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración directa.${ctx}`
       : `${noIntro}BRIEF ACKNOWLEDGMENT. One sentence only.
 User's phase: ${phaseLabel}. User reported ${dimLabel}: ${userValue}.
 ${isHighImpact ? 'High value — connect briefly to their hormonal state or what it costs them.' : ''}
@@ -668,7 +669,8 @@ ${isSexualHigh ? 'High sexual energy — acknowledge it directly and connect to 
 ${isSexualLow ? 'Low sexual energy — acknowledge without alarm, connect to recovery or stress context.' : ''}
 ${isEnergyLow ? 'Low energy — connect to andropause rhythm or sleep quality if relevant.' : ''}
 ${isEnergyHigh ? 'High energy — acknowledge the peak window directly.' : ''}
-FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${ctx}`;
+${picardiaMode ? 'Voice: Sienna — direct, slightly provocative, never generic. Not Jules.' : 'Voice: Jules — warm biological mentor.'}
+FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`;
 
     const ackMessages: Message[] = [{ role: 'user', content: userValue }];
     const text = await callCoachAPI(ackMessages, sys, 80);
