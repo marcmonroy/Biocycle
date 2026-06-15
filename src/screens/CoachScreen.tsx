@@ -974,9 +974,10 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
     }
   }
 
-  function enterFirstDimension() {
+  function enterFirstDimension(daysOverride?: number) {
+    const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
     // Day 30+: always start with energy regardless of time of day
-    if (liveDaysRef.current >= 30) {
+    if (days >= 30) {
       showQuestion('ENERGY_Q');
       return;
     }
@@ -1798,7 +1799,7 @@ CRITICAL RULES:
         }
 
         // All other cases: go straight to first dimension
-        enterFirstDimension();
+        enterFirstDimension(liveDays);
       });
     })();
 
