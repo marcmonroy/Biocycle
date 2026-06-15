@@ -1109,8 +1109,9 @@ FORBIDDEN: questions, advice, saying your name. One warm direct sentence only.${
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
 
-    setTimeout(() => { _doSessionComplete(); }, 200);
-    speak(thankMsg);
+    speak(thankMsg, () => {
+      setTimeout(() => { _doSessionComplete(); }, 200);
+    });
   }
 
   async function _doSessionComplete() {
@@ -1254,15 +1255,16 @@ CRITICAL RULES:
       setBioState('idle');
 
       addJulesMsg(ackText);
-      // Advance state immediately — do not wait for audio
-      setTimeout(() => {
-        if (nextQ === 'SESSION_COMPLETE') {
-          enterSessionComplete();
-        } else {
-          showQuestion(nextQ as ConversationState);
-        }
-      }, 200);
-      speak(ackText);
+      // Wait for ACK audio to finish before showing next question — prevents crossover
+      speak(ackText, () => {
+        setTimeout(() => {
+          if (nextQ === 'SESSION_COMPLETE') {
+            enterSessionComplete();
+          } else {
+            showQuestion(nextQ as ConversationState);
+          }
+        }, 300);
+      });
     } finally {
       isProcessingRef.current = false;
     }
