@@ -154,7 +154,11 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
   }
 }
 
-function getCompletionText(slot: SessionSlot, name: string, isES: boolean): string {
+function getCompletionText(slot: SessionSlot, name: string, isES: boolean, liveDays = 0): string {
+  if (liveDays >= 30) {
+    if (isES) return `Eso es todo por hoy, ${name}. Nos vemos mañana.`;
+    return `That's it for today, ${name}. See you tomorrow.`;
+  }
   const slotLabel = getSlotLabel(slot, isES);
   const next      = getNextSessionSlot(slot, isES);
   if (isES) return `Eso es todo por esta ${slotLabel}, ${name}. Nos vemos ${next}.`;
@@ -1016,6 +1020,14 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   }
 
   async function maybeScoreRelationship() {
+    // Day 30+: skip Circle scoring in morning — only score in evening/night
+    // when the person has actually been with someone today
+    const currentSlot = sessionRef.current.slot;
+    if (liveDaysRef.current >= 30 && currentSlot === 'morning') {
+      void _doSessionComplete();
+      return;
+    }
+
     // Only score in morning or afternoon sessions
     if (sessionRef.current.slot === 'night') {
       _enterNameCollectionOrClose();
@@ -1261,7 +1273,7 @@ CRITICAL RULES:
     }
 
     // Fallback if no scores or API fails
-    const text = getCompletionText(sessionRef.current.slot, name, isES);
+    const text = getCompletionText(sessionRef.current.slot, name, isES, liveDaysRef.current);
     sessionRef.current.state = 'SESSION_COMPLETE';
     setConvState('SESSION_COMPLETE');
     addJulesMsg(text);
