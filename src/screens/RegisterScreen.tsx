@@ -427,16 +427,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   };
 
   // ── Step 5 ───────────────────────────────────────────────────────────────
-  const handleCodeInput = (val: string, idx: number) => {
-    const d = val.replace(/\D/g, '').slice(0, 1);
-    const next = [...verificationCode];
-    next[idx] = d;
-    setVerificationCode(next);
-    if (d && idx < 5) {
-      document.getElementById(`code-${idx + 1}`)?.focus();
-    }
-  };
-
   const handleStep5 = async () => {
     const entered = verificationCode.join('');
     if (entered.length < 6) { setError(isES ? 'Ingresa los 6 dígitos.' : 'Enter all 6 digits.'); return; }
