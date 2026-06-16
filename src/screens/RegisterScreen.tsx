@@ -97,7 +97,7 @@ function WhatsAppActivationStep({
         )}
 
         <a
-          href={`https://wa.me/16625688859?text=${encodeURIComponent(isES ? 'Sí, acepto recibir mis recordatorios diarios de BioCycle' : 'Yes, I accept to receive my daily reminders from BioCycle')}`}
+          href={`https://wa.me/16625688859?text=${encodeURIComponent(isES ? 'Si' : 'Yes')}`}
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => startPolling()}

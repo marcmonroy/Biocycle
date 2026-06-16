@@ -47,7 +47,7 @@ exports.handler = async (event) => {
     const phone = from.replace('whatsapp:', '');
 
     // Check if this is a YES activation message
-    const isYes = ['yes', 'si', 'sí', 'ok', 'okay', 'sure', 'activate', 'activar'].includes(body);
+    const isYes = ['yes', 'si', 'sí', 'ok', 'okay', 'sure', 'activate', 'activar'].some(word => body.startsWith(word));
 
     const slotMap = {
       'morning': 'morning', 'mañana': 'morning', 'manana': 'morning', 'madrugada': 'morning',
