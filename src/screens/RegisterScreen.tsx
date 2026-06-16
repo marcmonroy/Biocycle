@@ -29,6 +29,120 @@ const COUNTRY_CODES = [
   { code: '+55',   label: 'BR' },
 ];
 
+function WhatsAppActivationStep({
+  userId, isES, colors, fonts, onActivated, onDecline
+}: {
+  userId: string;
+  isES: boolean;
+  colors: any;
+  fonts: any;
+  onActivated: () => void;
+  onDecline: () => void;
+}) {
+  const [polling, setPolling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function startPolling() {
+    if (polling) return;
+    setPolling(true);
+    pollRef.current = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('whatsapp_enabled')
+          .eq('id', userId)
+          .single();
+        if (data?.whatsapp_enabled === true) {
+          clearInterval(pollRef.current!);
+          onActivated();
+        }
+      } catch { /* keep polling */ }
+    }, 3000);
+  }
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: colors.midnight, padding: '48px 24px 32px' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24, textAlign: 'center' }}>
+        <div style={{ fontSize: 56 }}>{polling ? '⏳' : '💬'}</div>
+        <h2 style={{ color: colors.bone, fontFamily: fonts.mono, fontSize: '1.3rem', fontWeight: 700, margin: 0, lineHeight: 1.3 }}>
+          {polling
+            ? (isES ? 'Esperando tu mensaje...' : 'Waiting for your message...')
+            : (isES ? 'Activa tus recordatorios' : 'Activate your reminders')}
+        </h2>
+        <p style={{ color: 'rgba(245,242,238,0.7)', fontSize: '0.9rem', lineHeight: 1.7, margin: 0, maxWidth: 320 }}>
+          {polling
+            ? (isES
+                ? 'Abre WhatsApp, envía el mensaje y regresa aquí. La app se activará automáticamente.'
+                : 'Open WhatsApp, send the message, and come back here. The app will activate automatically.')
+            : (isES
+                ? 'BioCycle funciona a través de WhatsApp. Sin él, Jules no puede enviarte tus recordatorios diarios y el app no tiene sentido.\n\nToca el botón y envía el mensaje para activar.'
+                : 'BioCycle works through WhatsApp. Without it, Jules cannot send your daily reminders and the app has no value.\n\nTap the button and send the message to activate.')}
+        </p>
+
+        {polling && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[0,1,2].map(i => (
+              <div key={i} style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: colors.amber,
+                animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite`,
+              }} />
+            ))}
+          </div>
+        )}
+
+        <a
+          href={`https://wa.me/16625688859?text=${encodeURIComponent(isES ? 'Sí, acepto recibir mis recordatorios diarios de BioCycle' : 'Yes, I accept to receive my daily reminders from BioCycle')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => startPolling()}
+          style={{
+            width: '100%',
+            maxWidth: 360,
+            background: '#25D366',
+            borderRadius: 14,
+            padding: '18px 24px',
+            color: 'white',
+            fontSize: '1rem',
+            fontWeight: 700,
+            textAlign: 'center',
+            textDecoration: 'none',
+            display: 'block',
+            boxSizing: 'border-box' as const,
+          }}
+        >
+          {isES ? '💬 Abrir WhatsApp y activar' : '💬 Open WhatsApp and activate'}
+        </a>
+
+        <button
+          disabled={deleting}
+          onClick={async () => {
+            setDeleting(true);
+            await onDecline();
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'rgba(245,242,238,0.3)',
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            marginTop: 8,
+          }}
+        >
+          {deleting
+            ? (isES ? 'Eliminando cuenta...' : 'Deleting account...')
+            : (isES ? 'No acepto — eliminar mi cuenta' : 'I decline — delete my account')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserId, initialPhone, initialEmail }: Props) {
   const [step, setStep] = useState<Step>(() => initialStep ?? 1);
   // Authoritative userId — set only from the live signUp response (or explicitly in the resume effect).
@@ -343,7 +457,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader', founding_trader: false }, { onConflict: 'user_id' });
       await supabase.from('profiles').update({ checkin_times: { morning: { hour: new Date(new Date().setHours(8,0,0,0)).getUTCHours(), label: '8am' }, afternoon: { hour: new Date(new Date().setHours(13,0,0,0)).getUTCHours(), label: '1pm' }, night: { hour: new Date(new Date().setHours(20,0,0,0)).getUTCHours(), label: '8pm' } } }).eq('id', userIdRef.current);
       setLoading(false);
-      onComplete();
+      setStep(6 as any);
       return;
     }
 
@@ -394,7 +508,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }).eq('id', userIdRef.current);
 
     setLoading(false);
-    onComplete();
+    setStep(6 as any);
   };
 
   const handleResend = async () => {
@@ -708,6 +822,27 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
             </button>
           )}
         </>)}
+
+        {/* Step 6 — Mandatory WhatsApp activation with auto-detection */}
+        {(step as any) === 6 && (
+          <WhatsAppActivationStep
+            userId={userIdRef.current!}
+            isES={isES}
+            colors={colors}
+            fonts={fonts}
+            onActivated={() => onComplete()}
+            onDecline={async () => {
+              if (userIdRef.current) {
+                await fetch('/.netlify/functions/delete-own-account', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId: userIdRef.current }),
+                });
+              }
+              window.location.href = '/';
+            }}
+          />
+        )}
 
       </div>
     </div>
