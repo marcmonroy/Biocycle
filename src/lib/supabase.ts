@@ -18,6 +18,7 @@ export interface Profile {
   whatsapp_phone: string | null;
   whatsapp_verified: boolean;
   whatsapp_enabled: boolean | null;
+  preferred_checkin_slot: 'morning' | 'afternoon' | 'night' | null;
 
   // Body metrics
   height_cm: number | null;

@@ -221,13 +221,48 @@ function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: bool
   // ENERGY → STRESS → ANXIETY → SEXUAL → SLEEP → SESSION_COMPLETE
   const isDayThirtyPlus = liveDays >= 30;
   if (isDayThirtyPlus) {
-    switch (qState) {
-      case 'ENERGY_Q':    return 'STRESS_Q';
-      case 'STRESS_Q':    return 'ANXIETY_Q';
-      case 'ANXIETY_Q':   return 'SEXUAL_Q';
-      case 'SEXUAL_Q':    return 'SLEEP_Q';
-      case 'SLEEP_Q':     return 'SESSION_COMPLETE';
-      default:            return 'SESSION_COMPLETE';
+    // Question set varies by preferred slot — questions relevant to time of day
+    switch (slot) {
+      case 'morning':
+        // Morning: core vitals + sleep quality from last night
+        switch (qState) {
+          case 'ENERGY_Q':  return 'STRESS_Q';
+          case 'STRESS_Q':  return 'ANXIETY_Q';
+          case 'ANXIETY_Q': return 'SEXUAL_Q';
+          case 'SEXUAL_Q':  return 'SLEEP_Q';
+          case 'SLEEP_Q':   return 'SESSION_COMPLETE';
+          default:          return 'SESSION_COMPLETE';
+        }
+      case 'afternoon':
+        // Afternoon: energy check + emotional state mid-day
+        switch (qState) {
+          case 'ENERGY_Q':    return 'STRESS_Q';
+          case 'STRESS_Q':    return 'ANXIETY_Q';
+          case 'ANXIETY_Q':   return 'SEXUAL_Q';
+          case 'SEXUAL_Q':    return 'EMOTIONAL_Q';
+          case 'EMOTIONAL_Q': return 'SESSION_COMPLETE';
+          default:            return 'SESSION_COMPLETE';
+        }
+      case 'night':
+        // Night: how did the day go + key metrics + memorable moment
+        switch (qState) {
+          case 'ENERGY_Q':     return 'STRESS_Q';
+          case 'STRESS_Q':     return 'ANXIETY_Q';
+          case 'ANXIETY_Q':    return 'SEXUAL_Q';
+          case 'SEXUAL_Q':     return 'DAY_RATING_Q';
+          case 'DAY_RATING_Q': return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':  return 'SESSION_COMPLETE';
+          default:             return 'SESSION_COMPLETE';
+        }
+      default:
+        switch (qState) {
+          case 'ENERGY_Q':  return 'STRESS_Q';
+          case 'STRESS_Q':  return 'ANXIETY_Q';
+          case 'ANXIETY_Q': return 'SEXUAL_Q';
+          case 'SEXUAL_Q':  return 'SLEEP_Q';
+          case 'SLEEP_Q':   return 'SESSION_COMPLETE';
+          default:          return 'SESSION_COMPLETE';
+        }
     }
   }
 
@@ -995,8 +1030,10 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
   function enterFirstDimension(daysOverride?: number) {
     const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
-    // Day 30+: always start with energy regardless of time of day
     if (days >= 30) {
+      // Set session slot to preferred slot for day 30+ so question set matches
+      const preferred = (profile as any).preferred_checkin_slot ?? sessionRef.current.slot;
+      sessionRef.current.slot = preferred;
       showQuestion('ENERGY_Q');
       return;
     }
@@ -1020,10 +1057,9 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   }
 
   async function maybeScoreRelationship() {
-    // Day 30+: skip Circle scoring in morning — only score in evening/night
-    // when the person has actually been with someone today
+    // Day 30+: only ask Circle question in night slot when user has had a full day
     const currentSlot = sessionRef.current.slot;
-    if (liveDaysRef.current >= 30 && currentSlot === 'morning') {
+    if (liveDaysRef.current >= 30 && currentSlot !== 'night') {
       void _doSessionComplete();
       return;
     }

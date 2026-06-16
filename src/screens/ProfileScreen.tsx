@@ -170,6 +170,9 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
       ? utcToLocal(profile.checkin_times.night.hour)
       : 20
   );
+  const [preferredSlot, setPreferredSlot] = useState<'morning' | 'afternoon' | 'night'>(
+    (profile as any).preferred_checkin_slot ?? 'morning'
+  );
 
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
@@ -240,6 +243,7 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         afternoon: { hour: localToUTC(checkinAfternoon), label: formatHour(checkinAfternoon) },
         night:     { hour: localToUTC(checkinNight),     label: formatHour(checkinNight) },
       },
+      preferred_checkin_slot: daysOfData >= 30 ? preferredSlot : null,
     };
 
     if (isFemale) {
@@ -404,49 +408,114 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
         <ReadRow label="WhatsApp" value={profile.whatsapp_phone ?? '—'} />
       </Section>
 
-      {/* ── Check-in times (first and most important for new users) ────────── */}
+      {/* ── Check-in times — 3 slots for days 1-29, single slot for day 30+ */}
       <Section label={L('Check-in Times', 'Horarios de Check-in')}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Morning check-in', 'Check-in Mañana')}
+        {daysOfData >= 30 ? (
+          // Day 30+: single daily reminder slot
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <p style={{ color: colors.boneFaint, fontSize: 12, lineHeight: 1.5, margin: 0 }}>
+              {L(
+                'You\'ve completed calibration. Jules now sends one daily check-in. Choose when.',
+                'Completaste la calibración. Jules ahora te envía un check-in diario. Elige cuándo.'
+              )}
             </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.morning.map(h => (
-                <button key={h} onClick={() => setCheckinMorning(h)} style={slotPillStyle(checkinMorning === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {(['morning', 'afternoon', 'night'] as const).map(slot => {
+                const hours = SLOT_HOURS[slot];
+                const currentHour = slot === 'morning' ? checkinMorning : slot === 'afternoon' ? checkinAfternoon : checkinNight;
+                const setHour = slot === 'morning' ? setCheckinMorning : slot === 'afternoon' ? setCheckinAfternoon : setCheckinNight;
+                const slotLabel = slot === 'morning'
+                  ? L('Morning', 'Mañana')
+                  : slot === 'afternoon'
+                  ? L('Afternoon', 'Tarde')
+                  : L('Night', 'Noche');
+                return (
+                  <div key={slot} style={{
+                    border: `1px solid ${preferredSlot === slot ? 'rgba(239,159,39,0.5)' : 'rgba(245,242,238,0.08)'}`,
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    background: preferredSlot === slot ? 'rgba(239,159,39,0.06)' : 'transparent',
+                    cursor: 'pointer',
+                  }}
+                    onClick={() => setPreferredSlot(slot)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: '50%',
+                        border: `2px solid ${preferredSlot === slot ? 'rgb(239,159,39)' : 'rgba(245,242,238,0.3)'}`,
+                        background: preferredSlot === slot ? 'rgb(239,159,39)' : 'transparent',
+                        flexShrink: 0,
+                      }} />
+                      <span style={{ color: preferredSlot === slot ? 'rgb(239,159,39)' : colors.bone, fontSize: 13, fontWeight: 600 }}>
+                        {slotLabel}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {hours.map(h => (
+                        <button
+                          key={h}
+                          onClick={e => { e.stopPropagation(); setPreferredSlot(slot); setHour(h); }}
+                          style={slotPillStyle(currentHour === h && preferredSlot === slot)}
+                        >
+                          {formatHour(h)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </div>
-          <div>
-            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Afternoon check-in', 'Check-in Tarde')}
+            <p style={{ color: colors.boneFaint, fontSize: 11, margin: 0 }}>
+              {L(
+                'Jules will send your daily check-in reminder at your selected time.',
+                'Jules te enviará tu recordatorio de check-in diario a la hora seleccionada.'
+              )}
             </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.afternoon.map(h => (
-                <button key={h} onClick={() => setCheckinAfternoon(h)} style={slotPillStyle(checkinAfternoon === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
-            </div>
           </div>
-          <div>
-            <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
-              {L('Night check-in', 'Check-in Noche')}
+        ) : (
+          // Days 1-29: original 3-slot picker — UNCHANGED
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+                {L('Morning check-in', 'Check-in Mañana')}
+              </p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {SLOT_HOURS.morning.map(h => (
+                  <button key={h} onClick={() => setCheckinMorning(h)} style={slotPillStyle(checkinMorning === h)}>
+                    {formatHour(h)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+                {L('Afternoon check-in', 'Check-in Tarde')}
+              </p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {SLOT_HOURS.afternoon.map(h => (
+                  <button key={h} onClick={() => setCheckinAfternoon(h)} style={slotPillStyle(checkinAfternoon === h)}>
+                    {formatHour(h)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.06em', margin: '0 0 8px' }}>
+                {L('Night check-in', 'Check-in Noche')}
+              </p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {SLOT_HOURS.night.map(h => (
+                  <button key={h} onClick={() => setCheckinNight(h)} style={slotPillStyle(checkinNight === h)}>
+                    {formatHour(h)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p style={{ color: colors.boneFaint, fontSize: 11, margin: 0 }}>
+              {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
             </p>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {SLOT_HOURS.night.map(h => (
-                <button key={h} onClick={() => setCheckinNight(h)} style={slotPillStyle(checkinNight === h)}>
-                  {formatHour(h)}
-                </button>
-              ))}
-            </div>
           </div>
-          <p style={{ color: colors.boneFaint, fontSize: 11, margin: 0 }}>
-            {L('Jules will send your daily WhatsApp card at these times.', 'Jules te enviará tu tarjeta diaria por WhatsApp a estas horas.')}
-          </p>
-        </div>
+        )}
       </Section>
 
       {/* ── Section 2: Body metrics ─────────────────────────────────────────── */}

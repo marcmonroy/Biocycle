@@ -293,7 +293,7 @@ serve(async (_req) => {
 
     const { data: traders, error } = await supabase
       .from('profiles')
-      .select('id, whatsapp_phone, genero, idioma, checkin_times, days_of_data, fecha_nacimiento')
+      .select('id, whatsapp_phone, genero, idioma, checkin_times, days_of_data, fecha_nacimiento, picardia_mode, preferred_checkin_slot')
       .eq('whatsapp_verified', true)
       .not('whatsapp_phone', 'is', null);
 
@@ -309,12 +309,21 @@ serve(async (_req) => {
 
     for (const trader of (traders || [])) {
       try {
-        let slot: 'morning' | 'afternoon' | 'night' | null = null;
-        if      (trader.checkin_times?.morning?.hour   === hour) slot = 'morning';
-        else if (trader.checkin_times?.afternoon?.hour === hour) slot = 'afternoon';
-        else if (trader.checkin_times?.night?.hour     === hour) slot = 'night';
+        const daysOfData = trader.days_of_data ?? 0;
 
-        if (!slot) { skipped++; continue; }
+        let slot: 'morning' | 'afternoon' | 'night' | null = null;
+        if (daysOfData >= 30) {
+          // Use preferred slot if set, otherwise fall back to morning
+          const preferred = trader.preferred_checkin_slot ?? 'morning';
+          const preferredHour = trader.checkin_times?.[preferred]?.hour;
+          if (preferredHour !== hour) { skipped++; continue; }
+          slot = preferred;
+        } else {
+          if      (trader.checkin_times?.morning?.hour   === hour) slot = 'morning';
+          else if (trader.checkin_times?.afternoon?.hour === hour) slot = 'afternoon';
+          else if (trader.checkin_times?.night?.hour     === hour) slot = 'night';
+          if (!slot) { skipped++; continue; }
+        }
 
         const { data: alreadySent } = await supabase
           .from('whatsapp_sends')
@@ -331,7 +340,6 @@ serve(async (_req) => {
 
         const gender     = trader.genero || 'female';
         const lang       = trader.idioma === 'ES' ? 'ES' : 'EN';
-        const daysOfData = trader.days_of_data ?? 0;
 
         const greeting = lang === 'ES'
           ? (slot === 'morning' ? 'Buenos días.' : slot === 'afternoon' ? 'Pausa rápida.' : 'Antes de dormir —')
