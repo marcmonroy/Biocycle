@@ -58,6 +58,11 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [todayForecast, setTodayForecast] = useState<ForecastDay | null>(null);
   const [sharing, setSharing] = useState(false);
   const [liveDays, setLiveDays] = useState<number>(getDaysOfData(profile));
+  const [hasAnySession, setHasAnySession] = useState(false);
+  const [waActivating, setWaActivating] = useState(false);
+  const [waJustActivated, setWaJustActivated] = useState(false);
+  const [waDismissed, setWaDismissed] = useState(false);
+  const waPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const animatedValue = useCountUp(portfolioValue, 1200);
   const daysOfData = getDaysOfData(profile);
@@ -85,6 +90,8 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         .eq('session_complete', true)
         .order('session_date', { ascending: false })
         .limit(300);
+
+      setHasAnySession((allSessions?.length ?? 0) > 0);
 
       if (allSessions) {
         const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
@@ -161,6 +168,28 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     }
     loadStats();
   }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function startWaPolling() {
+    if (waPollRef.current) return;
+    setWaActivating(true);
+    waPollRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('whatsapp_enabled')
+        .eq('id', profile.id)
+        .single();
+      if (data?.whatsapp_enabled === true) {
+        clearInterval(waPollRef.current!);
+        waPollRef.current = null;
+        setWaActivating(false);
+        setWaJustActivated(true);
+      }
+    }, 3000);
+  }
+
+  useEffect(() => {
+    return () => { if (waPollRef.current) clearInterval(waPollRef.current); };
+  }, []);
 
   const isPaused = userState?.state === 'paused_trader';
   const nombre = profile.nombre ?? (idioma === 'ES' ? 'Trader' : 'Trader');
@@ -284,6 +313,50 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
         </div>
       </div>
+
+      {!isPaused && hasAnySession && !waDismissed && (profile as any).whatsapp_enabled !== true && !waJustActivated && (
+        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
+          <div style={{ background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.3)', borderRadius: 14, padding: '16px 18px' }}>
+            <p style={{ color: colors.bone, fontSize: 13, lineHeight: 1.5, margin: '0 0 12px', fontWeight: 600 }}>
+              {idioma === 'ES'
+                ? '¿Quieres que Jules te recuerde cada día? Activa tus recordatorios — toma 5 segundos.'
+                : 'Want Jules to remind you daily? Activate your reminders — takes 5 seconds.'}
+            </p>
+            {waActivating ? (
+              <p style={{ color: '#25D366', fontSize: 12, margin: 0 }}>
+                {idioma === 'ES' ? 'Esperando tu mensaje en WhatsApp...' : 'Waiting for your message in WhatsApp...'}
+              </p>
+            ) : (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <a
+                  href={`https://wa.me/16625688859?text=${encodeURIComponent(idioma === 'ES' ? 'Sí, envíenme recordatorios' : 'Yes, send me reminders')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => startWaPolling()}
+                  style={{ background: '#25D366', borderRadius: 10, padding: '10px 18px', color: 'white', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}
+                >
+                  {idioma === 'ES' ? '💬 Activar' : '💬 Activate'}
+                </a>
+                <button
+                  onClick={() => setWaDismissed(true)}
+                  style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
+                >
+                  {idioma === 'ES' ? 'Más tarde' : 'Maybe later'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      {!isPaused && waJustActivated && (
+        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
+          <div style={{ background: 'rgba(37,211,102,0.1)', border: '1px solid rgba(37,211,102,0.35)', borderRadius: 14, padding: '14px 18px', textAlign: 'center' }}>
+            <p style={{ color: '#25D366', fontSize: 13, fontWeight: 700, margin: 0 }}>
+              {idioma === 'ES' ? '✓ Recordatorios activados' : '✓ Reminders activated'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {isPaused && (
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '40px 24px', textAlign: 'center' }}>
