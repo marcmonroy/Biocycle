@@ -63,6 +63,9 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [waJustActivated, setWaJustActivated] = useState(false);
   const [waDismissed, setWaDismissed] = useState(false);
   const waPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   const animatedValue = useCountUp(portfolioValue, 1200);
   const daysOfData = getDaysOfData(profile);
@@ -190,6 +193,54 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   useEffect(() => {
     return () => { if (waPollRef.current) clearInterval(waPollRef.current); };
   }, []);
+
+  useEffect(() => {
+    // Detect if already running as installed PWA — never show banner if so
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true;
+    if (isStandalone) return;
+
+    // Detect iOS — no beforeinstallprompt event exists there
+    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    setIsIOS(iOS);
+
+    // Check dismissal cooldown — 14 days
+    const dismissedAt = localStorage.getItem('biocycle_install_dismissed');
+    if (dismissedAt) {
+      const daysSince = (Date.now() - parseInt(dismissedAt, 10)) / (1000 * 60 * 60 * 24);
+      if (daysSince < 14) return;
+    }
+
+    if (iOS) {
+      setShowInstallBanner(true);
+      return;
+    }
+
+    // Android/Chrome — capture the native install prompt
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPromptEvent(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  async function handleInstallClick() {
+    if (installPromptEvent) {
+      installPromptEvent.prompt();
+      const { outcome } = await installPromptEvent.userChoice;
+      console.log('[BioCycle] install prompt outcome:', outcome);
+      setShowInstallBanner(false);
+      setInstallPromptEvent(null);
+    }
+  }
+
+  function dismissInstallBanner() {
+    localStorage.setItem('biocycle_install_dismissed', String(Date.now()));
+    setShowInstallBanner(false);
+  }
 
   const isPaused = userState?.state === 'paused_trader';
   const nombre = profile.nombre ?? (idioma === 'ES' ? 'Trader' : 'Trader');
@@ -354,6 +405,55 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             <p style={{ color: '#25D366', fontSize: 13, fontWeight: 700, margin: 0 }}>
               {idioma === 'ES' ? '✓ Recordatorios activados' : '✓ Reminders activated'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {showInstallBanner && !isPaused && (
+        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
+          <div style={{ background: 'rgba(239,159,39,0.08)', border: '1px solid rgba(239,159,39,0.3)', borderRadius: 14, padding: '16px 18px' }}>
+            {isIOS ? (
+              <>
+                <p style={{ color: colors.bone, fontSize: 13, lineHeight: 1.5, margin: '0 0 10px', fontWeight: 600 }}>
+                  {idioma === 'ES'
+                    ? 'Agrega BioCycle a tu pantalla de inicio para abrirla con un toque.'
+                    : 'Add BioCycle to your home screen to open it with one tap.'}
+                </p>
+                <p style={{ color: colors.boneFaint, fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
+                  {idioma === 'ES'
+                    ? 'Toca el botón de compartir ⬆️ en Safari, luego "Agregar a pantalla de inicio".'
+                    : 'Tap the Share button ⬆️ in Safari, then "Add to Home Screen".'}
+                </p>
+                <button
+                  onClick={dismissInstallBanner}
+                  style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
+                >
+                  {idioma === 'ES' ? 'Entendido' : 'Got it'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ color: colors.bone, fontSize: 13, lineHeight: 1.5, margin: '0 0 12px', fontWeight: 600 }}>
+                  {idioma === 'ES'
+                    ? 'Instala BioCycle en tu teléfono para abrirla con un toque, sin buscarla en el navegador.'
+                    : 'Install BioCycle on your phone to open it with one tap — no browser search needed.'}
+                </p>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <button
+                    onClick={handleInstallClick}
+                    style={{ background: colors.amber, border: 'none', borderRadius: 10, padding: '10px 18px', color: colors.midnight, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    {idioma === 'ES' ? '📲 Instalar' : '📲 Install'}
+                  </button>
+                  <button
+                    onClick={dismissInstallBanner}
+                    style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
+                  >
+                    {idioma === 'ES' ? 'Más tarde' : 'Maybe later'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
