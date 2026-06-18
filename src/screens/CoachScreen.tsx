@@ -660,7 +660,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
       const res  = await fetch('/.netlify/functions/coach', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ model: 'claude-sonnet-4-20250514', messages: safe, system: systemPrompt, max_tokens: maxTokens }),
+        body:    JSON.stringify({ model: 'claude-sonnet-4-6', messages: safe, system: systemPrompt, max_tokens: maxTokens }),
       });
       const data = await res.json();
       return data.content?.[0]?.text?.trim() ?? '';
