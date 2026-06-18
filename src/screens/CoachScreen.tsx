@@ -1032,7 +1032,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
     if (days >= 30) {
       // Set session slot to preferred slot for day 30+ so question set matches
-      const preferred = (profile as any).preferred_checkin_slot ?? sessionRef.current.slot;
+      const preferred = (profile as any).preferred_checkin_slot ?? getSessionSlot();
       sessionRef.current.slot = preferred;
       showQuestion('ENERGY_Q');
       return;
