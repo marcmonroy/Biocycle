@@ -76,8 +76,62 @@ export interface UserState {
   returned_at: string | null;
   return_method: string | null;
   founding_trader: boolean;
+  tier: 'free' | 'standard' | 'premium' | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Tier limits — single source of truth ─────────────────────────────────
+
+export interface TierLimits {
+  adhocTurns: number;       // max ADHOC turns per session
+  circleMax: number;        // max people in Circle
+  compatibilityMax: number; // max compatibility connections
+  forecastDays: number;     // forecast horizon in days
+  forecastAllDims: boolean; // show all 8 dimensions (false = energy + sexual only)
+  forecastComposite: boolean; // show composite scores
+  forecastHighlights: boolean; // show best/worst day highlights
+  vulnerabilityAlerts: boolean; // show vulnerability window alerts
+  accuracyDisplay: boolean; // show forecast accuracy %
+  dataTrading: boolean;     // eligible for data trading
+  dataTradingShare: number; // revenue share % (0 if not eligible)
+  lapseProtection: boolean; // keeps access if lapses 7+ days
+}
+
+export function getTierLimits(userState: UserState | null): TierLimits {
+  // Founding traders get full premium forever
+  if (userState?.founding_trader) {
+    return {
+      adhocTurns: 7, circleMax: 10, compatibilityMax: 3,
+      forecastDays: 14, forecastAllDims: true, forecastComposite: true,
+      forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
+      dataTrading: true, dataTradingShare: 80, lapseProtection: true,
+    };
+  }
+  const tier = userState?.tier ?? 'free';
+  if (tier === 'premium') {
+    return {
+      adhocTurns: 7, circleMax: 10, compatibilityMax: 3,
+      forecastDays: 14, forecastAllDims: true, forecastComposite: true,
+      forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
+      dataTrading: true, dataTradingShare: 80, lapseProtection: true,
+    };
+  }
+  if (tier === 'standard') {
+    return {
+      adhocTurns: 3, circleMax: 5, compatibilityMax: 1,
+      forecastDays: 7, forecastAllDims: true, forecastComposite: false,
+      forecastHighlights: false, vulnerabilityAlerts: true, accuracyDisplay: true,
+      dataTrading: true, dataTradingShare: 70, lapseProtection: true,
+    };
+  }
+  // free (default)
+  return {
+    adhocTurns: 1, circleMax: 3, compatibilityMax: 0,
+    forecastDays: 3, forecastAllDims: false, forecastComposite: false,
+    forecastHighlights: false, vulnerabilityAlerts: false, accuracyDisplay: false,
+    dataTrading: false, dataTradingShare: 0, lapseProtection: false,
+  };
 }
 
 export interface ConversationSession {
