@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/supabase';
+import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
 import { setDebug } from '../components/DebugOverlay';
@@ -548,6 +548,8 @@ function InstrumentPad({ maxValue, onSelect }: { maxValue: 3 | 4; onSelect: (n: 
 
 interface Props {
   profile: Profile;
+  userState: UserState | null;
+  tierLimits: TierLimits;
   onBack: () => void;
   onNavigate?: (tab: Tab) => void;
 }

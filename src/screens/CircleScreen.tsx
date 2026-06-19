@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/supabase';
+import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
+  userState: UserState | null;
+  tierLimits: TierLimits;
 }
 
 interface Relationship {
