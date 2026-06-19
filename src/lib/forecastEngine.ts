@@ -35,6 +35,17 @@ export interface ForecastDay {
   insight: string;
   insightES: string;
   isVulnerabilityWindow: boolean;
+  // Composite scores (Premium only — always computed, display gated by tier)
+  composite: {
+    performance: number;        // (Energy×0.4) + (Cognitive×0.4) + ((100-Stress)×0.2)
+    emotionalResilience: number; // (Emotional×0.4) + ((100-Anxiety)×0.35) + ((100-Stress)×0.25)
+    socialMagnetism: number;    // (Social×0.5) + (Emotional×0.3) + (Energy×0.2)
+    recoveryQuality: number;    // (Sleep×0.6) + (Energy×0.25) + ((100-Stress)×0.15)
+    intimacyReadiness: number;  // (Sexual×0.4) + (Emotional×0.35) + ((100-Anxiety)×0.25)
+    stressLoad: number;         // (Stress×0.45) + (Anxiety×0.35) + ((100-Sleep)×0.20) — higher = more load
+    cognitiveEdge: number;      // (Cognitive×0.5) + (Energy×0.25) + ((100-Anxiety)×0.25)
+    biologicalVitality: number; // master score — weighted blend of all dims
+  };
 }
 
 export type CoachingMode = 'learning' | 'calibration' | 'companion';
@@ -44,6 +55,10 @@ export interface ForecastResult {
   days: ForecastDay[];
   accuracyPct: number | null;
   vulnerabilityAlertHours: number | null;
+  bestPerformanceDay: number | null;   // index into days[]
+  bestCognitiveDay: number | null;     // index into days[]
+  bestIntimacyDay: number | null;      // index into days[]
+  worstStressDay: number | null;       // index into days[] — highest stress load
 }
 
 // ── Textbook baseline — hardcoded hormonal curves ───────────────────────
@@ -177,9 +192,9 @@ function applyCalibration(
   return Math.max(0, Math.min(100, Math.round(textbookValue + delta * weight)));
 }
 
-// ── Main: generate 7-day forecast ────────────────────────────────────────
+// ── Main: generate forecast ───────────────────────────────────────────────
 
-export async function generateForecast(profile: Profile): Promise<ForecastResult> {
+export async function generateForecast(profile: Profile, forecastDays: number = 7): Promise<ForecastResult> {
   const daysOfData = getDaysOfData(profile);
   const mode = getCoachingMode(daysOfData);
   const age = profile.fecha_nacimiento ? getAge(profile.fecha_nacimiento) : 0;
@@ -187,13 +202,12 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
   const isMale = profile.genero === 'male';
   const is40Plus = age >= 40;
 
-  // Always compute fresh delta vector from real sessions — profile.pattern_delta_vector may be stale or empty
   const vector = mode !== 'learning' ? await computeDeltaVector(profile) : {};
 
   const days: ForecastDay[] = [];
   const today = new Date();
 
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < forecastDays; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() + i);
 
@@ -203,9 +217,7 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
     if (isFemale && is40Plus) {
       phase = 'perimenopause';
     } else if (isMale && is40Plus) {
-      // Use daily testosterone rhythm across the 7-day window
-      // so each day varies rather than showing flat andropause
-      const dayOfWeek = date.getDay(); // 0=Sun to 6=Sat
+      const dayOfWeek = date.getDay();
       const rhythmPhases = ['morning_peak', 'midday_transition', 'morning_peak', 'evening_balance', 'afternoon_dip', 'morning_peak', 'evening_balance'];
       phase = rhythmPhases[dayOfWeek];
     } else if (isFemale && profile.cycle_start_date) {
@@ -217,7 +229,6 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
       if (cycleDay <= 0) cycleDay += cycleLength;
       phase = getFemaleCyclePhase(cycleDay);
     } else {
-      // Male / nonbinary without cycle — use time-based default (show morning_peak as representative)
       phase = 'morning_peak';
     }
 
@@ -237,6 +248,19 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
 
     const insight = PHASE_INSIGHTS[phase] ?? { en: '', es: '' };
 
+    // ── Composite scores ───────────────────────────────────────────────
+    const performance         = Math.round(energy * 0.4 + cognitive * 0.4 + (100 - stress) * 0.2);
+    const emotionalResilience = Math.round(emotional * 0.4 + (100 - anxiety) * 0.35 + (100 - stress) * 0.25);
+    const socialMagnetism     = Math.round(social * 0.5 + emotional * 0.3 + energy * 0.2);
+    const recoveryQuality     = Math.round(sleep * 0.6 + energy * 0.25 + (100 - stress) * 0.15);
+    const intimacyReadiness   = Math.round(sexual * 0.4 + emotional * 0.35 + (100 - anxiety) * 0.25);
+    const stressLoad          = Math.round(stress * 0.45 + anxiety * 0.35 + (100 - sleep) * 0.20);
+    const cognitiveEdge       = Math.round(cognitive * 0.5 + energy * 0.25 + (100 - anxiety) * 0.25);
+    const biologicalVitality  = Math.round(
+      energy * 0.25 + cognitive * 0.15 + (100 - stress) * 0.15 +
+      (100 - anxiety) * 0.15 + sleep * 0.15 + emotional * 0.10 + social * 0.05
+    );
+
     days.push({
       date,
       cycleDay,
@@ -244,28 +268,42 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
       phaseLabel: phase.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       phaseLabelES: phase.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
       phaseEmoji: phase === 'menstrual' ? '🌑' : phase === 'follicular' ? '🌱' : phase === 'ovulatory' ? '✨' : phase === 'luteal' ? '🍂' : phase === 'late_luteal' ? '🌘' : phase === 'morning_peak' ? '☀️' : phase === 'afternoon_dip' ? '🌥' : phase === 'evening_balance' ? '🌆' : phase === 'night_rest' ? '🌙' : '✨',
-      energy,
-      cognitive,
-      stress,
-      anxiety,
-      sleep,
-      emotional,
-      social,
-      sexual,
-      physical,
+      energy, cognitive, stress, anxiety, sleep, emotional, social, sexual, physical,
       insight: insight.en,
       insightES: insight.es,
       isVulnerabilityWindow: anxiety >= 70,
+      composite: {
+        performance, emotionalResilience, socialMagnetism,
+        recoveryQuality, intimacyReadiness, stressLoad,
+        cognitiveEdge, biologicalVitality,
+      },
     });
   }
 
-  // Vulnerability alert — highest anxiety in next 72 hours
+  // ── Vulnerability alert — highest anxiety in next 72 hours ────────────
   const upcomingHighAnxiety = days.slice(1, 4).find(d => d.isVulnerabilityWindow);
   const vulnerabilityAlertHours = upcomingHighAnxiety
     ? Math.round((upcomingHighAnxiety.date.getTime() - today.getTime()) / (1000 * 60 * 60))
     : null;
 
-  // Accuracy from forecast_accuracy table (30-day rolling)
+  // ── Best / worst day highlights (skip today = index 0) ───────────────
+  let bestPerformanceDay: number | null = null;
+  let bestCognitiveDay: number | null = null;
+  let bestIntimacyDay: number | null = null;
+  let worstStressDay: number | null = null;
+
+  if (days.length > 1) {
+    let maxPerf = -1, maxCog = -1, maxIntimacy = -1, maxStress = -1;
+    for (let i = 1; i < days.length; i++) {
+      const c = days[i].composite;
+      if (c.performance > maxPerf)           { maxPerf = c.performance;           bestPerformanceDay = i; }
+      if (c.cognitiveEdge > maxCog)          { maxCog = c.cognitiveEdge;          bestCognitiveDay = i; }
+      if (c.intimacyReadiness > maxIntimacy) { maxIntimacy = c.intimacyReadiness; bestIntimacyDay = i; }
+      if (c.stressLoad > maxStress)          { maxStress = c.stressLoad;          worstStressDay = i; }
+    }
+  }
+
+  // ── Accuracy from forecast_accuracy table (30-day rolling) ───────────
   let accuracyPct: number | null = null;
   if (mode !== 'learning') {
     const thirtyAgo = new Date();
@@ -282,7 +320,7 @@ export async function generateForecast(profile: Profile): Promise<ForecastResult
     }
   }
 
-  return { mode, days, accuracyPct, vulnerabilityAlertHours };
+  return { mode, days, accuracyPct, vulnerabilityAlertHours, bestPerformanceDay, bestCognitiveDay, bestIntimacyDay, worstStressDay };
 }
 
 // ── Record a forecast prediction for later accuracy scoring ────────────
