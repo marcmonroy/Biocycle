@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import type { Profile, UserState } from './lib/supabase';
+import { getTierLimits } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
 import { RegisterScreen } from './screens/RegisterScreen';
@@ -45,6 +46,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [userState, setUserState] = useState<UserState | null>(null);
+  const tierLimits = getTierLimits(userState);
   const [screen, setScreen] = useState<Screen>('register');
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
@@ -242,9 +244,9 @@ export default function App() {
           onNavigate={handleNavigate}
         />
       )}
-      {screen === 'forecast' && <ForecastScreen profile={profile} />}
-      {screen === 'coach'    && <CoachScreen profile={profile} onBack={() => { if (session) loadProfile(session.user.id); setScreen('home'); }} onNavigate={handleNavigate} />}
-      {screen === 'circle'   && <CircleScreen profile={profile} />}
+      {screen === 'forecast' && <ForecastScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
+      {screen === 'coach'    && <CoachScreen profile={profile} userState={userState} tierLimits={tierLimits} onBack={() => { if (session) loadProfile(session.user.id); setScreen('home'); }} onNavigate={handleNavigate} />}
+      {screen === 'circle'   && <CircleScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'earnings' && <DataHubScreen profile={profile} />}
       {screen === 'profile'  && (
         <ProfileScreen
