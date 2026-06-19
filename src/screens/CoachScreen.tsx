@@ -579,6 +579,7 @@ export function CoachScreen({ profile, onBack, onNavigate }: Props) {
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
   const convHistoryRef  = useRef<Message[]>([]);
+  const adhocTurnsRef   = useRef(0);
 
   // Single ref for all mutable session state
   const sessionRef = useRef({
@@ -1377,16 +1378,51 @@ CRITICAL RULES:
     isProcessingRef.current = true;
     try {
       addUserMsg(userText);
+      adhocTurnsRef.current += 1;
+      const turn = adhocTurnsRef.current;
+      const slot = sessionRef.current.slot;
+
+      // After 3 turns deliver a hardcoded farewell and close
+      if (turn >= 3) {
+        const farewell = isES
+          ? slot === 'morning'
+            ? `Qué buena charla. Que tengas un buen día — nos vemos mañana.`
+            : slot === 'afternoon'
+            ? `Qué buena charla. Disfruta tu tarde — nos vemos mañana.`
+            : `Qué buena charla. Que descanses bien — nos vemos mañana.`
+          : slot === 'morning'
+          ? `Good chat. Have a great morning — see you tomorrow.`
+          : slot === 'afternoon'
+          ? `Good chat. Enjoy your afternoon — see you tomorrow.`
+          : `Good chat. Sleep well tonight — see you tomorrow.`;
+        addJulesMsg(farewell);
+        speak(farewell, () => {
+          sessionRef.current.state = 'SESSION_COMPLETE';
+        });
+        return;
+      }
+
       setBioState('thinking');
       const ctx = sessionRef.current.sessionContext
         ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
         : '';
+      const isLastTurn = turn === 2;
       const sys = isES
-        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC.\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nResponde en 2-3 oraciones máximo. Sé cálida y directa.${ctx}`
-        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE.\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns across cycles, life events colored by biological state, dreams and sleep quality, stress sources and physical response.\nSteering technique: if user goes off-topic, acknowledge then bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment, medical advice.\nRespond in 2-3 sentences maximum. Be warm and direct.${ctx}`;
-      const text = await callCoachAPI(convHistoryRef.current, sys, 150);
+        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC (turno ${turn} de 3).\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\n${isLastTurn ? 'Esta es tu última respuesta antes del cierre — termina con calidez y sin hacer más preguntas.' : 'Sé cálida y directa.'}\nResponde en máximo 30 palabras.${ctx}`
+        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE (turn ${turn} of 3).\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns across cycles, life events colored by biological state, dreams and sleep quality, stress sources and physical response.\nSteering technique: if user goes off-topic, acknowledge then bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment, medical advice.\n${isLastTurn ? 'This is your last response before closing — end warmly without asking another question.' : 'Be warm and direct.'}\nRespond in 30 words maximum.${ctx}`;
+      const text = await callCoachAPI(convHistoryRef.current, sys, 80);
       setBioState('idle');
-      if (!text) return;
+      if (!text) {
+        // Fallback farewell if API returns empty
+        const farewell = isES
+          ? `Qué buena charla. Cuídate mucho — nos vemos mañana.`
+          : `Good chat. Take good care — see you tomorrow.`;
+        addJulesMsg(farewell);
+        speak(farewell, () => {
+          sessionRef.current.state = 'SESSION_COMPLETE';
+        });
+        return;
+      }
       if (hasCrisisContent(text)) {
         await logSafetyEvent(profile.id, text, 'ai_response');
         handleCrisis();
