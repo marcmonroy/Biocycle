@@ -1,6 +1,6 @@
 import { colors, fonts } from '../lib/tokens';
 
-export type Tab = 'home' | 'forecast' | 'coach' | 'circle' | 'earnings';
+export type Tab = 'home' | 'forecast' | 'coach' | 'circle' | 'compatibility' | 'earnings';
 
 interface Props {
   active: Tab;
@@ -12,8 +12,9 @@ const tabs: { id: Tab; label: string; labelES: string; icon: string }[] = [
   { id: 'home',     label: 'Home',        labelES: 'Inicio',      icon: '⌂' },
   { id: 'forecast', label: 'Forecast',    labelES: 'Pronóstico',  icon: '◐' },
   { id: 'coach',    label: 'Coach',       labelES: 'Coach',       icon: '◎' },
-  { id: 'circle',   label: 'Your Circle', labelES: 'Tu Círculo',  icon: '⚭' },
-  { id: 'earnings', label: 'Data Value', labelES: 'Valor Datos', icon: '$' },
+  { id: 'circle',        label: 'Your Circle',  labelES: 'Tu Círculo',   icon: '⚭' },
+  { id: 'compatibility', label: 'Sync',         labelES: 'Sincronía',    icon: '◈' },
+  { id: 'earnings',      label: 'Data Value',   labelES: 'Valor Datos',  icon: '$' },
 ];
 
 export function BottomNav({ active, onNavigate, idioma = 'EN' }: Props) {

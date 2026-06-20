@@ -11,6 +11,7 @@ import { CoachScreen } from './screens/CoachScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { ForecastScreen } from './screens/ForecastScreen';
 import { CircleScreen } from './screens/CircleScreen';
+import { CompatibilityScreen } from './screens/CompatibilityScreen';
 import { DataHubScreen } from './screens/DataHubScreen';
 import { BottomNav } from './components/BottomNav';
 import type { Tab } from './components/BottomNav';
@@ -39,7 +40,7 @@ if (_prefillEmail || _prefillPhone || _prefillLang) {
 }
 
 
-type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'earnings' | 'profile';
+type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'compatibility' | 'earnings' | 'profile';
 type VerifyResume = { userId: string; phone: string } | null;
 
 export default function App() {
@@ -219,6 +220,7 @@ export default function App() {
     : screen === 'forecast' ? 'forecast'
     : screen === 'coach' ? 'coach'
     : screen === 'circle' ? 'circle'
+    : screen === 'compatibility' ? 'compatibility'
     : screen === 'earnings' ? 'earnings'
     : 'home';
 
@@ -246,8 +248,9 @@ export default function App() {
       )}
       {screen === 'forecast' && <ForecastScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'coach'    && <CoachScreen profile={profile} userState={userState} tierLimits={tierLimits} onBack={() => { if (session) loadProfile(session.user.id); setScreen('home'); }} onNavigate={handleNavigate} />}
-      {screen === 'circle'   && <CircleScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
-      {screen === 'earnings' && <DataHubScreen profile={profile} />}
+      {screen === 'circle'        && <CircleScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
+      {screen === 'compatibility' && <CompatibilityScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
+      {screen === 'earnings'      && <DataHubScreen profile={profile} />}
       {screen === 'profile'  && (
         <ProfileScreen
           profile={profile}
