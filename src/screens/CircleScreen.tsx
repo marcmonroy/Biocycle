@@ -21,7 +21,7 @@ interface Relationship {
   _avgAnxiety?: number | null;
 }
 
-const tierLimits.circleMax = 7; // absolute ceiling — tier limit applied at runtime
+const MAX_RELATIONSHIPS = 7; // absolute ceiling — tier limit applied at runtime
 
 const CATEGORY_LABELS: Record<string, { en: string; es: string; emoji: string }> = {
   partner:   { en: 'Partner',   es: 'Pareja',   emoji: '💞' },
