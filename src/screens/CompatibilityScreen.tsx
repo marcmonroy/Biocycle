@@ -120,14 +120,12 @@ function DayBar({
 
 function NewInviteForm({
   profile,
-  tierLimits,
   allowedTypes,
   onSent,
   onCancel,
   idioma,
 }: {
   profile: Profile;
-  tierLimits: TierLimits;
   allowedTypes: CompatibilityType[];
   onSent: () => void;
   onCancel: () => void;
@@ -575,7 +573,6 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
       {showForm && (
         <NewInviteForm
           profile={profile}
-          tierLimits={tierLimits}
           allowedTypes={allowedTypes}
           idioma={idioma}
           onSent={() => { setShowForm(false); loadConnections(); }}
