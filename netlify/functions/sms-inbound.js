@@ -46,6 +46,143 @@ exports.handler = async (event) => {
     // Extract E.164 phone number from whatsapp:+1XXXXXXXXXX format
     const phone = from.replace('whatsapp:', '');
 
+    // ── Compatibility invite response (YES / NO) ──────────────────────────
+    // Check BEFORE the reminder opt-in handler since both use YES/NO
+    const isCompatYes = ['yes', 'si', 'sí'].includes(body);
+    const isCompatNo  = ['no', 'nope', 'cancel'].includes(body);
+
+    if ((isCompatYes || isCompatNo) && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+      // Look for a pending compatibility invite sent to this phone
+      const compatRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/compatibility_connections?invited_phone=eq.${encodeURIComponent(phone)}&status=eq.pending&order=initiated_at.desc&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+        }
+      );
+      const compatRows = await compatRes.json();
+
+      if (compatRows && compatRows.length > 0) {
+        const conn = compatRows[0];
+        const newStatus = isCompatYes ? 'accepted' : 'declined';
+
+        // Update connection status
+        await fetch(
+          `${SUPABASE_URL}/rest/v1/compatibility_connections?id=eq.${conn.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+              'Content-Type': 'application/json',
+              Prefer: 'return=minimal',
+            },
+            body: JSON.stringify({
+              status: newStatus,
+              responded_at: new Date().toISOString(),
+              // Link user_b_id if this phone belongs to a BioCycle user
+            }),
+          }
+        );
+
+        // Link user_b_id if phone belongs to a registered user
+        const userRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?whatsapp_phone=eq.${encodeURIComponent(phone)}&select=id,nombre,idioma&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            },
+          }
+        );
+        const userRows = await userRes.json();
+        const responder = userRows?.[0] ?? null;
+        const isES = responder?.idioma === 'ES';
+
+        if (responder) {
+          await fetch(
+            `${SUPABASE_URL}/rest/v1/compatibility_connections?id=eq.${conn.id}`,
+            {
+              method: 'PATCH',
+              headers: {
+                apikey: SUPABASE_SERVICE_KEY,
+                Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+                'Content-Type': 'application/json',
+                Prefer: 'return=minimal',
+              },
+              body: JSON.stringify({ user_b_id: responder.id }),
+            }
+          );
+        }
+
+        // Fetch User A profile to get their phone + name + language
+        const userARes = await fetch(
+          `${SUPABASE_URL}/rest/v1/profiles?id=eq.${conn.user_a_id}&select=id,nombre,idioma,whatsapp_phone&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+            },
+          }
+        );
+        const userARows = await userARes.json();
+        const userA = userARows?.[0] ?? null;
+        const isAES = userA?.idioma === 'ES';
+
+        // Compatibility type label
+        const typeLabels = {
+          vibe:        { en: 'Vibe Check',            es: 'Buena Vibra' },
+          cognitive:   { en: 'Cognitive Sync',        es: 'Sincronía Intelectual' },
+          performance: { en: 'Performance Sync',      es: 'Sincronía de Rendimiento' },
+          intimacy:    { en: 'Connection Forecast',   es: 'Pronóstico de Conexión' },
+        };
+        const typeLabel = typeLabels[conn.type] ?? { en: conn.type, es: conn.type };
+
+        if (isCompatYes) {
+          // Confirm to User B (responder)
+          const msgB = isES
+            ? `✓ Conectados. Abre BioCycle para ver tu pronóstico de compatibilidad de ${typeLabel.es} con ${userA?.nombre ?? 'tu contacto'}. app.biocycle.app`
+            : `✓ Connected. Open BioCycle to see your ${typeLabel.en} compatibility forecast with ${userA?.nombre ?? 'your contact'}. app.biocycle.app`;
+          await sendWhatsAppReply(from, msgB);
+
+          // Notify User A
+          if (userA?.whatsapp_phone) {
+            const responderName = responder?.nombre ?? conn.invited_name;
+            const msgA = isAES
+              ? `✓ ${responderName} aceptó tu solicitud de ${typeLabel.es}. Abre BioCycle para ver su pronóstico compartido. app.biocycle.app`
+              : `✓ ${responderName} accepted your ${typeLabel.en} request. Open BioCycle to see your shared forecast. app.biocycle.app`;
+            await sendWhatsAppReply(`whatsapp:${userA.whatsapp_phone}`, msgA);
+          }
+        } else {
+          // Declined — confirm to User B
+          const msgB = isES
+            ? `Entendido. La solicitud de ${typeLabel.es} ha sido rechazada.`
+            : `Understood. The ${typeLabel.en} request has been declined.`;
+          await sendWhatsAppReply(from, msgB);
+
+          // Notify User A of decline
+          if (userA?.whatsapp_phone) {
+            const responderName = responder?.nombre ?? conn.invited_name;
+            const msgA = isAES
+              ? `${responderName} rechazó tu solicitud de ${typeLabel.es}.`
+              : `${responderName} declined your ${typeLabel.en} request.`;
+            await sendWhatsAppReply(`whatsapp:${userA.whatsapp_phone}`, msgA);
+          }
+        }
+
+        // Return early — don't fall through to reminder opt-in handler
+        return {
+          statusCode: 200,
+          headers,
+          body: `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
+        };
+      }
+      // No pending compatibility invite found — fall through to reminder handler
+    }
+    // ── End compatibility handler ─────────────────────────────────────────
+
     // Check if this is a YES activation message
     const isYes = body.includes('yes') || body.includes('si') || body.includes('sí') || body.includes('ok') || body.includes('acepto') || body.includes('accept') || body.includes('activar') || body.includes('activate');
 
