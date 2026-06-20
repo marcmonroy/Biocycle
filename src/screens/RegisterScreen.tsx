@@ -276,7 +276,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     const { error: stateError } = await supabase.from('user_state').upsert({
       user_id:         uid,
       state:           'active_trader',
-      founding_trader: false,
+      founding_trader: true,
     }, { onConflict: 'user_id' });
 
     if (stateError) {
@@ -330,7 +330,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     // Bypass code for test users during WhatsApp pending period
     if (entered === '999999') {
       await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userIdRef.current);
-      await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader', founding_trader: false }, { onConflict: 'user_id' });
+      await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader', founding_trader: true }, { onConflict: 'user_id' });
       await supabase.from('profiles').update({ checkin_times: { morning: { hour: new Date(new Date().setHours(8,0,0,0)).getUTCHours(), label: '8am' }, afternoon: { hour: new Date(new Date().setHours(13,0,0,0)).getUTCHours(), label: '1pm' }, night: { hour: new Date(new Date().setHours(20,0,0,0)).getUTCHours(), label: '8pm' } } }).eq('id', userIdRef.current);
       setLoading(false);
       onComplete();
@@ -362,7 +362,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     const { error: stateError5 } = await supabase.from('user_state').upsert({
       user_id:         userIdRef.current,
       state:           'active_trader',
-      founding_trader: false,
+      founding_trader: true,
     }, { onConflict: 'user_id' });
 
     if (stateError5) {
