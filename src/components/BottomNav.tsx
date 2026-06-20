@@ -12,8 +12,8 @@ const tabs: { id: Tab; label: string; labelES: string; icon: string }[] = [
   { id: 'home',     label: 'Home',        labelES: 'Inicio',      icon: '⌂' },
   { id: 'forecast', label: 'Forecast',    labelES: 'Pronóstico',  icon: '◐' },
   { id: 'coach',    label: 'Coach',       labelES: 'Coach',       icon: '◎' },
-  { id: 'circle',        label: 'Your Circle',  labelES: 'Tu Círculo',   icon: '⚭' },
-  { id: 'compatibility', label: 'Sync',         labelES: 'Sincronía',    icon: '◈' },
+  { id: 'circle',        label: 'Circle',        labelES: 'Círculo',       icon: '⚭' },
+  { id: 'compatibility', label: 'Match',          labelES: 'Compatib.',     icon: '⚯' },
   { id: 'earnings',      label: 'Data Value',   labelES: 'Valor Datos',  icon: '$' },
 ];
 
