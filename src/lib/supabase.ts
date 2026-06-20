@@ -162,3 +162,34 @@ export interface ConversationSession {
   interrupted_at_state: string | null;
   created_at: string;
 }
+
+// ── Compatibility ─────────────────────────────────────────────────────────
+
+export type CompatibilityType = 'vibe' | 'cognitive' | 'performance' | 'intimacy';
+
+export interface CompatibilityConnection {
+  id: string;
+  user_a_id: string;
+  user_b_id: string | null;
+  invited_phone: string;
+  invited_name: string;
+  type: CompatibilityType;
+  status: 'pending' | 'accepted' | 'declined' | 'expired';
+  initiated_at: string;
+  responded_at: string | null;
+  last_viewed_at: string | null;
+  // Joined from profiles when user_b exists
+  partner_profile?: Profile | null;
+}
+
+// Which compatibility types a tier can initiate
+export function getCompatibilityTierAccess(tierLimits: TierLimits): CompatibilityType[] {
+  const types: CompatibilityType[] = ['vibe'];
+  if (tierLimits.adhocTurns >= 3) {
+    types.push('cognitive', 'performance');
+  }
+  if (tierLimits.adhocTurns === 7) {
+    types.push('intimacy');
+  }
+  return types;
+}
