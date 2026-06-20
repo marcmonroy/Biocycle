@@ -217,6 +217,54 @@ exports.handler = async (event) => {
     };
   }
 
+  // ── compatibility_invite — plain text direct message ──────────────────────
+  if (action === 'compatibility_invite') {
+    if (!to || !teaserText) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'to and teaserText are required for compatibility_invite' }),
+      };
+    }
+
+    const msgPayload = new URLSearchParams({
+      From: from,
+      To:   toNumber,
+      Body: teaserText,
+    });
+
+    console.log('[send-whatsapp] sending compatibility invite to:', toNumber);
+
+    const msgRes = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type':  'application/x-www-form-urlencoded',
+          Authorization:   `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+        },
+        body: msgPayload.toString(),
+      }
+    );
+
+    const msgData = await msgRes.json();
+    console.log('[send-whatsapp] compatibility invite status:', msgRes.status, msgData.sid || msgData.message);
+
+    if (!msgRes.ok) {
+      return {
+        statusCode: msgRes.status,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: msgData.message || 'Twilio error', code: msgData.code }),
+      };
+    }
+
+    return {
+      statusCode: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sid: msgData.sid }),
+    };
+  }
+
   // ── Default: template message (scheduled / marketing) ────────────────────
   if (!to || !teaserText) {
     return {
