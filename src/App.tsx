@@ -12,6 +12,7 @@ import { ProfileScreen } from './screens/ProfileScreen';
 import { ForecastScreen } from './screens/ForecastScreen';
 import { CircleScreen } from './screens/CircleScreen';
 import { CompatibilityScreen } from './screens/CompatibilityScreen';
+import { LapseScreen } from './screens/LapseScreen';
 import { DataHubScreen } from './screens/DataHubScreen';
 import { BottomNav } from './components/BottomNav';
 import type { Tab } from './components/BottomNav';
@@ -40,7 +41,7 @@ if (_prefillEmail || _prefillPhone || _prefillLang) {
 }
 
 
-type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'compatibility' | 'earnings' | 'profile';
+type Screen = 'register' | 'login' | 'home' | 'forecast' | 'coach' | 'circle' | 'compatibility' | 'earnings' | 'profile' | 'lapse';
 type VerifyResume = { userId: string; phone: string } | null;
 
 export default function App() {
@@ -94,7 +95,16 @@ export default function App() {
     setProfile(p);
 
     const { data: userStateData } = await supabase.from('user_state').select('*').eq('user_id', userId).maybeSingle();
-    setUserState(userStateData as UserState | null);
+    const us = userStateData as UserState | null;
+    setUserState(us);
+
+    // Lapse check — free users who haven't used app in 7+ days see paywall
+    // Founding traders and paid users are immune
+    if (us && us.state === 'paused_trader' && !us.founding_trader && us.tier === 'free') {
+      setScreen('lapse');
+      setAuthLoading(false);
+      return;
+    }
 
     if (!p.whatsapp_verified) {
       // Check how far they got in registration
@@ -200,6 +210,16 @@ export default function App() {
         initialUserId={verifyResume.userId}
         initialPhone={verifyResume.phone}
         initialEmail={session?.user?.email ?? ''}
+      />
+    );
+  }
+
+  if (screen === 'lapse' && profile && userState) {
+    return (
+      <LapseScreen
+        profile={profile}
+        userState={userState}
+        onLogout={handleLogout}
       />
     );
   }
