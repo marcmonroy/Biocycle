@@ -1388,10 +1388,10 @@ CRITICAL RULES:
       // Helper — closes session cleanly regardless of audio
       function closeSession(farewellText: string) {
         addJulesMsg(farewellText);
-        // Set SESSION_COMPLETE immediately — don't wait for audio
-        sessionRef.current.state = 'SESSION_COMPLETE';
-        setConvState('SESSION_COMPLETE');
-        speak(farewellText);
+        speak(farewellText, () => {
+          sessionRef.current.state = 'SESSION_COMPLETE';
+          setConvState('SESSION_COMPLETE');
+        });
       }
 
       // At turn limit: farewell and close
