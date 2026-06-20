@@ -240,17 +240,64 @@ function NewInviteForm({
           fontFamily: fonts.body, fontSize: 13, outline: 'none',
         }}
       />
-      <input
-        type="tel"
-        placeholder={ES ? 'WhatsApp (+52...)' : 'WhatsApp (+1...)'}
-        value={phone}
-        onChange={e => setPhone(e.target.value)}
-        style={{
-          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 8, padding: '9px 12px', color: colors.bone,
-          fontFamily: fonts.body, fontSize: 13, outline: 'none',
-        }}
-      />
+      {/* Phone input + contact picker */}
+      <div style={{ marginBottom: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 11, color: colors.boneFaint }}>
+            {idioma === 'ES' ? 'WhatsApp' : 'WhatsApp number'}
+          </span>
+          {typeof (navigator as any).contacts !== 'undefined' && (
+            <button
+              onClick={async () => {
+                try {
+                  const contacts = await (navigator as any).contacts.select(
+                    ['name', 'tel'],
+                    { multiple: false }
+                  );
+                  if (contacts && contacts.length > 0) {
+                    const contact = contacts[0];
+                    if (contact.name && contact.name[0] && !name.trim()) {
+                      setName(contact.name[0]);
+                    }
+                    if (contact.tel && contact.tel[0]) {
+                      setPhone(contact.tel[0]);
+                    }
+                  }
+                } catch (err) {
+                  console.log('[ContactPicker] cancelled or unavailable', err);
+                }
+              }}
+              style={{
+                background: 'rgba(0,200,150,0.1)',
+                border: '1px solid rgba(0,200,150,0.25)',
+                borderRadius: 8, padding: '4px 12px',
+                color: colors.success, fontSize: 11,
+                cursor: 'pointer', fontWeight: 600,
+                letterSpacing: '0.04em',
+              }}
+            >
+              {idioma === 'ES' ? '👤 Elegir contacto' : '👤 Choose contact'}
+            </button>
+          )}
+        </div>
+        <input
+          type="tel"
+          placeholder="+1 829 000 0000"
+          value={phone}
+          onChange={e => setPhone(e.target.value)}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 8, padding: '9px 12px', color: colors.bone,
+            fontFamily: fonts.body, fontSize: 13, outline: 'none',
+          }}
+        />
+        <div style={{ fontSize: 10, color: colors.boneFaint, marginTop: 6, lineHeight: 1.5 }}>
+          {idioma === 'ES'
+            ? 'Ingresa el número con código de país. Ej: +1 829 000 0000'
+            : 'Include country code. e.g. +1 829 000 0000'}
+        </div>
+      </div>
 
       {error && <span style={{ fontSize: 11, color: '#ef4444', fontFamily: fonts.body }}>{error}</span>}
 
