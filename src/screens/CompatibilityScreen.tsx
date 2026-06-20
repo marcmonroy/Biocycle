@@ -170,16 +170,14 @@ function NewInviteForm({
 
       // Send WhatsApp invite
       const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === type)!;
-      const typeLabel = ES ? typeConfig.labelES : typeConfig.label;
       const senderName = profile.nombre ?? (ES ? 'Tu contacto' : 'Your contact');
-      const msgBody = ES
-        ? `Hola! ${senderName} te invita a ver su sincronía de *${typeLabel}* en BioCycle. Responde *SÍ* para aceptar o *NO* para rechazar.`
-        : `Hey! ${senderName} invited you to view their *${typeLabel}* compatibility on BioCycle. Reply *YES* to accept or *NO* to decline.`;
+      const msgEN = `${senderName} wants to measure your *${typeConfig.label}* compatibility on BioCycle.\n\nReply *YES* to accept or *NO* to decline.\n\nNot on BioCycle yet? Join free: https://biocycle.app`;
+      const msgES = `${senderName} quiere medir tu compatibilidad de *${typeConfig.labelES}* en BioCycle.\n\nResponde *SÍ* para aceptar o *NO* para rechazar.\n\n¿Aún no estás en BioCycle? Únete gratis: https://biocycle.app`;
 
       await fetch('/api/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: normalized, body: msgBody }),
+        body: JSON.stringify({ action: 'compatibility_invite', to: normalized, teaserText: ES ? msgES : msgEN }),
       });
 
       onSent();
