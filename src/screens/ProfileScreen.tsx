@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/supabase';
+import type { Profile, UserState } from '../lib/supabase';
+import { getTierLimits } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   profile: Profile;
+  userState?: UserState | null;
   onProfileUpdate: (updated: Profile) => void;
   onLogout: () => void;
   onComplete?: () => void;
@@ -97,7 +99,7 @@ function toggleMulti(prev: string[], val: string): string[] {
   return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
 }
 
-export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }: Props) {
+export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, onComplete }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPicardiaConfirm, setShowPicardiaConfirm] = useState(false);
@@ -108,6 +110,10 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
   // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
   const [idioma, setIdioma] = useState<'EN' | 'ES'>(profile.idioma ?? 'EN');
+  const tierLimits = getTierLimits(userState ?? null);
+  const isFounding = userState?.founding_trader === true;
+  const tierLabel = isFounding ? 'Founding Trader' : tierLimits.adhocTurns === 7 ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Standard' : 'Free';
+  const tierLabelES = isFounding ? 'Founding Trader' : tierLimits.adhocTurns === 7 ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Estándar' : 'Gratis';
 
   // Unit system — persisted to localStorage
   const [units, setUnits] = useState<'metric' | 'imperial'>(() =>
@@ -349,6 +355,70 @@ export function ProfileScreen({ profile, onProfileUpdate, onLogout, onComplete }
           <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
           <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
         </div>
+        {/* Tier badge */}
+        <div style={{
+          marginBottom: 20,
+          background: isFounding
+            ? 'rgba(239,159,39,0.10)'
+            : tierLimits.adhocTurns === 7
+            ? 'rgba(123,97,255,0.10)'
+            : 'rgba(245,242,238,0.05)',
+          border: `1px solid ${isFounding
+            ? 'rgba(239,159,39,0.35)'
+            : tierLimits.adhocTurns === 7
+            ? 'rgba(123,97,255,0.35)'
+            : 'rgba(245,242,238,0.12)'}`,
+          borderRadius: 14,
+          padding: '14px 16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+                textTransform: 'uppercase' as const,
+                color: isFounding ? colors.amber : tierLimits.adhocTurns === 7 ? colors.tierElite : colors.boneFaint,
+                marginBottom: 4,
+              }}>
+                {isFounding ? '⚡ ' : ''}{idioma === 'ES' ? tierLabelES : tierLabel}
+              </div>
+              <div style={{ fontSize: 12, color: colors.boneFaint, lineHeight: 1.5 }}>
+                {isFounding
+                  ? (idioma === 'ES'
+                    ? 'Acceso Premium de por vida. Gracias por ser parte del origen.'
+                    : 'Lifetime Premium access. Thank you for being here from the start.')
+                  : tierLimits.adhocTurns === 7
+                  ? (idioma === 'ES'
+                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
+                    : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turns · Circle of ${tierLimits.circleMax}`)
+                  : tierLimits.adhocTurns === 3
+                  ? (idioma === 'ES'
+                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
+                    : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turns · Circle of ${tierLimits.circleMax}`)
+                  : (idioma === 'ES'
+                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turno con Jules · Círculo de ${tierLimits.circleMax}`
+                    : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turn · Circle of ${tierLimits.circleMax}`)
+                }
+              </div>
+            </div>
+            {isFounding && (
+              <div style={{ fontSize: 28 }}>⚡</div>
+            )}
+          </div>
+          {isFounding && (
+            <div style={{
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: '1px solid rgba(239,159,39,0.2)',
+              fontSize: 11,
+              color: 'rgba(245,242,238,0.5)',
+            }}>
+              {idioma === 'ES'
+                ? 'Valor equivalente: $22.99/mes · Tuyo de por vida'
+                : 'Equivalent value: $22.99/mo · Yours for life'}
+            </div>
+          )}
+        </div>
+
         <h1 style={{
           fontFamily: fonts.display,
           fontSize: '1.3rem',

@@ -251,6 +251,7 @@ export default function App() {
       {screen === 'profile'  && (
         <ProfileScreen
           profile={profile}
+          userState={userState}
           onProfileUpdate={handleProfileUpdate}
           onLogout={handleLogout}
           onComplete={() => setScreen('home')}
