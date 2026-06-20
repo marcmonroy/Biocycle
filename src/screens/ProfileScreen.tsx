@@ -436,7 +436,14 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
                 key={lang}
                 label={lang === 'EN' ? 'English' : 'Español'}
                 active={idioma === lang}
-                onClick={() => setIdioma(lang)}
+                onClick={async () => {
+                  setIdioma(lang);
+                  await supabase
+                    .from('profiles')
+                    .update({ idioma: lang })
+                    .eq('id', profile.id);
+                  profile.idioma = lang;
+                }}
               />
             ))}
           </div>
