@@ -355,9 +355,20 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
           <img src="/favicon.svg" alt="" style={{ width: 20, height: 20 }} />
           <span style={{ fontFamily: fonts.body, fontSize: 12, fontWeight: 500, color: colors.boneFaint, letterSpacing: '0.04em' }}>biocycle</span>
         </div>
-        {/* Tier badge */}
+        <h1 style={{
+          fontFamily: fonts.display,
+          fontSize: '1.3rem',
+          fontWeight: 300,
+          color: colors.bone,
+          margin: 0,
+        }}>
+          {profile.idioma === 'ES' ? 'Configuración' : 'Settings'}
+        </h1>
+      </div>
+
+      {/* Tier badge */}
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
         <div style={{
-          marginBottom: 20,
           background: isFounding
             ? 'rgba(239,159,39,0.10)'
             : tierLimits.adhocTurns === 7
@@ -388,29 +399,25 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
                     : 'Lifetime Premium access. Thank you for being here from the start.')
                   : tierLimits.adhocTurns === 7
                   ? (idioma === 'ES'
-                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
+                    ? `${tierLimits.forecastDays} días · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
                     : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turns · Circle of ${tierLimits.circleMax}`)
                   : tierLimits.adhocTurns === 3
                   ? (idioma === 'ES'
-                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
+                    ? `${tierLimits.forecastDays} días · ${tierLimits.adhocTurns} turnos con Jules · Círculo de ${tierLimits.circleMax}`
                     : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turns · Circle of ${tierLimits.circleMax}`)
                   : (idioma === 'ES'
-                    ? `${tierLimits.forecastDays} días de pronóstico · ${tierLimits.adhocTurns} turno con Jules · Círculo de ${tierLimits.circleMax}`
+                    ? `${tierLimits.forecastDays} días · ${tierLimits.adhocTurns} turno con Jules · Círculo de ${tierLimits.circleMax}`
                     : `${tierLimits.forecastDays}-day forecast · ${tierLimits.adhocTurns} Jules turn · Circle of ${tierLimits.circleMax}`)
                 }
               </div>
             </div>
-            {isFounding && (
-              <div style={{ fontSize: 28 }}>⚡</div>
-            )}
+            {isFounding && <div style={{ fontSize: 28 }}>⚡</div>}
           </div>
           {isFounding && (
             <div style={{
-              marginTop: 10,
-              paddingTop: 10,
+              marginTop: 10, paddingTop: 10,
               borderTop: '1px solid rgba(239,159,39,0.2)',
-              fontSize: 11,
-              color: 'rgba(245,242,238,0.5)',
+              fontSize: 11, color: 'rgba(245,242,238,0.5)',
             }}>
               {idioma === 'ES'
                 ? 'Valor equivalente: $22.99/mes · Tuyo de por vida'
@@ -418,16 +425,6 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
             </div>
           )}
         </div>
-
-        <h1 style={{
-          fontFamily: fonts.display,
-          fontSize: '1.3rem',
-          fontWeight: 300,
-          color: colors.bone,
-          margin: 0,
-        }}>
-          {profile.idioma === 'ES' ? 'Configuración' : 'Settings'}
-        </h1>
       </div>
 
       {/* ── Preferences ───────────────────────────────────────────────────── */}
