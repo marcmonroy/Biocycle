@@ -140,16 +140,28 @@ function NewInviteForm({
   const ES = idioma === 'ES';
 
   async function handleSend() {
-    if (!name.trim() || !phone.trim()) {
-      setError(ES ? 'Nombre y teléfono requeridos.' : 'Name and phone required.');
+    if (!name.trim()) { setError(idioma === 'ES' ? 'Ingresa un nombre' : 'Enter a name'); return; }
+
+    // Strip everything except digits
+    const digits = phone.replace(/\D/g, '');
+
+    // Handle international formats — strip leading 1 if 11 digits starting with 1
+    const coreDigits = digits.startsWith('1') && digits.length === 11
+      ? digits.slice(1) : digits;
+
+    if (coreDigits.length < 10) {
+      setError(idioma === 'ES' ? 'Número inválido (mínimo 10 dígitos)' : 'Invalid number (minimum 10 digits)');
       return;
     }
-    setSending(true);
-    setError('');
+
+    setSending(true); setError('');
     try {
+      // Always normalize to E.164 with +1 prefix for consistency with stored profiles
+      const normalized = `+1${coreDigits}`;
+
       const { error: insErr } = await supabase.from('compatibility_connections').insert({
         user_a_id: profile.id,
-        invited_phone: phone.trim(),
+        invited_phone: normalized,
         invited_name: name.trim(),
         type,
         status: 'pending',
@@ -167,7 +179,7 @@ function NewInviteForm({
       await fetch('/api/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: phone.trim(), body: msgBody }),
+        body: JSON.stringify({ to: normalized, body: msgBody }),
       });
 
       onSent();
