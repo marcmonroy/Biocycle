@@ -21,7 +21,7 @@ interface Relationship {
   _avgAnxiety?: number | null;
 }
 
-const MAX_RELATIONSHIPS = 7;
+const tierLimits.circleMax = 7; // absolute ceiling — tier limit applied at runtime
 
 const CATEGORY_LABELS: Record<string, { en: string; es: string; emoji: string }> = {
   partner:   { en: 'Partner',   es: 'Pareja',   emoji: '💞' },
@@ -33,7 +33,7 @@ const CATEGORY_LABELS: Record<string, { en: string; es: string; emoji: string }>
   other:     { en: 'Other',     es: 'Otro',     emoji: '👤' },
 };
 
-export function CircleScreen({ profile }: Props) {
+export function CircleScreen({ profile, userState: _userState, tierLimits }: Props) {
   const [rels, setRels] = useState<Relationship[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -132,7 +132,8 @@ export function CircleScreen({ profile }: Props) {
   useEffect(() => { loadRelationships(); }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function addRelationship() {
-    if (!newName.trim() || rels.length >= MAX_RELATIONSHIPS) return;
+    const tierMax = tierLimits.circleMax;
+    if (!newName.trim() || rels.length >= tierMax) return;
     const nextRank = rels.length + 1;
     await supabase.from('relationships').insert({
       user_id: profile.id,
@@ -179,7 +180,7 @@ export function CircleScreen({ profile }: Props) {
   const stressInsights = rels.filter(r => r._avgStress != null);
   const highStress = stressInsights.filter(r => (r._avgStress ?? 0) >= 7);
   const lowStress  = stressInsights.filter(r => (r._avgStress ?? 10) <= 3);
-  const atCap = rels.length >= MAX_RELATIONSHIPS;
+  const atCap = rels.length >= tierLimits.circleMax;
 
   return (
     <div style={{ minHeight: '100vh', background: colors.midnight, paddingBottom: 80 }}>
@@ -192,7 +193,7 @@ export function CircleScreen({ profile }: Props) {
           {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
         </h1>
         <p style={{ color: colors.boneFaint, fontSize: 12, margin: '6px 0 0' }}>
-          {rels.length} / {MAX_RELATIONSHIPS} {idioma === 'ES' ? 'personas' : 'people'}
+          {rels.length} / {tierLimits.circleMax} {idioma === 'ES' ? 'personas' : 'people'}
         </p>
       </div>
 
