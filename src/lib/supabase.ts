@@ -102,7 +102,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
   // Founding traders get full premium forever
   if (userState?.founding_trader) {
     return {
-      adhocTurns: 7, circleMax: 10, compatibilityMax: 3,
+      adhocTurns: 7, circleMax: 10, compatibilityMax: 7,
       forecastDays: 14, forecastAllDims: true, forecastComposite: true,
       forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 80, lapseProtection: true,
@@ -111,7 +111,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
   const tier = userState?.tier ?? 'free';
   if (tier === 'premium') {
     return {
-      adhocTurns: 7, circleMax: 10, compatibilityMax: 3,
+      adhocTurns: 7, circleMax: 10, compatibilityMax: 7,
       forecastDays: 14, forecastAllDims: true, forecastComposite: true,
       forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 80, lapseProtection: true,
@@ -119,7 +119,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
   }
   if (tier === 'standard') {
     return {
-      adhocTurns: 3, circleMax: 5, compatibilityMax: 1,
+      adhocTurns: 3, circleMax: 5, compatibilityMax: 3,
       forecastDays: 7, forecastAllDims: true, forecastComposite: false,
       forecastHighlights: false, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 70, lapseProtection: true,
@@ -127,7 +127,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
   }
   // free (default)
   return {
-    adhocTurns: 1, circleMax: 3, compatibilityMax: 0,
+    adhocTurns: 1, circleMax: 3, compatibilityMax: 1,
     forecastDays: 3, forecastAllDims: false, forecastComposite: false,
     forecastHighlights: false, vulnerabilityAlerts: false, accuracyDisplay: false,
     dataTrading: false, dataTradingShare: 0, lapseProtection: false,
