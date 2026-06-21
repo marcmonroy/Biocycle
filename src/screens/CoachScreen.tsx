@@ -1329,7 +1329,7 @@ CRITICAL RULES:
                 setConvState('SESSION_COMPLETE');
               });
             }
-          }, 5 * 60 * 1000); // 5 minutes
+          }, 30 * 1000); // 30 seconds — keeps session tight and saves tokens
 
           // Clear timer if user engages — stored on sessionRef to access in handleAdhocMessage
           (sessionRef.current as any)._autoCloseTimer = autoCloseTimer;
@@ -1421,32 +1421,33 @@ CRITICAL RULES:
         addJulesMsg(farewellText);
 
         // ── Persist ADHOC conversation as memory for future sessions ──
-        const adhocMessages = convHistoryRef.current
+        const adhocExchanges = convHistoryRef.current
           .filter(m => m.role === 'user' || m.role === 'assistant')
-          .slice(-adhocMaxTurns * 2) // last N exchanges only
-          .map(m => `${m.role === 'user' ? 'User' : 'Jules'}: ${m.content.slice(0, 120)}`)
+          .slice(-(adhocMaxTurns * 2))
+          .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
           .join(' | ');
 
-        if (adhocMessages) {
-          // Append ADHOC summary to existing session_summary non-blocking
+        if (adhocExchanges) {
+          const currentSlot = dbSlot();
+          const currentDate = new Date().toISOString().split('T')[0];
           supabase
             .from('conversation_sessions')
-            .select('session_summary')
+            .select('id, session_summary')
             .eq('user_id', profile.id)
-            .eq('session_date', new Date().toISOString().split('T')[0])
-            .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
+            .eq('session_date', currentDate)
+            .eq('time_slot', currentSlot)
+            .eq('session_complete', true)
             .maybeSingle()
             .then(({ data }) => {
-              const existing = data?.session_summary ?? '';
+              if (!data?.id) return;
+              const existing = data.session_summary ?? '';
               const combined = existing
-                ? `${existing} | ADHOC: ${adhocMessages}`
-                : `ADHOC: ${adhocMessages}`;
+                ? `${existing} | ADHOC: ${adhocExchanges}`
+                : `ADHOC: ${adhocExchanges}`;
               supabase
                 .from('conversation_sessions')
                 .update({ session_summary: combined.slice(0, 800) })
-                .eq('user_id', profile.id)
-                .eq('session_date', new Date().toISOString().split('T')[0])
-                .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
+                .eq('id', data.id)
                 .then(() => console.log('[BioCycle] ADHOC memory persisted'));
             });
         }
