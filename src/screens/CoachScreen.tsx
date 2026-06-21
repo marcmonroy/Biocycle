@@ -1324,10 +1324,9 @@ CRITICAL RULES:
                 ? 'Enjoy your afternoon. See you tonight.'
                 : 'Rest well. See you tomorrow.';
               addJulesMsg(farewell);
-              speak(farewell, () => {
-                sessionRef.current.state = 'SESSION_COMPLETE';
-                setConvState('SESSION_COMPLETE');
-              });
+              sessionRef.current.state = 'SESSION_COMPLETE';
+              setConvState('SESSION_COMPLETE');
+              speak(farewell);
             }
           }, 30 * 1000); // 30 seconds — keeps session tight and saves tokens
 
@@ -1452,10 +1451,9 @@ CRITICAL RULES:
             });
         }
 
-        speak(farewellText, () => {
-          sessionRef.current.state = 'SESSION_COMPLETE';
-          setConvState('SESSION_COMPLETE');
-        });
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        speak(farewellText);
       }
 
       // At turn limit: farewell and close
