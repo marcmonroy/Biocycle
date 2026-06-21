@@ -1308,6 +1308,31 @@ CRITICAL RULES:
         speak(coachingText, () => {
           sessionRef.current.state = 'ADHOC';
           setConvState('ADHOC');
+
+          // Auto-close after 5 minutes of no ADHOC response
+          const autoCloseTimer = setTimeout(() => {
+            if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
+              const farewell = isES
+                ? slot === 'morning'
+                  ? 'Que tengas un buen día. Nos vemos esta tarde.'
+                  : slot === 'afternoon'
+                  ? 'Disfruta tu tarde. Nos vemos esta noche.'
+                  : 'Que descanses bien. Nos vemos mañana.'
+                : slot === 'morning'
+                ? 'Have a good morning. See you this afternoon.'
+                : slot === 'afternoon'
+                ? 'Enjoy your afternoon. See you tonight.'
+                : 'Rest well. See you tomorrow.';
+              addJulesMsg(farewell);
+              speak(farewell, () => {
+                sessionRef.current.state = 'SESSION_COMPLETE';
+                setConvState('SESSION_COMPLETE');
+              });
+            }
+          }, 5 * 60 * 1000); // 5 minutes
+
+          // Clear timer if user engages — stored on sessionRef to access in handleAdhocMessage
+          (sessionRef.current as any)._autoCloseTimer = autoCloseTimer;
         });
         return;
       }
@@ -1380,6 +1405,11 @@ CRITICAL RULES:
   async function handleAdhocMessage(userText: string) {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
+    // Clear auto-close timer when user engages
+    if ((sessionRef.current as any)._autoCloseTimer) {
+      clearTimeout((sessionRef.current as any)._autoCloseTimer);
+      (sessionRef.current as any)._autoCloseTimer = null;
+    }
     try {
       addUserMsg(userText);
       adhocTurnsRef.current += 1;
@@ -1389,6 +1419,38 @@ CRITICAL RULES:
       // Helper — closes session cleanly regardless of audio
       function closeSession(farewellText: string) {
         addJulesMsg(farewellText);
+
+        // ── Persist ADHOC conversation as memory for future sessions ──
+        const adhocMessages = convHistoryRef.current
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-adhocMaxTurns * 2) // last N exchanges only
+          .map(m => `${m.role === 'user' ? 'User' : 'Jules'}: ${m.content.slice(0, 120)}`)
+          .join(' | ');
+
+        if (adhocMessages) {
+          // Append ADHOC summary to existing session_summary non-blocking
+          supabase
+            .from('conversation_sessions')
+            .select('session_summary')
+            .eq('user_id', profile.id)
+            .eq('session_date', new Date().toISOString().split('T')[0])
+            .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
+            .maybeSingle()
+            .then(({ data }) => {
+              const existing = data?.session_summary ?? '';
+              const combined = existing
+                ? `${existing} | ADHOC: ${adhocMessages}`
+                : `ADHOC: ${adhocMessages}`;
+              supabase
+                .from('conversation_sessions')
+                .update({ session_summary: combined.slice(0, 800) })
+                .eq('user_id', profile.id)
+                .eq('session_date', new Date().toISOString().split('T')[0])
+                .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
+                .then(() => console.log('[BioCycle] ADHOC memory persisted'));
+            });
+        }
+
         speak(farewellText, () => {
           sessionRef.current.state = 'SESSION_COMPLETE';
           setConvState('SESSION_COMPLETE');
