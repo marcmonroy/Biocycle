@@ -581,8 +581,9 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
   const convHistoryRef  = useRef<Message[]>([]);
-  const adhocTurnsRef   = useRef(0);
-  const adhocMaxTurns   = tierLimits.adhocTurns;
+  const adhocTurnsRef    = useRef(0);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adhocMaxTurns    = tierLimits.adhocTurns;
 
   // Single ref for all mutable session state
   const sessionRef = useRef({
@@ -1309,8 +1310,9 @@ CRITICAL RULES:
           sessionRef.current.state = 'ADHOC';
           setConvState('ADHOC');
 
-          // Auto-close after 5 minutes of no ADHOC response
-          const autoCloseTimer = setTimeout(() => {
+          // Auto-close after 30s of no ADHOC response
+          if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+          autoCloseTimerRef.current = setTimeout(() => {
             if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
               const farewell = isES
                 ? slot === 'morning'
@@ -1328,10 +1330,7 @@ CRITICAL RULES:
               setConvState('SESSION_COMPLETE');
               speak(farewell);
             }
-          }, 30 * 1000); // 30 seconds — keeps session tight and saves tokens
-
-          // Clear timer if user engages — stored on sessionRef to access in handleAdhocMessage
-          (sessionRef.current as any)._autoCloseTimer = autoCloseTimer;
+          }, 30 * 1000);
         });
         return;
       }
@@ -1404,10 +1403,9 @@ CRITICAL RULES:
   async function handleAdhocMessage(userText: string) {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-    // Clear auto-close timer when user engages
-    if ((sessionRef.current as any)._autoCloseTimer) {
-      clearTimeout((sessionRef.current as any)._autoCloseTimer);
-      (sessionRef.current as any)._autoCloseTimer = null;
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
     }
     try {
       addUserMsg(userText);
@@ -2144,7 +2142,7 @@ CRITICAL RULES:
       </div>
 
       {/* INPUT AREA — only renders when there is actual input needed */}
-      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
+      {convState !== 'SESSION_COMPLETE' && (inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
         <div style={{
           flexShrink: 0, background: colors.midnight,
           borderTop: '1px solid rgba(245, 242, 238,0.07)',
