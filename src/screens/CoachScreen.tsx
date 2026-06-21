@@ -577,6 +577,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
   const isProcessingRef = useRef(false);
   const isMutedRef      = useRef(false);
+  const isSpeakingRef   = useRef(false);
   const liveDaysRef     = useRef(profile.days_of_data ?? 0);
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
@@ -616,6 +617,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
 
   // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => { isSpeakingRef.current = bioState === 'speaking'; }, [bioState]);
 
   // Debug: track conversation state
   useEffect(() => { setDebug('coachState', convState); }, [convState]);
@@ -625,69 +627,88 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Auto-close ADHOC after 10 seconds of no user response ────────────────
+  // ── Auto-close ADHOC after 10 seconds of silence AFTER Jules finishes speaking ──
   useEffect(() => {
     if (convState !== 'ADHOC') return;
 
     const slot = sessionRef.current.slot;
     const isES = profile.idioma === 'ES';
 
-    const timer = setTimeout(() => {
-      if (sessionRef.current.state === 'SESSION_COMPLETE') return;
+    // Wait for Jules to finish speaking before starting the countdown
+    // Check every 500ms if speech has ended, then start 10s timer
+    let countdownTimer: ReturnType<typeof setTimeout> | null = null;
 
-      // Write ADHOC memory if user had any exchanges
-      const adhocExchanges = convHistoryRef.current
-        .filter(m => m.role === 'user' || m.role === 'assistant')
-        .slice(-(adhocMaxTurns * 2))
-        .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
-        .join(' | ');
-
-      if (adhocExchanges) {
-        const currentSlot = dbSlot();
-        const currentDate = new Date().toISOString().split('T')[0];
-        supabase
-          .from('conversation_sessions')
-          .select('id, session_summary')
-          .eq('user_id', profile.id)
-          .eq('session_date', currentDate)
-          .eq('time_slot', currentSlot)
-          .eq('session_complete', true)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (!data?.id) return;
-            const existing = data.session_summary ?? '';
-            const combined = existing
-              ? `${existing} | ADHOC: ${adhocExchanges}`
-              : `ADHOC: ${adhocExchanges}`;
-            supabase
-              .from('conversation_sessions')
-              .update({ session_summary: combined.slice(0, 800) })
-              .eq('id', data.id)
-              .then(() => console.log('[BioCycle] ADHOC memory persisted via auto-close'));
-          });
+    const pollForSilence = setInterval(() => {
+      // isSpeakingRef tracks whether TTS is currently playing
+      if (isSpeakingRef.current) return; // still speaking — wait
+      if (sessionRef.current.state === 'SESSION_COMPLETE') {
+        clearInterval(pollForSilence);
+        return;
       }
 
-      // Close with slot-appropriate farewell
-      const farewell = isES
-        ? slot === 'morning'
-          ? 'Que tengas un buen día. Nos vemos esta tarde.'
+      // Jules has finished speaking — start 10s countdown
+      clearInterval(pollForSilence);
+
+      countdownTimer = setTimeout(() => {
+        if (sessionRef.current.state === 'SESSION_COMPLETE') return;
+
+        // Write ADHOC memory
+        const adhocExchanges = convHistoryRef.current
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-(adhocMaxTurns * 2))
+          .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
+          .join(' | ');
+
+        if (adhocExchanges) {
+          const currentSlot = dbSlot();
+          const currentDate = new Date().toISOString().split('T')[0];
+          supabase
+            .from('conversation_sessions')
+            .select('id, session_summary')
+            .eq('user_id', profile.id)
+            .eq('session_date', currentDate)
+            .eq('time_slot', currentSlot)
+            .eq('session_complete', true)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (!data?.id) return;
+              const existing = data.session_summary ?? '';
+              const combined = existing
+                ? `${existing} | ADHOC: ${adhocExchanges}`
+                : `ADHOC: ${adhocExchanges}`;
+              supabase
+                .from('conversation_sessions')
+                .update({ session_summary: combined.slice(0, 800) })
+                .eq('id', data.id)
+                .then(() => console.log('[BioCycle] ADHOC memory persisted'));
+            });
+        }
+
+        const farewell = isES
+          ? slot === 'morning'
+            ? 'Que tengas un buen día. Nos vemos esta tarde.'
+            : slot === 'afternoon'
+            ? 'Disfruta tu tarde. Nos vemos esta noche.'
+            : 'Que descanses bien. Nos vemos mañana.'
+          : slot === 'morning'
+          ? 'Have a good morning. See you this afternoon.'
           : slot === 'afternoon'
-          ? 'Disfruta tu tarde. Nos vemos esta noche.'
-          : 'Que descanses bien. Nos vemos mañana.'
-        : slot === 'morning'
-        ? 'Have a good morning. See you this afternoon.'
-        : slot === 'afternoon'
-        ? 'Enjoy your afternoon. See you tonight.'
-        : 'Rest well. See you tomorrow.';
+          ? 'Enjoy your afternoon. See you tonight.'
+          : 'Rest well. See you tomorrow.';
 
-      addJulesMsg(farewell);
-      sessionRef.current.state = 'SESSION_COMPLETE';
-      setConvState('SESSION_COMPLETE');
-      speak(farewell);
+        addJulesMsg(farewell);
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        speak(farewell);
 
-    }, 10 * 1000);
+      }, 10 * 1000);
 
-    return () => clearTimeout(timer);
+    }, 500); // poll every 500ms
+
+    return () => {
+      clearInterval(pollForSilence);
+      if (countdownTimer) clearTimeout(countdownTimer);
+    };
   }, [convState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Core utilities ────────────────────────────────────────────────────────
