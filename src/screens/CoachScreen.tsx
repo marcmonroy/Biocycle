@@ -1656,6 +1656,7 @@ CRITICAL RULES:
             name: knownPerson.name,
             rank: knownPerson.rank,
             intimacy: knownPerson.intimacy,
+            category: knownPerson.category ?? null,
           };
           sessionRef.current.collectedThisSession = true;
 
