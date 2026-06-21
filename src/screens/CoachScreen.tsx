@@ -1313,6 +1313,7 @@ CRITICAL RULES:
           // Auto-close after 30s of no ADHOC response
           if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
           autoCloseTimerRef.current = setTimeout(() => {
+            console.log('[BioCycle] auto-close timer fired — state:', sessionRef.current.state, 'turns:', adhocTurnsRef.current);
             if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
               const farewell = isES
                 ? slot === 'morning'
@@ -1330,7 +1331,7 @@ CRITICAL RULES:
               setConvState('SESSION_COMPLETE');
               speak(farewell);
             }
-          }, 30 * 1000);
+          }, 10 * 1000);
         });
         return;
       }
