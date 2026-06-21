@@ -598,7 +598,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     relationshipsCollected: 0,
     collectedThisSession:   false,
     pendingRelationshipName:'',
-    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean } | null,
+    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean; category: string | null } | null,
     // Session 5 — Validated Instruments
     instrumentPending:       null as string | null,
     instrumentResponses:     [] as number[],
