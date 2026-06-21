@@ -1304,35 +1304,36 @@ CRITICAL RULES:
       if (coachingText) {
         addJulesMsg(coachingText);
 
-        // After coaching synthesis, enter ADHOC mode so user can respond
-        // Jules asked a question — user should be able to answer it
-        speak(coachingText, () => {
-          sessionRef.current.state = 'ADHOC';
-          setConvState('ADHOC');
+        // Enter ADHOC immediately — do NOT wait for audio to finish
+        // Timer must be set independently of audio completion
+        sessionRef.current.state = 'ADHOC';
+        setConvState('ADHOC');
 
-          // Auto-close after 30s of no ADHOC response
-          if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
-          autoCloseTimerRef.current = setTimeout(() => {
-            console.log('[BioCycle] auto-close timer fired — state:', sessionRef.current.state, 'turns:', adhocTurnsRef.current);
-            if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
-              const farewell = isES
-                ? slot === 'morning'
-                  ? 'Que tengas un buen día. Nos vemos esta tarde.'
-                  : slot === 'afternoon'
-                  ? 'Disfruta tu tarde. Nos vemos esta noche.'
-                  : 'Que descanses bien. Nos vemos mañana.'
-                : slot === 'morning'
-                ? 'Have a good morning. See you this afternoon.'
+        // Set auto-close timer NOW — independent of speech
+        if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+        autoCloseTimerRef.current = setTimeout(() => {
+          console.log('[BioCycle] auto-close timer fired — state:', sessionRef.current.state, 'turns:', adhocTurnsRef.current);
+          if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
+            const farewell = isES
+              ? slot === 'morning'
+                ? 'Que tengas un buen día. Nos vemos esta tarde.'
                 : slot === 'afternoon'
-                ? 'Enjoy your afternoon. See you tonight.'
-                : 'Rest well. See you tomorrow.';
-              addJulesMsg(farewell);
-              sessionRef.current.state = 'SESSION_COMPLETE';
-              setConvState('SESSION_COMPLETE');
-              speak(farewell);
-            }
-          }, 10 * 1000);
-        });
+                ? 'Disfruta tu tarde. Nos vemos esta noche.'
+                : 'Que descanses bien. Nos vemos mañana.'
+              : slot === 'morning'
+              ? 'Have a good morning. See you this afternoon.'
+              : slot === 'afternoon'
+              ? 'Enjoy your afternoon. See you tonight.'
+              : 'Rest well. See you tomorrow.';
+            addJulesMsg(farewell);
+            sessionRef.current.state = 'SESSION_COMPLETE';
+            setConvState('SESSION_COMPLETE');
+            speak(farewell);
+          }
+        }, 10 * 1000);
+
+        // Speak synthesis — audio plays but ADHOC state is already open
+        speak(coachingText);
         return;
       }
     }
