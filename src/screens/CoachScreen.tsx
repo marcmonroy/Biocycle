@@ -625,6 +625,28 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ── Auto-close ADHOC after 45 seconds of no user response ────────────────
+  useEffect(() => {
+    if (convState !== 'ADHOC') return;
+    const slot = sessionRef.current.slot;
+    const isES = profile.idioma === 'ES';
+    const timer = setTimeout(() => {
+      if (sessionRef.current.state === 'SESSION_COMPLETE') return;
+      const farewell = isES
+        ? slot === 'morning' ? 'Que tengas un buen día. Nos vemos esta tarde.'
+        : slot === 'afternoon' ? 'Disfruta tu tarde. Nos vemos esta noche.'
+        : 'Que descanses bien. Nos vemos mañana.'
+        : slot === 'morning' ? 'Have a good morning. See you this afternoon.'
+        : slot === 'afternoon' ? 'Enjoy your afternoon. See you tonight.'
+        : 'Rest well. See you tomorrow.';
+      addJulesMsg(farewell);
+      sessionRef.current.state = 'SESSION_COMPLETE';
+      setConvState('SESSION_COMPLETE');
+      speak(farewell);
+    }, 45 * 1000);
+    return () => clearTimeout(timer);
+  }, [convState]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Core utilities ────────────────────────────────────────────────────────
 
   function addJulesMsg(text: string) {
