@@ -575,10 +575,9 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   const [isMuted, setIsMuted]         = useState(false);
 
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
-  const isProcessingRef   = useRef(false);
-  const isMutedRef        = useRef(false);
-  const isSpeakingRef     = useRef(false);
-  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isProcessingRef = useRef(false);
+  const isMutedRef      = useRef(false);
+  const isSpeakingRef   = useRef(false);
   const liveDaysRef     = useRef(profile.days_of_data ?? 0);
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
@@ -628,35 +627,88 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── Auto-close if user ignores Jules' closing question (10 seconds) ──────
+  // ── Auto-close ADHOC after 10 seconds of silence AFTER Jules finishes speaking ──
   useEffect(() => {
     if (convState !== 'ADHOC') return;
 
     const slot = sessionRef.current.slot;
     const isES = profile.idioma === 'ES';
 
-    const timer = setTimeout(() => {
-      if (sessionRef.current.state === 'SESSION_COMPLETE') return;
+    // Wait for Jules to finish speaking before starting the countdown
+    // Check every 500ms if speech has ended, then start 10s timer
+    let countdownTimer: ReturnType<typeof setTimeout> | null = null;
 
-      const farewell = isES
-        ? slot === 'morning'
-          ? 'Que tengas un buen día. Nos vemos esta tarde.'
+    const pollForSilence = setInterval(() => {
+      // isSpeakingRef tracks whether TTS is currently playing
+      if (isSpeakingRef.current) return; // still speaking — wait
+      if (sessionRef.current.state === 'SESSION_COMPLETE') {
+        clearInterval(pollForSilence);
+        return;
+      }
+
+      // Jules has finished speaking — start 10s countdown
+      clearInterval(pollForSilence);
+
+      countdownTimer = setTimeout(() => {
+        if (sessionRef.current.state === 'SESSION_COMPLETE') return;
+
+        // Write ADHOC memory
+        const adhocExchanges = convHistoryRef.current
+          .filter(m => m.role === 'user' || m.role === 'assistant')
+          .slice(-(adhocMaxTurns * 2))
+          .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
+          .join(' | ');
+
+        if (adhocExchanges) {
+          const currentSlot = dbSlot();
+          const currentDate = new Date().toISOString().split('T')[0];
+          supabase
+            .from('conversation_sessions')
+            .select('id, session_summary')
+            .eq('user_id', profile.id)
+            .eq('session_date', currentDate)
+            .eq('time_slot', currentSlot)
+            .eq('session_complete', true)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (!data?.id) return;
+              const existing = data.session_summary ?? '';
+              const combined = existing
+                ? `${existing} | ADHOC: ${adhocExchanges}`
+                : `ADHOC: ${adhocExchanges}`;
+              supabase
+                .from('conversation_sessions')
+                .update({ session_summary: combined.slice(0, 800) })
+                .eq('id', data.id)
+                .then(() => console.log('[BioCycle] ADHOC memory persisted'));
+            });
+        }
+
+        const farewell = isES
+          ? slot === 'morning'
+            ? 'Que tengas un buen día. Nos vemos esta tarde.'
+            : slot === 'afternoon'
+            ? 'Disfruta tu tarde. Nos vemos esta noche.'
+            : 'Que descanses bien. Nos vemos mañana.'
+          : slot === 'morning'
+          ? 'Have a good morning. See you this afternoon.'
           : slot === 'afternoon'
-          ? 'Disfruta tu tarde. Nos vemos esta noche.'
-          : 'Que descanses bien. Nos vemos mañana.'
-        : slot === 'morning'
-        ? 'Have a good morning. See you this afternoon.'
-        : slot === 'afternoon'
-        ? 'Enjoy your afternoon. See you tonight.'
-        : 'Rest well. See you tomorrow.';
+          ? 'Enjoy your afternoon. See you tonight.'
+          : 'Rest well. See you tomorrow.';
 
-      addJulesMsg(farewell);
-      sessionRef.current.state = 'SESSION_COMPLETE';
-      setConvState('SESSION_COMPLETE');
-      speak(farewell);
-    }, 10 * 1000);
+        addJulesMsg(farewell);
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        speak(farewell);
 
-    return () => clearTimeout(timer);
+      }, 10 * 1000);
+
+    }, 500); // poll every 500ms
+
+    return () => {
+      clearInterval(pollForSilence);
+      if (countdownTimer) clearTimeout(countdownTimer);
+    };
   }, [convState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Core utilities ────────────────────────────────────────────────────────
@@ -1337,17 +1389,13 @@ CRITICAL RULES:
       if (coachingText) {
         addJulesMsg(coachingText);
 
-        // Speak synthesis, then ask closing question
-        speak(coachingText, () => {
-          const closingQ = isES
-            ? '¿Hay algo más en tu mente antes de cerrar la sesión de hoy?'
-            : 'Is there anything else on your mind before I close today\'s session?';
-          addJulesMsg(closingQ);
-          speak(closingQ, () => {
-            sessionRef.current.state = 'ADHOC';
-            setConvState('ADHOC');
-          });
-        });
+        // Enter ADHOC immediately — do NOT wait for audio to finish
+        // Timer must be set independently of audio completion
+        sessionRef.current.state = 'ADHOC';
+        setConvState('ADHOC');
+
+        // Speak synthesis — ADHOC state already open, useEffect handles auto-close
+        speak(coachingText);
         return;
       }
     }
@@ -1419,22 +1467,17 @@ CRITICAL RULES:
   async function handleAdhocMessage(userText: string) {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-
-    // Clear any pending auto-close timer
-    if (autoCloseTimerRef.current) {
-      clearTimeout(autoCloseTimerRef.current);
-      autoCloseTimerRef.current = null;
-    }
-
     try {
       addUserMsg(userText);
+      adhocTurnsRef.current += 1;
+      const turn = adhocTurnsRef.current;
       const slot = sessionRef.current.slot;
 
-      // Helper — closes session cleanly with farewell and session saved screen
+      // Helper — closes session cleanly regardless of audio
       function closeSession(farewellText: string) {
         addJulesMsg(farewellText);
 
-        // Write ADHOC memory to DB
+        // ── Persist ADHOC conversation as memory for future sessions ──
         const adhocExchanges = convHistoryRef.current
           .filter(m => m.role === 'user' || m.role === 'assistant')
           .slice(-(adhocMaxTurns * 2))
@@ -1471,55 +1514,71 @@ CRITICAL RULES:
         speak(farewellText);
       }
 
-      const farewell = isES
-        ? slot === 'morning'
-          ? 'Que tengas un buen día. Nos vemos esta tarde.'
+      // At turn limit: farewell and close
+      if (turn > adhocMaxTurns) {
+        const farewell = isES
+          ? slot === 'morning'
+            ? 'Qué buena charla. Que tengas un buen día — nos vemos mañana.'
+            : slot === 'afternoon'
+            ? 'Qué buena charla. Disfruta tu tarde — nos vemos mañana.'
+            : 'Qué buena charla. Que descanses bien — nos vemos mañana.'
+          : slot === 'morning'
+          ? 'Good chat. Have a great morning — see you tomorrow.'
           : slot === 'afternoon'
-          ? 'Disfruta tu tarde. Nos vemos esta noche.'
-          : 'Que descanses bien. Nos vemos mañana.'
-        : slot === 'morning'
-        ? 'Have a good morning. See you this afternoon.'
-        : slot === 'afternoon'
-        ? 'Enjoy your afternoon. See you tonight.'
-        : 'Rest well. See you tomorrow.';
-
-      // Crisis check
-      const lowerText = userText.toLowerCase();
-      const crisisKeywords = ['suicid', 'kill myself', 'end my life', 'no reason to live',
-        'quiero morir', 'matarme', 'no quiero vivir', 'hacerme daño'];
-      if (crisisKeywords.some(k => lowerText.includes(k))) {
-        handleCrisis();
-        isProcessingRef.current = false;
+          ? 'Good chat. Enjoy your afternoon — see you tomorrow.'
+          : 'Good chat. Sleep well tonight — see you tomorrow.';
+        closeSession(farewell);
         return;
       }
 
-      // Call Jules for one final response
+      // Free tier (adhocMaxTurns === 1): after turn 1 AI responds, then closes
+      // Standard (3) / Premium (7): AI responds, last turn closes
       setBioState('thinking');
       const ctx = sessionRef.current.sessionContext
-        ? `\n\nSession context: ${sessionRef.current.sessionContext}`
+        ? `\n\nRecent session context:\n${sessionRef.current.sessionContext}`
         : '';
-
+      const isLastTurn = turn === adhocMaxTurns;
       const sys = isES
-        ? `${noIntro}Eres Jules, coach de inteligencia biológica de BioCycle. El usuario acaba de compartir algo antes de cerrar la sesión.\nResponde en máximo 20 palabras — cálida, directa, sin preguntas. Luego cierra.\nNUNCA: diagnósticos médicos, política, noticias.\nCRITICAL: SOLO referencia a miembros del Círculo en contextos íntimos si están etiquetados como [intimate-partner].${ctx}`
-        : `${noIntro}You are Jules, BioCycle's biological intelligence coach. The user just shared something before closing the session.\nRespond in maximum 20 words — warm, direct, no questions. Then close.\nNEVER: medical diagnoses, politics, news.\nCRITICAL: ONLY reference Circle members in intimate contexts if tagged as [intimate-partner].${ctx}`;
+        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC (turno ${turn} de ${adhocMaxTurns}).\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nREGLA CRÍTICA — privacidad del Círculo: SOLO referencia a miembros del Círculo en contextos íntimos, sexuales o románticos si están explícitamente etiquetados como [intimate-partner] en el contexto de la sesión. Los familiares, amigos y colegas NUNCA deben ser referenciados en contextos sexuales o románticos bajo ninguna circunstancia, aunque el usuario los mencione. Si el usuario expresa un deseo de intimidad y no aparece ningún [intimate-partner] en el contexto, responde con orientación general de bienestar biológico sin nombrar a ninguna persona.\n${isLastTurn ? 'Esta es tu última respuesta antes del cierre — termina con calidez y SIN hacer más preguntas. No preguntes nada.' : 'Sé cálida y directa. Puedes terminar con una pregunta breve.'}\nResponde en máximo 30 palabras.${ctx}`
+        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE (turn ${turn} of ${adhocMaxTurns}).\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns, sleep quality, stress sources and physical response.\nIf user goes off-topic, bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment.\nCRITICAL — Circle member privacy rule: ONLY reference Circle members in intimate, sexual, or romantic contexts if they are explicitly tagged as [intimate-partner] in the session context. Family members, friends, and colleagues must NEVER be referenced in sexual or romantic contexts under any circumstance, even if the user mentions them. If the user expresses a desire for intimacy and no [intimate-partner] appears in the context, respond with general biological wellness guidance without naming any person.\n${isLastTurn ? 'This is your final response — end warmly with NO question. Do not ask anything.' : 'Be warm and direct. May end with a brief question.'}\nRespond in 30 words maximum.${ctx}`;
 
-      const reply = await callCoachAPI(convHistoryRef.current, sys, 40);
+      const text = await callCoachAPI(convHistoryRef.current, sys, 80);
       setBioState('idle');
 
-      if (reply) {
-        addJulesMsg(reply);
-        speak(reply, () => closeSession(farewell));
-      } else {
+      if (!text) {
+        const farewell = isES
+          ? 'Qué buena charla. Cuídate mucho — nos vemos mañana.'
+          : 'Good chat. Take good care — see you tomorrow.';
         closeSession(farewell);
+        return;
       }
 
-    } catch (err) {
-      console.error('[BioCycle] handleAdhocMessage error:', err);
-      const farewell = isES ? 'Que descanses bien. Nos vemos mañana.' : 'Rest well. See you tomorrow.';
-      addJulesMsg(farewell);
-      sessionRef.current.state = 'SESSION_COMPLETE';
-      setConvState('SESSION_COMPLETE');
-      speak(farewell);
+      if (hasCrisisContent(text)) {
+        await logSafetyEvent(profile.id, text, 'ai_response');
+        handleCrisis();
+        return;
+      }
+
+      addJulesMsg(text);
+      speak(text);
+
+      // After turn 2 AI response, auto-close after audio finishes
+      if (isLastTurn) {
+        const farewell = isES
+          ? slot === 'morning'
+            ? 'Qué buena charla. Que tengas un buen día — nos vemos mañana.'
+            : slot === 'afternoon'
+            ? 'Qué buena charla. Disfruta tu tarde — nos vemos mañana.'
+            : 'Qué buena charla. Que descanses bien — nos vemos mañana.'
+          : slot === 'morning'
+          ? 'Good chat. Have a great morning — see you tomorrow.'
+          : slot === 'afternoon'
+          ? 'Good chat. Enjoy your afternoon — see you tomorrow.'
+          : 'Good chat. Sleep well tonight — see you tomorrow.';
+        // Short delay so Jules response settles before farewell
+        setTimeout(() => closeSession(farewell), 3000);
+      }
+
     } finally {
       isProcessingRef.current = false;
     }
