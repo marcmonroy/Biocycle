@@ -598,7 +598,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     relationshipsCollected: 0,
     collectedThisSession:   false,
     pendingRelationshipName:'',
-    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean } | null,
+    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean; category: string | null } | null,
     // Session 5 — Validated Instruments
     instrumentPending:       null as string | null,
     instrumentResponses:     [] as number[],
@@ -867,7 +867,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
             .limit(1)
             .single();
           if (lastInt?.connection_score != null) {
-            const relType = rel.intimacy ? 'intimate-partner' : ((rel as any).category ?? 'other');
+            const relType = rel.intimacy ? 'intimate-partner' : (rel.category ?? 'other');
             parts.push(`Circle: ${rel.name} [${relType}] score:${lastInt.connection_score}`);
           }
         }
@@ -1655,7 +1655,7 @@ CRITICAL RULES:
             name: knownPerson.name,
             rank: knownPerson.rank,
             intimacy: knownPerson.intimacy,
-            category: (knownPerson as any).category ?? null,
+            category: knownPerson.category ?? null,
           };
           sessionRef.current.collectedThisSession = true;
 
