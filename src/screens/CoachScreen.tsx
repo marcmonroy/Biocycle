@@ -577,7 +577,6 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   // ── Refs (mutable — no stale-closure risk) ───────────────────────────────
   const isProcessingRef = useRef(false);
   const isMutedRef      = useRef(false);
-  const isSpeakingRef   = useRef(false);
   const liveDaysRef     = useRef(profile.days_of_data ?? 0);
   const recognitionRef  = useRef<any>(null);
   const messagesEndRef  = useRef<HTMLDivElement>(null);
@@ -599,7 +598,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     relationshipsCollected: 0,
     collectedThisSession:   false,
     pendingRelationshipName:'',
-    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean; category: string | null } | null,
+    scoringRelationship:    null as { id: string; name: string; rank: number; intimacy: boolean } | null,
     // Session 5 — Validated Instruments
     instrumentPending:       null as string | null,
     instrumentResponses:     [] as number[],
@@ -617,7 +616,6 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
 
   // Sync isMuted → ref
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
-  useEffect(() => { isSpeakingRef.current = bioState === 'speaking'; }, [bioState]);
 
   // Debug: track conversation state
   useEffect(() => { setDebug('coachState', convState); }, [convState]);
@@ -626,90 +624,6 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // ── Auto-close ADHOC after 10 seconds of silence AFTER Jules finishes speaking ──
-  useEffect(() => {
-    if (convState !== 'ADHOC') return;
-
-    const slot = sessionRef.current.slot;
-    const isES = profile.idioma === 'ES';
-
-    // Wait for Jules to finish speaking before starting the countdown
-    // Check every 500ms if speech has ended, then start 10s timer
-    let countdownTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const pollForSilence = setInterval(() => {
-      // isSpeakingRef tracks whether TTS is currently playing
-      if (isSpeakingRef.current) return; // still speaking — wait
-      if (sessionRef.current.state === 'SESSION_COMPLETE') {
-        clearInterval(pollForSilence);
-        return;
-      }
-
-      // Jules has finished speaking — start 10s countdown
-      clearInterval(pollForSilence);
-
-      countdownTimer = setTimeout(() => {
-        if (sessionRef.current.state === 'SESSION_COMPLETE') return;
-
-        // Write ADHOC memory
-        const adhocExchanges = convHistoryRef.current
-          .filter(m => m.role === 'user' || m.role === 'assistant')
-          .slice(-(adhocMaxTurns * 2))
-          .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
-          .join(' | ');
-
-        if (adhocExchanges) {
-          const currentSlot = dbSlot();
-          const currentDate = new Date().toISOString().split('T')[0];
-          supabase
-            .from('conversation_sessions')
-            .select('id, session_summary')
-            .eq('user_id', profile.id)
-            .eq('session_date', currentDate)
-            .eq('time_slot', currentSlot)
-            .eq('session_complete', true)
-            .maybeSingle()
-            .then(({ data }) => {
-              if (!data?.id) return;
-              const existing = data.session_summary ?? '';
-              const combined = existing
-                ? `${existing} | ADHOC: ${adhocExchanges}`
-                : `ADHOC: ${adhocExchanges}`;
-              supabase
-                .from('conversation_sessions')
-                .update({ session_summary: combined.slice(0, 800) })
-                .eq('id', data.id)
-                .then(() => console.log('[BioCycle] ADHOC memory persisted'));
-            });
-        }
-
-        const farewell = isES
-          ? slot === 'morning'
-            ? 'Que tengas un buen día. Nos vemos esta tarde.'
-            : slot === 'afternoon'
-            ? 'Disfruta tu tarde. Nos vemos esta noche.'
-            : 'Que descanses bien. Nos vemos mañana.'
-          : slot === 'morning'
-          ? 'Have a good morning. See you this afternoon.'
-          : slot === 'afternoon'
-          ? 'Enjoy your afternoon. See you tonight.'
-          : 'Rest well. See you tomorrow.';
-
-        addJulesMsg(farewell);
-        sessionRef.current.state = 'SESSION_COMPLETE';
-        setConvState('SESSION_COMPLETE');
-        speak(farewell);
-
-      }, 10 * 1000);
-
-    }, 500); // poll every 500ms
-
-    return () => {
-      clearInterval(pollForSilence);
-      if (countdownTimer) clearTimeout(countdownTimer);
-    };
-  }, [convState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Core utilities ────────────────────────────────────────────────────────
 
@@ -1389,13 +1303,12 @@ CRITICAL RULES:
       if (coachingText) {
         addJulesMsg(coachingText);
 
-        // Enter ADHOC immediately — do NOT wait for audio to finish
-        // Timer must be set independently of audio completion
-        sessionRef.current.state = 'ADHOC';
-        setConvState('ADHOC');
-
-        // Speak synthesis — ADHOC state already open, useEffect handles auto-close
-        speak(coachingText);
+        // After coaching synthesis, enter ADHOC mode so user can respond
+        // Jules asked a question — user should be able to answer it
+        speak(coachingText, () => {
+          sessionRef.current.state = 'ADHOC';
+          setConvState('ADHOC');
+        });
         return;
       }
     }
@@ -1476,42 +1389,10 @@ CRITICAL RULES:
       // Helper — closes session cleanly regardless of audio
       function closeSession(farewellText: string) {
         addJulesMsg(farewellText);
-
-        // ── Persist ADHOC conversation as memory for future sessions ──
-        const adhocExchanges = convHistoryRef.current
-          .filter(m => m.role === 'user' || m.role === 'assistant')
-          .slice(-(adhocMaxTurns * 2))
-          .map(m => `${m.role === 'user' ? 'U' : 'J'}: ${m.content.slice(0, 100)}`)
-          .join(' | ');
-
-        if (adhocExchanges) {
-          const currentSlot = dbSlot();
-          const currentDate = new Date().toISOString().split('T')[0];
-          supabase
-            .from('conversation_sessions')
-            .select('id, session_summary')
-            .eq('user_id', profile.id)
-            .eq('session_date', currentDate)
-            .eq('time_slot', currentSlot)
-            .eq('session_complete', true)
-            .maybeSingle()
-            .then(({ data }) => {
-              if (!data?.id) return;
-              const existing = data.session_summary ?? '';
-              const combined = existing
-                ? `${existing} | ADHOC: ${adhocExchanges}`
-                : `ADHOC: ${adhocExchanges}`;
-              supabase
-                .from('conversation_sessions')
-                .update({ session_summary: combined.slice(0, 800) })
-                .eq('id', data.id)
-                .then(() => console.log('[BioCycle] ADHOC memory persisted'));
-            });
-        }
-
-        sessionRef.current.state = 'SESSION_COMPLETE';
-        setConvState('SESSION_COMPLETE');
-        speak(farewellText);
+        speak(farewellText, () => {
+          sessionRef.current.state = 'SESSION_COMPLETE';
+          setConvState('SESSION_COMPLETE');
+        });
       }
 
       // At turn limit: farewell and close
@@ -1712,7 +1593,6 @@ CRITICAL RULES:
             name: knownPerson.name,
             rank: knownPerson.rank,
             intimacy: knownPerson.intimacy,
-            category: knownPerson.category ?? null,
           };
           sessionRef.current.collectedThisSession = true;
 
@@ -2202,7 +2082,7 @@ CRITICAL RULES:
       </div>
 
       {/* INPUT AREA — only renders when there is actual input needed */}
-      {convState !== 'SESSION_COMPLETE' && (inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
+      {(inputUI === 'numberpad' || inputUI === 'choices' || inputUI === 'text' || inputUI === 'relationship_category' || inputUI === 'instrument_pad' || convState === 'ADHOC') && (
         <div style={{
           flexShrink: 0, background: colors.midnight,
           borderTop: '1px solid rgba(245, 242, 238,0.07)',
