@@ -867,7 +867,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
             .limit(1)
             .single();
           if (lastInt?.connection_score != null) {
-            const relType = rel.intimacy ? 'intimate-partner' : (rel.category ?? 'other');
+            const relType = rel.intimacy ? 'intimate-partner' : ((rel as any).category ?? 'other');
             parts.push(`Circle: ${rel.name} [${relType}] score:${lastInt.connection_score}`);
           }
         }
@@ -1655,6 +1655,7 @@ CRITICAL RULES:
             name: knownPerson.name,
             rank: knownPerson.rank,
             intimacy: knownPerson.intimacy,
+            category: (knownPerson as any).category ?? null,
           };
           sessionRef.current.collectedThisSession = true;
 
