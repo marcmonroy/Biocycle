@@ -1843,10 +1843,20 @@ CRITICAL RULES:
 
       if (cancelled) return;
 
-      sessionRef.current.sessionContext = recentSessions
+      // Build context from recent session summaries
+      const recentSummaries = recentSessions
         ?.map((s: { session_date: string; time_slot: string; session_summary: string }) =>
           `[${s.session_date} ${s.time_slot}]: ${s.session_summary}`)
         .join('\n') ?? '';
+
+      // Also pull pattern_summary from profile — Jules' long-term memory
+      const patternSummary = (profile as any).pattern_summary ?? '';
+
+      // Combine: pattern summary first (big picture), then recent sessions (recent detail)
+      sessionRef.current.sessionContext = [
+        patternSummary ? `Long-term pattern: ${patternSummary}` : '',
+        recentSummaries ? `Recent sessions:\n${recentSummaries}` : '',
+      ].filter(Boolean).join('\n\n');
 
       // ── 5. Check for gap (2-6 days since last completed session)
       const { data: lastSessions } = await supabase
