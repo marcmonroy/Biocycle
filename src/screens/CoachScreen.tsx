@@ -1972,9 +1972,30 @@ CRITICAL RULES:
           ? (isES ? (m.sienna_es ?? m.es) : (m.sienna_en ?? m.en))
           : (isES ? m.es : m.en);
       } else if (isGap) {
-        openingText = isES
-          ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
-          : `Hey ${name} — good to have you back. It's been a few days.`;
+        // If we have context, use pattern-aware opening even after a gap
+        const ctx = sessionRef.current.sessionContext;
+        if (ctx && liveDays >= 30) {
+          const phase = getCurrentPhase(profile);
+          const phaseLabel = isES ? phase.displayNameES : phase.displayName;
+          const persona = picardiaMode
+            ? (isES
+                ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
+                : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
+            : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
+          const openSys = isES
+            ? `${noIntro}Eres ${persona} El usuario ha estado ausente unos días. Abre la sesión con UNA oración que mencione algo específico de sus patrones recientes — no menciones la ausencia. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are ${persona} The user has been away for a few days. Open with ONE sentence referencing something specific from their recent patterns — do not mention the absence. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words.\n\nRecent context:\n${ctx}`;
+          const patternLine = await callCoachAPI([{ role: 'user', content: 'open' }], openSys, 40);
+          openingText = patternLine
+            ? `${isES ? 'Hola' : 'Hey'} ${name}. ${patternLine}`
+            : (isES
+                ? `Hola ${name}. Bienvenido de vuelta — retomemos donde lo dejamos.`
+                : `Hey ${name}. Good to have you back — let's pick up where we left off.`);
+        } else {
+          openingText = isES
+            ? `Hola ${name} — qué bueno verte. Han pasado unos días.`
+            : `Hey ${name} — good to have you back. It's been a few days.`;
+        }
       } else if (liveDays === 0 && !onboardingDone) {
         // Day 1 — first ever session
         openingText = isES
