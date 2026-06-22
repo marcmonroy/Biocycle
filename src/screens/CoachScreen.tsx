@@ -643,7 +643,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
       sessionRef.current.state = 'SESSION_COMPLETE';
       setConvState('SESSION_COMPLETE');
       speak(farewell);
-    }, 30 * 1000);
+    }, 45 * 1000);
     return () => clearTimeout(timer);
   }, [convState]); // eslint-disable-line react-hooks/exhaustive-deps
 
