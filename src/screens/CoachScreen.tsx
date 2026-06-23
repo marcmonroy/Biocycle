@@ -11,6 +11,7 @@ import { setDebug } from '../components/DebugOverlay';
 import { BottomNav } from '../components/BottomNav';
 import type { Tab } from '../components/BottomNav';
 import { getCurrentPhase } from '../lib/phaseEngine';
+import { generateForecast } from '../lib/forecastEngine';
 import { RelationshipCategorySelector } from '../components/RelationshipCategorySelector';
 import { colors, fonts } from '../lib/tokens';
 
@@ -217,51 +218,60 @@ function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: bool
     return 'SESSION_COMPLETE';
   }
 
-  // Day 30+: consolidated single session flow
-  // ENERGY → STRESS → ANXIETY → SEXUAL → SLEEP → SESSION_COMPLETE
+  // Day 30+: 4-day rotating cycle — liveDays % 4 determines which dimensions today
   const isDayThirtyPlus = liveDays >= 30;
   if (isDayThirtyPlus) {
-    // Question set varies by preferred slot — questions relevant to time of day
-    switch (slot) {
-      case 'morning':
-        // Morning: core vitals + sleep quality from last night
+    const cycle = liveDays % 4;
+    switch (cycle) {
+      case 0: // Energy · Stress · Anxiety · Sleep
         switch (qState) {
-          case 'ENERGY_Q':  return 'STRESS_Q';
-          case 'STRESS_Q':  return 'ANXIETY_Q';
-          case 'ANXIETY_Q': return 'SEXUAL_Q';
-          case 'SEXUAL_Q':  return 'SLEEP_Q';
-          case 'SLEEP_Q':   return 'SESSION_COMPLETE';
-          default:          return 'SESSION_COMPLETE';
+          case 'ENERGY_Q':             return 'STRESS_Q';
+          case 'STRESS_Q':             return 'ANXIETY_Q';
+          case 'ANXIETY_Q':            return 'SLEEP_Q';
+          case 'SLEEP_Q':              return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':          return 'RELATIONSHIP_SCORE_Q';
+          case 'RELATIONSHIP_SCORE_Q': return 'SESSION_COMPLETE';
+          default:                     return 'SESSION_COMPLETE';
         }
-      case 'afternoon':
-        // Afternoon: energy check + emotional state mid-day
+      case 1: // Cognitive · Sexual · Emotional · Caffeine
         switch (qState) {
-          case 'ENERGY_Q':    return 'STRESS_Q';
-          case 'STRESS_Q':    return 'ANXIETY_Q';
-          case 'ANXIETY_Q':   return 'SEXUAL_Q';
-          case 'SEXUAL_Q':    return 'EMOTIONAL_Q';
-          case 'EMOTIONAL_Q': return 'SESSION_COMPLETE';
-          default:            return 'SESSION_COMPLETE';
+          case 'COGNITIVE_Q':          return 'SEXUAL_Q';
+          case 'SEXUAL_Q':             return 'EMOTIONAL_Q';
+          case 'EMOTIONAL_Q':          return 'CAFFEINE_Q';
+          case 'CAFFEINE_Q':           return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':          return 'RELATIONSHIP_SCORE_Q';
+          case 'RELATIONSHIP_SCORE_Q': return 'SESSION_COMPLETE';
+          default:                     return 'SESSION_COMPLETE';
         }
-      case 'night':
-        // Night: how did the day go + key metrics + memorable moment
+      case 2: // Social · Stress · Anxiety · Hydration
         switch (qState) {
-          case 'ENERGY_Q':     return 'STRESS_Q';
-          case 'STRESS_Q':     return 'ANXIETY_Q';
-          case 'ANXIETY_Q':    return 'SEXUAL_Q';
-          case 'SEXUAL_Q':     return 'DAY_RATING_Q';
-          case 'DAY_RATING_Q': return 'MEMORABLE_Q';
-          case 'MEMORABLE_Q':  return 'SESSION_COMPLETE';
-          default:             return 'SESSION_COMPLETE';
+          case 'SOCIAL_Q':             return 'STRESS_Q';
+          case 'STRESS_Q':             return 'ANXIETY_Q';
+          case 'ANXIETY_Q':            return 'HYDRATION_Q';
+          case 'HYDRATION_Q':          return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':          return 'RELATIONSHIP_SCORE_Q';
+          case 'RELATIONSHIP_SCORE_Q': return 'SESSION_COMPLETE';
+          default:                     return 'SESSION_COMPLETE';
+        }
+      case 3: // Energy · Sexual · Day Rating · Alcohol
+        switch (qState) {
+          case 'ENERGY_Q':             return 'SEXUAL_Q';
+          case 'SEXUAL_Q':             return 'DAY_RATING_Q';
+          case 'DAY_RATING_Q':         return 'ALCOHOL_Q';
+          case 'ALCOHOL_Q':            return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':          return 'RELATIONSHIP_SCORE_Q';
+          case 'RELATIONSHIP_SCORE_Q': return 'SESSION_COMPLETE';
+          default:                     return 'SESSION_COMPLETE';
         }
       default:
         switch (qState) {
-          case 'ENERGY_Q':  return 'STRESS_Q';
-          case 'STRESS_Q':  return 'ANXIETY_Q';
-          case 'ANXIETY_Q': return 'SEXUAL_Q';
-          case 'SEXUAL_Q':  return 'SLEEP_Q';
-          case 'SLEEP_Q':   return 'SESSION_COMPLETE';
-          default:          return 'SESSION_COMPLETE';
+          case 'ENERGY_Q':             return 'STRESS_Q';
+          case 'STRESS_Q':             return 'ANXIETY_Q';
+          case 'ANXIETY_Q':            return 'SLEEP_Q';
+          case 'SLEEP_Q':              return 'MEMORABLE_Q';
+          case 'MEMORABLE_Q':          return 'RELATIONSHIP_SCORE_Q';
+          case 'RELATIONSHIP_SCORE_Q': return 'SESSION_COMPLETE';
+          default:                     return 'SESSION_COMPLETE';
         }
     }
   }
@@ -628,6 +638,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   // ── Auto-close ADHOC after 45 seconds of no user response ────────────────
   useEffect(() => {
     if (convState !== 'ADHOC') return;
+    if (liveDaysRef.current >= 30) return; // day 30+ sessions close via forecast callback, not timer
     const slot = sessionRef.current.slot;
     const isES = profile.idioma === 'ES';
     const timer = setTimeout(() => {
@@ -1058,10 +1069,18 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   function enterFirstDimension(daysOverride?: number) {
     const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
     if (days >= 30) {
-      // Set session slot to preferred slot for day 30+ so question set matches
-      const preferred = (profile as any).preferred_checkin_slot ?? getSessionSlot();
-      sessionRef.current.slot = preferred;
-      showQuestion('ENERGY_Q');
+      // Set session slot to night for day 30+ (single daily session)
+      sessionRef.current.slot = 'night';
+      // First question varies by 4-day cycle
+      const cycle = days % 4;
+      if (cycle === 1) {
+        showQuestion('COGNITIVE_Q');
+      } else if (cycle === 2) {
+        showQuestion('SOCIAL_Q');
+      } else {
+        // cycle 0, 3, default: start with ENERGY_Q
+        showQuestion('ENERGY_Q');
+      }
       return;
     }
     // Days 1-29: slot-based entry
@@ -1084,15 +1103,12 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   }
 
   async function maybeScoreRelationship() {
-    // Day 30+: only ask Circle question in night slot when user has had a full day
+    // Day 30+: always night slot — always ask Circle question
     const currentSlot = sessionRef.current.slot;
-    if (liveDaysRef.current >= 30 && currentSlot !== 'night') {
-      void _doSessionComplete();
-      return;
-    }
 
-    // Only score in morning or afternoon sessions
-    if (sessionRef.current.slot === 'night') {
+    // Day 30+ always runs at night — always score Circle
+    // Day 1-29: only score in morning or afternoon (night has its own flow)
+    if (sessionRef.current.slot === 'night' && liveDaysRef.current < 30) {
       _enterNameCollectionOrClose();
       return;
     }
@@ -1120,11 +1136,31 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
     const scoredTodayIds = new Set((todayInteractions ?? []).map((i: any) => i.relationship_id));
 
-    // Pick the first relationship NOT yet scored today
-    const rel = (allRels as any[]).find((r: any) => !scoredTodayIds.has(r.id));
+    // Rotate by least recently scored across all days
+    const unscoredToday = (allRels as any[]).find((r: any) => !scoredTodayIds.has(r.id));
+    let rel: any;
+    if (unscoredToday) {
+      rel = unscoredToday;
+    } else {
+      const { data: recentInts } = await supabase
+        .from('relationship_interactions')
+        .select('relationship_id, interaction_date')
+        .eq('user_id', profile.id)
+        .order('interaction_date', { ascending: false })
+        .limit(50);
+      const lastScored: Record<string, string> = {};
+      (recentInts ?? []).forEach((i: any) => {
+        if (!lastScored[i.relationship_id]) lastScored[i.relationship_id] = i.interaction_date;
+      });
+      const sorted = [...(allRels as any[])].sort((a: any, b: any) => {
+        const aDate = lastScored[a.id] ?? '2000-01-01';
+        const bDate = lastScored[b.id] ?? '2000-01-01';
+        return aDate < bDate ? -1 : 1;
+      });
+      rel = sorted[0];
+    }
 
     if (!rel) {
-      // All relationships already scored today — skip
       _enterNameCollectionOrClose();
       return;
     }
@@ -1325,37 +1361,77 @@ CRITICAL RULES:
       if (coachingText) {
         addJulesMsg(coachingText);
 
-        // After coaching synthesis, enter ADHOC mode so user can respond
-        // Jules asked a question — user should be able to answer it
-        speak(coachingText, () => {
-          sessionRef.current.state = 'ADHOC';
-          setConvState('ADHOC');
+        // For day 30+ users: deliver tomorrow forecast then close
+        // For day 1-29 users: open ADHOC conversation
+        if (liveDaysRef.current >= 30) {
+          speak(coachingText, async () => {
+            // Small pause before forecast
+            await new Promise(r => setTimeout(r, 1200));
 
-          // Auto-close after 5 minutes of no ADHOC response
-          const autoCloseTimer = setTimeout(() => {
-            if (sessionRef.current.state !== 'SESSION_COMPLETE' && adhocTurnsRef.current === 0) {
-              const farewell = isES
-                ? slot === 'morning'
-                  ? 'Que tengas un buen día. Nos vemos esta tarde.'
-                  : slot === 'afternoon'
-                  ? 'Disfruta tu tarde. Nos vemos esta noche.'
-                  : 'Que descanses bien. Nos vemos mañana.'
-                : slot === 'morning'
-                ? 'Have a good morning. See you this afternoon.'
-                : slot === 'afternoon'
-                ? 'Enjoy your afternoon. See you tonight.'
-                : 'Rest well. See you tomorrow.';
-              addJulesMsg(farewell);
-              speak(farewell, () => {
-                sessionRef.current.state = 'SESSION_COMPLETE';
-                setConvState('SESSION_COMPLETE');
-              });
+            // Pull tomorrow from forecast engine
+            try {
+              const forecast = await generateForecast(profile, 2);
+              const tomorrow = forecast.days[1];
+              if (tomorrow) {
+                const c = tomorrow.composite;
+                const signals = [
+                  { label: isES ? 'rendimiento' : 'performance',      value: c.performance,        dir: c.performance >= 70 ? 'high' : c.performance <= 35 ? 'low' : 'mid' },
+                  { label: isES ? 'filo cognitivo' : 'cognitive edge', value: c.cognitiveEdge,      dir: c.cognitiveEdge >= 70 ? 'high' : c.cognitiveEdge <= 35 ? 'low' : 'mid' },
+                  { label: isES ? 'carga de estrés' : 'stress load',   value: c.stressLoad,         dir: c.stressLoad >= 70 ? 'high' : c.stressLoad <= 35 ? 'low' : 'mid' },
+                  { label: isES ? 'intimidad' : 'intimacy readiness',  value: c.intimacyReadiness,  dir: c.intimacyReadiness >= 70 ? 'high' : c.intimacyReadiness <= 35 ? 'low' : 'mid' },
+                  { label: isES ? 'vitalidad' : 'vitality',            value: c.biologicalVitality, dir: c.biologicalVitality >= 70 ? 'high' : c.biologicalVitality <= 35 ? 'low' : 'mid' },
+                ]
+                .filter(s => s.dir !== 'mid')
+                .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50))
+                .slice(0, 2);
+
+                const signalLines = signals.map(s => `${s.label}: ${s.value} (${s.dir})`).join(', ');
+                const forecastSys = isES
+                  ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in nocturno. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "Antes de que descanses —" o similar. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
+                  : `${noIntro}You are Jules. The user just finished their night check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "Before you sleep —" or similar. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
+
+                const forecastText = await callCoachAPI(
+                  [{ role: 'user', content: 'tomorrow preview' }],
+                  forecastSys,
+                  80
+                );
+
+                if (forecastText) {
+                  addJulesMsg(forecastText);
+                  speak(forecastText, () => {
+                    const farewellName = profile.nombre ?? name;
+                    const farewell = isES
+                      ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
+                      : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
+                    addJulesMsg(farewell);
+                    sessionRef.current.state = 'SESSION_COMPLETE';
+                    setConvState('SESSION_COMPLETE');
+                    speak(farewell);
+                  });
+                  return;
+                }
+              }
+            } catch (err) {
+              console.warn('[BioCycle] forecast preview failed:', err);
             }
-          }, 5 * 60 * 1000); // 5 minutes
 
-          // Clear timer if user engages — stored on sessionRef to access in handleAdhocMessage
-          (sessionRef.current as any)._autoCloseTimer = autoCloseTimer;
-        });
+            // Fallback if forecast fails
+            const farewellName = profile.nombre ?? name;
+            const farewell = isES
+              ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
+              : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
+            addJulesMsg(farewell);
+            sessionRef.current.state = 'SESSION_COMPLETE';
+            setConvState('SESSION_COMPLETE');
+            speak(farewell);
+          });
+        } else {
+          // Day 1-29: open ADHOC conversation as before
+          speak(coachingText, () => {
+            sessionRef.current.state = 'ADHOC';
+            setConvState('ADHOC');
+          });
+        }
         return;
       }
     }
@@ -1427,11 +1503,6 @@ CRITICAL RULES:
   async function handleAdhocMessage(userText: string) {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-    // Clear auto-close timer when user engages
-    if ((sessionRef.current as any)._autoCloseTimer) {
-      clearTimeout((sessionRef.current as any)._autoCloseTimer);
-      (sessionRef.current as any)._autoCloseTimer = null;
-    }
     try {
       addUserMsg(userText);
       adhocTurnsRef.current += 1;
