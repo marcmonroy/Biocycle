@@ -11,10 +11,33 @@ exports.handler = async (event) => {
 
   try {
     const { userId } = JSON.parse(event.body || '{}');
-    console.log('[delete-account] userId:', userId);
 
     if (!userId) {
       return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'userId required' }) };
+    }
+
+    // Security: verify the caller owns this account using their auth token
+    const authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
+    const callerToken = authHeader.replace('Bearer ', '').trim();
+
+    if (!callerToken) {
+      return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Unauthorized' }) };
+    }
+
+    // Verify the token belongs to the userId being deleted
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+    if (supabaseUrl && anonKey) {
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        headers: { 'Authorization': `Bearer ${callerToken}`, 'apikey': anonKey }
+      });
+      if (!userRes.ok) {
+        return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Invalid token' }) };
+      }
+      const userData = await userRes.json();
+      if (userData.id !== userId) {
+        return { statusCode: 403, headers: cors, body: JSON.stringify({ error: 'Forbidden — token does not match userId' }) };
+      }
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;

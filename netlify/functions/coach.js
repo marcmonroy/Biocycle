@@ -22,7 +22,7 @@ exports.handler = async (event) => {
 
     // Ensure model is always set
     if (!parsed.model) {
-      parsed.model = 'claude-sonnet-4-20250514';
+      parsed.model = 'claude-sonnet-4-6';
     }
 
     // If the client did not provide a system prompt (should never happen in normal flow),

@@ -174,7 +174,7 @@ function NewInviteForm({
       const msgEN = `${senderName} wants to measure your *${typeConfig.label}* compatibility on BioCycle.\n\nReply *YES* to accept or *NO* to decline.\n\nNot on BioCycle yet? Join free: https://biocycle.app`;
       const msgES = `${senderName} quiere medir tu compatibilidad de *${typeConfig.labelES}* en BioCycle.\n\nResponde *SÍ* para aceptar o *NO* para rechazar.\n\n¿Aún no estás en BioCycle? Únete gratis: https://biocycle.app`;
 
-      await fetch('/api/send-whatsapp', {
+      await fetch('/.netlify/functions/send-whatsapp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'compatibility_invite', to: normalized, teaserText: ES ? msgES : msgEN }),

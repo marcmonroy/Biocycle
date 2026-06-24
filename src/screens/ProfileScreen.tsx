@@ -292,9 +292,13 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       await supabase.from('conversation_sessions').delete().eq('user_id', uid);
       await supabase.from('user_state').delete().eq('user_id', uid);
       await supabase.from('profiles').delete().eq('id', uid);
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       const deleteRes = await fetch('/.netlify/functions/delete-account', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
+        },
         body: JSON.stringify({ userId: uid }),
       });
       const deleteData = await deleteRes.json();

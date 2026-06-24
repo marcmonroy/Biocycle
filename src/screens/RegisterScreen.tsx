@@ -327,16 +327,6 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       .eq('user_id', userIdRef.current)
       .maybeSingle();
 
-    // Bypass code for test users during WhatsApp pending period
-    if (entered === '999999') {
-      await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userIdRef.current);
-      await supabase.from('user_state').upsert({ user_id: userIdRef.current, state: 'active_trader', founding_trader: true }, { onConflict: 'user_id' });
-      await supabase.from('profiles').update({ checkin_times: { morning: { hour: new Date(new Date().setHours(8,0,0,0)).getUTCHours(), label: '8am' }, afternoon: { hour: new Date(new Date().setHours(13,0,0,0)).getUTCHours(), label: '1pm' }, night: { hour: new Date(new Date().setHours(20,0,0,0)).getUTCHours(), label: '8pm' } } }).eq('id', userIdRef.current);
-      setLoading(false);
-      onComplete();
-      return;
-    }
-
     if (!codeRow) {
       setLoading(false);
       setError(isES ? 'Código no encontrado. Reenvía el código.' : 'Code not found. Please resend.');
