@@ -1103,9 +1103,6 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   }
 
   async function maybeScoreRelationship() {
-    // Day 30+: always night slot — always ask Circle question
-    const currentSlot = sessionRef.current.slot;
-
     // Day 30+ always runs at night — always score Circle
     // Day 1-29: only score in morning or afternoon (night has its own flow)
     if (sessionRef.current.slot === 'night' && liveDaysRef.current < 30) {
