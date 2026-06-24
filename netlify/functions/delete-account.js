@@ -26,18 +26,21 @@ exports.handler = async (event) => {
 
     // Verify the token belongs to the userId being deleted
     const supabaseUrl = process.env.SUPABASE_URL;
-    const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-    if (supabaseUrl && anonKey) {
-      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-        headers: { 'Authorization': `Bearer ${callerToken}`, 'apikey': anonKey }
-      });
-      if (!userRes.ok) {
-        return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Invalid token' }) };
-      }
-      const userData = await userRes.json();
-      if (userData.id !== userId) {
-        return { statusCode: 403, headers: cors, body: JSON.stringify({ error: 'Forbidden — token does not match userId' }) };
-      }
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    if (!anonKey) {
+      console.error('[delete-account] SUPABASE_ANON_KEY not set — cannot verify token ownership');
+      return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Server configuration error' }) };
+    }
+
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { 'Authorization': `Bearer ${callerToken}`, 'apikey': anonKey }
+    });
+    if (!userRes.ok) {
+      return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Invalid token' }) };
+    }
+    const userData = await userRes.json();
+    if (userData.id !== userId) {
+      return { statusCode: 403, headers: cors, body: JSON.stringify({ error: 'Forbidden — token does not match userId' }) };
     }
 
     const supabaseUrl = process.env.SUPABASE_URL;
