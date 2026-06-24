@@ -374,7 +374,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }).eq('id', userIdRef.current);
 
     setLoading(false);
-    setStep(6 as any);
+    onComplete();
   };
 
   const handleResend = async () => {
