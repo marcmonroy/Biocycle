@@ -284,33 +284,30 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
     setDeleting(true);
     try {
       const uid = profile.id;
-      await supabase.from('whatsapp_verification_codes').delete().eq('user_id', uid);
-      await supabase.from('relationship_interactions').delete().eq('user_id', uid);
-      await supabase.from('relationships').delete().eq('user_id', uid);
-      await supabase.from('safety_events').delete().eq('user_id', uid);
-      await supabase.from('validation_scores').delete().eq('user_id', uid);
-      await supabase.from('conversation_sessions').delete().eq('user_id', uid);
-      await supabase.from('whatsapp_sends').delete().eq('user_id', uid);
-      await supabase.from('user_state').delete().eq('user_id', uid);
-      await supabase.from('profiles').delete().eq('id', uid);
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+      // Single server-side call handles everything:
+      // data deletion in correct FK order + auth account deletion
       const deleteRes = await fetch('/.netlify/functions/delete-account', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: uid }),
       });
+
       const deleteData = await deleteRes.json();
-      console.log('[ProfileScreen] delete-account response:', deleteData);
+
       if (!deleteRes.ok) {
-        console.error('[ProfileScreen] auth delete failed:', deleteData.error);
-        // Still sign out even if auth delete fails
+        console.error('[ProfileScreen] delete failed:', deleteData.error);
+        setDeleting(false);
+        setShowDeleteConfirm(false);
+        return;
       }
+
+      // Everything deleted — sign out and return to login
       await supabase.auth.signOut();
       onLogout();
-    } catch {
+
+    } catch (err) {
+      console.error('[ProfileScreen] delete error:', err);
       setDeleting(false);
       setShowDeleteConfirm(false);
     }

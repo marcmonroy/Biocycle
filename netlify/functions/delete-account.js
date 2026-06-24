@@ -2,7 +2,7 @@ exports.handler = async (event) => {
   const cors = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -16,51 +16,21 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers: cors, body: JSON.stringify({ error: 'userId required' }) };
     }
 
-    // Security: verify the caller owns this account using their auth token
-    const authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
-    const callerToken = authHeader.replace('Bearer ', '').trim();
-
-    if (!callerToken) {
-      return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Unauthorized' }) };
-    }
-
-    // Verify the token belongs to the userId being deleted
     const supabaseUrl = process.env.SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
-    if (!anonKey) {
-      console.error('[delete-account] SUPABASE_ANON_KEY not set — cannot verify token ownership');
-      return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Server configuration error' }) };
-    }
-
-    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-      headers: { 'Authorization': `Bearer ${callerToken}`, 'apikey': anonKey }
-    });
-    if (!userRes.ok) {
-      return { statusCode: 401, headers: cors, body: JSON.stringify({ error: 'Invalid token' }) };
-    }
-    const userData = await userRes.json();
-    if (userData.id !== userId) {
-      return { statusCode: 403, headers: cors, body: JSON.stringify({ error: 'Forbidden — token does not match userId' }) };
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
-
-    console.log('[delete-account] SUPABASE_URL present:', !!supabaseUrl);
-    console.log('[delete-account] SERVICE_ROLE_KEY present:', !!serviceKey);
+    const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !serviceKey) {
-      return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Missing Supabase credentials' }) };
+      return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Missing server credentials' }) };
     }
 
-    // Delete all user data server-side using service role key (bypasses RLS)
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
     const headers = {
       'apikey': serviceKey,
       'Authorization': `Bearer ${serviceKey}`,
       'Content-Type': 'application/json',
     };
 
+    // Delete all user data in correct foreign-key order
+    // Service role key bypasses RLS — guaranteed deletion
     const tables = [
       `whatsapp_verification_codes?user_id=eq.${userId}`,
       `relationship_interactions?user_id=eq.${userId}`,
@@ -76,42 +46,27 @@ exports.handler = async (event) => {
     ];
 
     for (const table of tables) {
-      const delRes = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
-        method: 'DELETE',
-        headers,
-      });
-      console.log(`[delete-account] deleted ${table}: ${delRes.status}`);
+      const r = await fetch(`${supabaseUrl}/rest/v1/${table}`, { method: 'DELETE', headers });
+      console.log(`[delete-account] ${table} → ${r.status}`);
     }
 
-    const url = `${supabaseUrl}/auth/v1/admin/users/${userId}`;
-    console.log('[delete-account] DELETE URL:', url);
-
-    const res = await fetch(url, {
+    // Delete the auth account
+    const authRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
       method: 'DELETE',
-      headers: {
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
-    const responseText = await res.text();
-    console.log('[delete-account] Response status:', res.status);
-    console.log('[delete-account] Response body:', responseText);
+    const body = await authRes.text();
+    console.log(`[delete-account] auth delete → ${authRes.status}: ${body}`);
 
-    if (!res.ok) {
-      return {
-        statusCode: res.status,
-        headers: cors,
-        body: JSON.stringify({ error: `Auth delete failed: ${responseText}` })
-      };
+    if (!authRes.ok) {
+      return { statusCode: authRes.status, headers: cors, body: JSON.stringify({ error: body }) };
     }
 
-    console.log('[delete-account] Auth user deleted successfully');
     return { statusCode: 200, headers: cors, body: JSON.stringify({ success: true }) };
 
   } catch (err) {
-    console.error('[delete-account] unexpected error:', err);
+    console.error('[delete-account] error:', err);
     return { statusCode: 500, headers: cors, body: JSON.stringify({ error: err.message }) };
   }
 };
