@@ -290,6 +290,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       await supabase.from('safety_events').delete().eq('user_id', uid);
       await supabase.from('validation_scores').delete().eq('user_id', uid);
       await supabase.from('conversation_sessions').delete().eq('user_id', uid);
+      await supabase.from('whatsapp_sends').delete().eq('user_id', uid);
       await supabase.from('user_state').delete().eq('user_id', uid);
       await supabase.from('profiles').delete().eq('id', uid);
       const { data: { session: currentSession } } = await supabase.auth.getSession();

@@ -70,6 +70,7 @@ exports.handler = async (event) => {
       `conversation_sessions?user_id=eq.${userId}`,
       `compatibility_connections?user_a_id=eq.${userId}`,
       `compatibility_connections?user_b_id=eq.${userId}`,
+      `whatsapp_sends?user_id=eq.${userId}`,
       `user_state?user_id=eq.${userId}`,
       `profiles?id=eq.${userId}`,
     ];
