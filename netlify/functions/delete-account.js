@@ -53,6 +53,35 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers: cors, body: JSON.stringify({ error: 'Missing Supabase credentials' }) };
     }
 
+    // Delete all user data server-side using service role key (bypasses RLS)
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SERVICE_ROLE_KEY;
+    const headers = {
+      'apikey': serviceKey,
+      'Authorization': `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    const tables = [
+      `whatsapp_verification_codes?user_id=eq.${userId}`,
+      `relationship_interactions?user_id=eq.${userId}`,
+      `relationships?user_id=eq.${userId}`,
+      `safety_events?user_id=eq.${userId}`,
+      `validation_scores?user_id=eq.${userId}`,
+      `conversation_sessions?user_id=eq.${userId}`,
+      `compatibility_connections?user_a_id=eq.${userId}`,
+      `compatibility_connections?user_b_id=eq.${userId}`,
+      `user_state?user_id=eq.${userId}`,
+      `profiles?id=eq.${userId}`,
+    ];
+
+    for (const table of tables) {
+      const delRes = await fetch(`${supabaseUrl}/rest/v1/${table}`, {
+        method: 'DELETE',
+        headers,
+      });
+      console.log(`[delete-account] deleted ${table}: ${delRes.status}`);
+    }
+
     const url = `${supabaseUrl}/auth/v1/admin/users/${userId}`;
     console.log('[delete-account] DELETE URL:', url);
 
