@@ -767,7 +767,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
       await supabase.from('conversation_sessions').upsert({
         id: sessionRef.current.id,
         user_id: profile.id,
-        session_date: new Date().toISOString().split('T')[0],
+        session_date: new Date().toLocaleDateString('en-CA'),
         time_slot: dbSlot(),
         phase_at_session: `day_${liveDaysRef.current}`,
         personality_mode: picardiaMode ? 'sienna' : 'jules',
@@ -793,7 +793,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
   async function saveSession() {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
       console.log('[saveSession] saving for user:', profile.id, 'date:', today, 'slot:', sessionRef.current.slot);
 
       // For andropause/perimenopause, use time-slot based phase so calibration
@@ -1019,7 +1019,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     const instrument = sessionRef.current.instrumentPending!;
     const responses = sessionRef.current.instrumentResponses;
     const score = calculateInstrumentScore(instrument, responses);
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
     try {
       await supabase.from('validation_scores').insert({
@@ -1113,7 +1113,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
 
     // Get all relationships
     const { data: allRels } = await supabase
@@ -1526,7 +1526,7 @@ CRITICAL RULES:
             .from('conversation_sessions')
             .select('session_summary')
             .eq('user_id', profile.id)
-            .eq('session_date', new Date().toISOString().split('T')[0])
+            .eq('session_date', new Date().toLocaleDateString('en-CA'))
             .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
             .maybeSingle()
             .then(({ data }) => {
@@ -1538,7 +1538,7 @@ CRITICAL RULES:
                 .from('conversation_sessions')
                 .update({ session_summary: combined.slice(0, 800) })
                 .eq('user_id', profile.id)
-                .eq('session_date', new Date().toISOString().split('T')[0])
+                .eq('session_date', new Date().toLocaleDateString('en-CA'))
                 .eq('time_slot', slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'night')
                 .then(() => console.log('[BioCycle] ADHOC memory persisted'));
             });
@@ -1782,7 +1782,7 @@ CRITICAL RULES:
           const { error: intErr } = await supabase.from('relationship_interactions').insert({
             user_id: profile.id,
             relationship_id: rel.id,
-            interaction_date: new Date().toISOString().split('T')[0],
+            interaction_date: new Date().toLocaleDateString('en-CA'),
             connection_score: score,
             phase: getCurrentPhase(profile).phase,
           });
@@ -1887,7 +1887,8 @@ CRITICAL RULES:
       sessionRef.current.pendingRelationshipName = '';
 
       // ── 3. Slot locking — if this slot already completed today, show locked
-      const today = new Date().toISOString().split('T')[0];
+      // Use local date not UTC — avoids timezone lock bug for users in UTC-4 and later
+      const today = new Date().toLocaleDateString('en-CA'); // returns YYYY-MM-DD in local time
       const { data: completedToday } = await supabase
         .from('conversation_sessions')
         .select('time_slot')
