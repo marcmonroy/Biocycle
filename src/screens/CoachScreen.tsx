@@ -1800,8 +1800,9 @@ CRITICAL RULES:
         addJulesMsg(ackMsg);
         sessionRef.current.state = 'RELATIONSHIP_SCORE_ACK';
         setConvState('RELATIONSHIP_SCORE_ACK');
-        setTimeout(() => { _enterNameCollectionOrClose(); }, 200);
-        speak(ackMsg);
+        speak(ackMsg, () => {
+          setTimeout(() => { _enterNameCollectionOrClose(); }, 400);
+        });
         break;
       }
 
