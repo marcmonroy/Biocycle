@@ -1,3 +1,5 @@
+import { API_BASE } from '../lib/apiBase';
+
 // ElevenLabs voice IDs per personality and language
 const VOICE_IDS: Record<string, string> = {
   jules_en:  'gJx1vCzNCD1EQHT212Ls',
@@ -99,7 +101,7 @@ export async function speakWithElevenLabs(
     const abortController = new AbortController();
     currentAbortController = abortController;
 
-    const response = await fetch('/.netlify/functions/elevenlabs-tts', {
+    const response = await fetch(`${API_BASE}/.netlify/functions/elevenlabs-tts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voiceId }),

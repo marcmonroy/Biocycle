@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 import { getLang } from '../lib/lang';
 import { colors, fonts } from '../lib/tokens';
 
@@ -75,7 +76,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     if (initialStep === 5 && userIdRef.current && savedPhone && !autoSentRef.current) {
       autoSentRef.current = true;
       setLoading(true);
-      fetch('/.netlify/functions/send-whatsapp', {
+      fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
@@ -284,7 +285,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }
 
     // Send verification code via Netlify function (code generated + stored server-side)
-    const res = await fetch('/.netlify/functions/send-whatsapp', {
+    const res = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: fullPhone, userId: uid, action: 'send_verification' }),
@@ -384,7 +385,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setVerificationCode(['', '', '', '', '', '']);
     setLoading(true);
 
-    const res = await fetch('/.netlify/functions/send-whatsapp', {
+    const res = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),

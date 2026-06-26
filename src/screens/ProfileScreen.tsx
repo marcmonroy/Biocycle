@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 import type { Profile, UserState } from '../lib/supabase';
 import { getTierLimits } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
@@ -287,7 +288,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
 
       // Single server-side call handles everything:
       // data deletion in correct FK order + auth account deletion
-      const deleteRes = await fetch('/.netlify/functions/delete-account', {
+      const deleteRes = await fetch(`${API_BASE}/.netlify/functions/delete-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: uid }),

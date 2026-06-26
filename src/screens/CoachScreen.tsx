@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { QuantumDNA } from '../components/QuantumDNA';
 import { speakWithElevenLabs, cancelSpeech } from '../services/voiceService';
+import { API_BASE } from '../lib/apiBase';
 import { setDebug } from '../components/DebugOverlay';
 import { BottomNav } from '../components/BottomNav';
 import type { Tab } from '../components/BottomNav';
@@ -694,7 +695,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     const firstUser = apiMsgs.findIndex(m => m.role === 'user');
     const safe = firstUser >= 0 ? apiMsgs.slice(firstUser) : apiMsgs;
     try {
-      const res  = await fetch('/.netlify/functions/coach', {
+      const res  = await fetch(`${API_BASE}/.netlify/functions/coach`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ model: 'claude-sonnet-4-6', messages: safe, system: systemPrompt, max_tokens: maxTokens }),
