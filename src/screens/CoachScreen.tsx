@@ -1099,7 +1099,10 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   // ── Session 3 — Relationship Circle ────────────────────────────────────────
 
   function enterSessionComplete() {
-    void maybeScoreRelationship();
+    // Small delay to ensure previous speech completes before Circle question
+    setTimeout(() => {
+      void maybeScoreRelationship();
+    }, 800);
   }
 
   async function maybeScoreRelationship() {
