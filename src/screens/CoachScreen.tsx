@@ -791,7 +791,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     } catch { /* non-blocking */ }
   }
 
-  async function saveSession() {
+  async function saveSession(): Promise<{ ok: boolean; error?: string }> {
     try {
       const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
       console.log('[saveSession] saving for user:', profile.id, 'date:', today, 'slot:', sessionRef.current.slot);
@@ -829,7 +829,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
       if (error) {
         console.error('[saveSession] ERROR:', error.message, error.details);
         setDebug('lastError', error.message);
-        return;
+        return { ok: false, error: error.message };
       }
 
       console.log('[saveSession] saved successfully');
@@ -924,9 +924,11 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
         console.warn('[saveSession] summary write failed (non-blocking):', summaryErr);
       }
 
+      return { ok: true };
     } catch (err) {
       console.error('[saveSession] unexpected error:', err);
       setDebug('lastError', (err as Error)?.message ?? String(err));
+      return { ok: false, error: (err as Error)?.message ?? String(err) };
     }
   }
 
@@ -1069,8 +1071,11 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   function enterFirstDimension(daysOverride?: number) {
     const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
     if (days >= 30) {
-      // Set session slot to night for day 30+ (single daily session)
-      sessionRef.current.slot = 'night';
+      // Day 30+ is one session per day. Default reminder is night, but the session
+      // adapts to whenever the user actually opens it — use clock-derived slot so
+      // greeting, tone, and forecast match the real time of day.
+      const h = new Date().getHours();
+      sessionRef.current.slot = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'night';
       // First question varies by 4-day cycle
       const cycle = days % 4;
       if (cycle === 1) {
@@ -1244,7 +1249,17 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
   async function _doSessionComplete() {
     // Save session first
-    void saveSession();
+    const saveResult = await saveSession();
+    if (!saveResult?.ok) {
+      // Save failed — do NOT tell the user the session was saved
+      const failMsg = isES
+        ? 'Tengo tus respuestas, pero no pude guardarlas todavía. Por favor intenta de nuevo en un momento.'
+        : 'I have your answers, but I could not save them yet. Please try again in a moment.';
+      addJulesMsg(failMsg);
+      speak(failMsg);
+      setBioState('idle');
+      return;
+    }
 
     // Build coaching synthesis from today's scores + phase + context
     const scores = scoresRef.current;
@@ -1384,14 +1399,18 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
                     { label: isES ? 'intimidad' : 'intimacy readiness',  value: c.intimacyReadiness,  dir: c.intimacyReadiness >= 70 ? 'high' : c.intimacyReadiness <= 35 ? 'low' : 'mid' },
                     { label: isES ? 'vitalidad' : 'vitality',            value: c.biologicalVitality, dir: c.biologicalVitality >= 70 ? 'high' : c.biologicalVitality <= 35 ? 'low' : 'mid' },
                   ]
-                  .filter(s => s.dir !== 'mid')
                   .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50))
                   .slice(0, 2);
 
                   const signalLines = signals.map(s => `${s.label}: ${s.value} (${s.dir})`).join(', ');
+                  const fSlot = sessionRef.current.slot;
+                  const openerEN = fSlot === 'morning' ? 'Before the day starts —' : fSlot === 'afternoon' ? 'For the rest of today and tomorrow —' : 'Before you sleep —';
+                  const openerES = fSlot === 'morning' ? 'Antes de que empiece el día —' : fSlot === 'afternoon' ? 'Para el resto de hoy y mañana —' : 'Antes de que descanses —';
+                  const whenEN = fSlot === 'morning' ? 'morning' : fSlot === 'afternoon' ? 'afternoon' : 'night';
+                  const whenES = fSlot === 'morning' ? 'mañana' : fSlot === 'afternoon' ? 'tarde' : 'noche';
                   const forecastSys = isES
-                    ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in nocturno. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "Antes de que descanses —" o similar. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
-                    : `${noIntro}You are Jules. The user just finished their night check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "Before you sleep —" or similar night-appropriate opener. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
+                    ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in de ${whenES}. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "${openerES}" o similar apropiado para la hora. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
+                    : `${noIntro}You are Jules. The user just finished their ${whenEN} check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "${openerEN}" or similar appropriate to the time of day. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
 
                   forecastText = await callCoachAPI(
                     [{ role: 'user', content: 'tomorrow preview' }],
