@@ -2107,9 +2107,11 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
                 ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
                 : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
             : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
+          const timeOfDayEN = slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening';
+          const timeOfDayES = slot === 'morning' ? 'la mañana' : slot === 'afternoon' ? 'la tarde' : 'la noche';
           const openSys = isES
-            ? `${noIntro}Eres ${persona} El usuario ha estado ausente unos días. Abre la sesión con UNA oración que mencione algo específico de sus patrones recientes — no menciones la ausencia. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras.\n\nContexto reciente:\n${ctx}`
-            : `${noIntro}You are ${persona} The user has been away for a few days. Open with ONE sentence referencing something specific from their recent patterns — do not mention the absence. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words.\n\nRecent context:\n${ctx}`;
+            ? `${noIntro}Eres ${persona} Es ${timeOfDayES}. El usuario ha estado ausente unos días. Abre la sesión con UNA oración que mencione algo específico de sus patrones recientes — no menciones la ausencia. NO hables de sesiones nocturnas si es de mañana o tarde. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are ${persona} It is ${timeOfDayEN}. The user has been away for a few days. Open with ONE sentence referencing something specific from their recent patterns — do not mention the absence. Do NOT mention night sessions if it is morning or afternoon. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words.\n\nRecent context:\n${ctx}`;
           const patternLine = await callCoachAPI([{ role: 'user', content: 'open' }], openSys, 40);
           openingText = patternLine
             ? `${isES ? 'Hola' : 'Hey'} ${name}. ${patternLine}`
@@ -2140,9 +2142,11 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
                 ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
                 : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
             : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
+          const timeOfDayEN = slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening';
+          const timeOfDayES = slot === 'morning' ? 'la mañana' : slot === 'afternoon' ? 'la tarde' : 'la noche';
           const openSys = isES
-            ? `${noIntro}Eres ${persona} Abre la sesión con UNA oración que mencione algo específico y concreto que hayas notado en los patrones recientes del usuario. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras. Directo y cálido.\n\nContexto reciente:\n${ctx}`
-            : `${noIntro}You are ${persona} Open with ONE sentence that references something specific and concrete you have noticed in the user's recent patterns. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words. Direct and warm.\n\nRecent context:\n${ctx}`;
+            ? `${noIntro}Eres ${persona} Es ${timeOfDayES}. Abre la sesión con UNA oración que mencione algo específico de los patrones recientes del usuario, apropiada para esta hora del día. NO hables de sesiones nocturnas si es de mañana o tarde. Fase actual: ${phaseLabel}. NO saludes. NO preguntes. NO uses su nombre. Máximo 18 palabras. Directo y cálido.\n\nContexto reciente:\n${ctx}`
+            : `${noIntro}You are ${persona} It is ${timeOfDayEN}. Open with ONE sentence referencing something specific from the user's recent patterns, appropriate to this time of day. Do NOT mention night sessions if it is morning or afternoon. Current phase: ${phaseLabel}. Do NOT greet. Do NOT ask anything. Do NOT use their name. Maximum 18 words. Direct and warm.\n\nRecent context:\n${ctx}`;
           const patternLine = await callCoachAPI([{ role: 'user', content: 'open' }], openSys, 40);
           openingText = patternLine
             ? `${isES ? 'Hola' : 'Hey'} ${name}. ${patternLine}`
