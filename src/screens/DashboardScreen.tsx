@@ -7,6 +7,7 @@ import { computePortfolioMetrics } from '../lib/portfolioValue';
 import { generateForecast, type ForecastDay } from '../lib/forecastEngine';
 import type { Tab } from '../components/BottomNav';
 import { colors, fonts } from '../lib/tokens';
+import { Capacitor } from '@capacitor/core';
 
 interface Props {
   profile: Profile;
@@ -196,6 +197,8 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
   useEffect(() => {
     // Detect if already running as installed PWA — never show banner if so
+    // Suppress entirely on native Capacitor builds — the app is already installed
+    if (Capacitor.isNativePlatform()) return;
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;

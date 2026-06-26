@@ -4,6 +4,7 @@ import type { Profile, UserState } from './lib/supabase';
 import { getTierLimits } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
+import { registerPushNotifications } from './services/pushNotifications';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
@@ -121,6 +122,7 @@ export default function App() {
     }
 
     setVerifyResume(null);
+    void registerPushNotifications(userId);
     setAuthLoading(false);
     setScreen('home');
 
