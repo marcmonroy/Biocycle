@@ -1102,7 +1102,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     // Small delay to ensure previous speech completes before Circle question
     setTimeout(() => {
       void maybeScoreRelationship();
-    }, 800);
+    }, 1500);
   }
 
   async function maybeScoreRelationship() {
@@ -1364,66 +1364,70 @@ CRITICAL RULES:
         // For day 30+ users: deliver tomorrow forecast then close
         // For day 1-29 users: open ADHOC conversation
         if (liveDaysRef.current >= 30) {
-          speak(coachingText, async () => {
-            // Small pause before forecast
-            await new Promise(r => setTimeout(r, 1200));
+          speak(coachingText, () => {
+            // Non-async callback — use setTimeout instead of await
+            setTimeout(async () => {
+              try {
+                const forecast = await generateForecast(profile, 2);
+                const tomorrow = forecast.days[1];
 
-            // Pull tomorrow from forecast engine
-            try {
-              const forecast = await generateForecast(profile, 2);
-              const tomorrow = forecast.days[1];
-              if (tomorrow) {
-                const c = tomorrow.composite;
-                const signals = [
-                  { label: isES ? 'rendimiento' : 'performance',      value: c.performance,        dir: c.performance >= 70 ? 'high' : c.performance <= 35 ? 'low' : 'mid' },
-                  { label: isES ? 'filo cognitivo' : 'cognitive edge', value: c.cognitiveEdge,      dir: c.cognitiveEdge >= 70 ? 'high' : c.cognitiveEdge <= 35 ? 'low' : 'mid' },
-                  { label: isES ? 'carga de estrés' : 'stress load',   value: c.stressLoad,         dir: c.stressLoad >= 70 ? 'high' : c.stressLoad <= 35 ? 'low' : 'mid' },
-                  { label: isES ? 'intimidad' : 'intimacy readiness',  value: c.intimacyReadiness,  dir: c.intimacyReadiness >= 70 ? 'high' : c.intimacyReadiness <= 35 ? 'low' : 'mid' },
-                  { label: isES ? 'vitalidad' : 'vitality',            value: c.biologicalVitality, dir: c.biologicalVitality >= 70 ? 'high' : c.biologicalVitality <= 35 ? 'low' : 'mid' },
-                ]
-                .filter(s => s.dir !== 'mid')
-                .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50))
-                .slice(0, 2);
+                let forecastText = '';
+                if (tomorrow) {
+                  const c = tomorrow.composite;
+                  const signals = [
+                    { label: isES ? 'rendimiento' : 'performance',      value: c.performance,        dir: c.performance >= 70 ? 'high' : c.performance <= 35 ? 'low' : 'mid' },
+                    { label: isES ? 'filo cognitivo' : 'cognitive edge', value: c.cognitiveEdge,      dir: c.cognitiveEdge >= 70 ? 'high' : c.cognitiveEdge <= 35 ? 'low' : 'mid' },
+                    { label: isES ? 'carga de estrés' : 'stress load',   value: c.stressLoad,         dir: c.stressLoad >= 70 ? 'high' : c.stressLoad <= 35 ? 'low' : 'mid' },
+                    { label: isES ? 'intimidad' : 'intimacy readiness',  value: c.intimacyReadiness,  dir: c.intimacyReadiness >= 70 ? 'high' : c.intimacyReadiness <= 35 ? 'low' : 'mid' },
+                    { label: isES ? 'vitalidad' : 'vitality',            value: c.biologicalVitality, dir: c.biologicalVitality >= 70 ? 'high' : c.biologicalVitality <= 35 ? 'low' : 'mid' },
+                  ]
+                  .filter(s => s.dir !== 'mid')
+                  .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50))
+                  .slice(0, 2);
 
-                const signalLines = signals.map(s => `${s.label}: ${s.value} (${s.dir})`).join(', ');
-                const forecastSys = isES
-                  ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in nocturno. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "Antes de que descanses —" o similar. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
-                  : `${noIntro}You are Jules. The user just finished their night check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "Before you sleep —" or similar. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
+                  const signalLines = signals.map(s => `${s.label}: ${s.value} (${s.dir})`).join(', ');
+                  const forecastSys = isES
+                    ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in nocturno. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "Antes de que descanses —" o similar. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
+                    : `${noIntro}You are Jules. The user just finished their night check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "Before you sleep —" or similar night-appropriate opener. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
 
-                const forecastText = await callCoachAPI(
-                  [{ role: 'user', content: 'tomorrow preview' }],
-                  forecastSys,
-                  80
-                );
+                  forecastText = await callCoachAPI(
+                    [{ role: 'user', content: 'tomorrow preview' }],
+                    forecastSys,
+                    80
+                  ) ?? '';
+                }
+
+                const farewellName = profile.nombre ?? name;
+                const farewell = isES
+                  ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
+                  : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
 
                 if (forecastText) {
                   addJulesMsg(forecastText);
                   speak(forecastText, () => {
-                    const farewellName = profile.nombre ?? name;
-                    const farewell = isES
-                      ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
-                      : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
                     addJulesMsg(farewell);
                     sessionRef.current.state = 'SESSION_COMPLETE';
                     setConvState('SESSION_COMPLETE');
                     speak(farewell);
                   });
-                  return;
+                } else {
+                  addJulesMsg(farewell);
+                  sessionRef.current.state = 'SESSION_COMPLETE';
+                  setConvState('SESSION_COMPLETE');
+                  speak(farewell);
                 }
+              } catch (err) {
+                console.warn('[BioCycle] forecast preview failed:', err);
+                const farewellName = profile.nombre ?? name;
+                const farewell = isES
+                  ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
+                  : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
+                addJulesMsg(farewell);
+                sessionRef.current.state = 'SESSION_COMPLETE';
+                setConvState('SESSION_COMPLETE');
+                speak(farewell);
               }
-            } catch (err) {
-              console.warn('[BioCycle] forecast preview failed:', err);
-            }
-
-            // Fallback if forecast fails
-            const farewellName = profile.nombre ?? name;
-            const farewell = isES
-              ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
-              : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
-            addJulesMsg(farewell);
-            sessionRef.current.state = 'SESSION_COMPLETE';
-            setConvState('SESSION_COMPLETE');
-            speak(farewell);
+            }, 1200);
           });
         } else {
           // Day 1-29: open ADHOC conversation as before
