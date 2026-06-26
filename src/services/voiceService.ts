@@ -21,13 +21,18 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
-// Track current playing source so it can be stopped before new audio starts
+// Track current playing source and abort controller
 let currentSource: AudioBufferSourceNode | null = null;
+let currentAbortController: AbortController | null = null;
+// Generation counter — increments on every new speak() call
+// Any callback that doesn't match current generation is silently dropped
+let currentGeneration = 0;
 
 // Web Speech API fallback
 function speakWithWebSpeech(
   text: string,
   language: string,
+  generation: number,
   onStart?: () => void,
   onEnd?: () => void,
 ): void {
@@ -48,9 +53,18 @@ function speakWithWebSpeech(
   if (voice) utterance.voice = voice;
   utterance.lang = targetLocale;
 
-  utterance.onstart = () => onStart?.();
-  utterance.onend   = () => onEnd?.();
-  utterance.onerror = () => onEnd?.();
+  utterance.onstart = () => {
+    if (currentGeneration !== generation) return;
+    onStart?.();
+  };
+  utterance.onend = () => {
+    if (currentGeneration !== generation) return;
+    onEnd?.();
+  };
+  utterance.onerror = () => {
+    if (currentGeneration !== generation) return;
+    onEnd?.();
+  };
 
   window.speechSynthesis.speak(utterance);
 }
@@ -68,19 +82,32 @@ export async function speakWithElevenLabs(
 ): Promise<void> {
   const { onStart, onEnd } = options;
 
+  // Increment generation — any previous speak() callbacks are now stale
+  const generation = ++currentGeneration;
+
   const voiceId = getVoiceId(language, picardiaMode);
 
   try {
     if (!text || text.trim().length === 0) {
       console.warn('[voiceService] empty text passed to speak — skipping');
-      onEnd?.();
+      if (currentGeneration === generation) onEnd?.();
       return;
     }
+
+    // Abort any in-flight fetch from previous speak() call
+    currentAbortController?.abort();
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+
     const response = await fetch('/.netlify/functions/elevenlabs-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voiceId }),
+      signal: abortController.signal,
     });
+
+    // If we've been superseded by a newer speak() call, drop this result
+    if (currentGeneration !== generation) return;
 
     if (!response.ok) {
       throw new Error(`elevenlabs-tts returned ${response.status}`);
@@ -88,6 +115,9 @@ export async function speakWithElevenLabs(
 
     const { audio } = await response.json();
     if (!audio) throw new Error('No audio in response');
+
+    // Check generation again after async JSON parse
+    if (currentGeneration !== generation) return;
 
     // Decode base64 → ArrayBuffer → AudioBuffer → play
     const binary = atob(audio);
@@ -97,12 +127,17 @@ export async function speakWithElevenLabs(
     }
 
     const ctx = getAudioContext();
-    // Resume context if suspended (browser autoplay policy)
     if (ctx.state === 'suspended') await ctx.resume();
+
+    // Check generation again after async decode
+    if (currentGeneration !== generation) return;
 
     const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
 
-    // Stop any currently playing audio before starting new playback
+    // Final generation check before playback
+    if (currentGeneration !== generation) return;
+
+    // Stop any currently playing audio
     if (currentSource) {
       try { currentSource.stop(); } catch { /* already stopped */ }
       currentSource = null;
@@ -113,26 +148,41 @@ export async function speakWithElevenLabs(
     source.connect(ctx.destination);
     currentSource = source;
 
-    onStart?.();
+    if (currentGeneration === generation) onStart?.();
     source.start(0);
 
     await new Promise<void>((resolve) => {
       source.onended = () => {
         currentSource = null;
-        onEnd?.();
+        // Only fire onEnd if this is still the active generation
+        if (currentGeneration === generation) {
+          onEnd?.();
+        }
         resolve();
       };
     });
-  } catch (err) {
+  } catch (err: any) {
+    // AbortError means cancelSpeech() was called — silently drop
+    if (err?.name === 'AbortError') return;
+
+    // Check generation before fallback
+    if (currentGeneration !== generation) return;
+
     console.warn('[voiceService] ElevenLabs failed, falling back to Web Speech:', err);
-    // Fallback: Web Speech API
     await new Promise<void>((resolve) => {
-      speakWithWebSpeech(text, language, onStart, () => { onEnd?.(); resolve(); });
+      speakWithWebSpeech(text, language, generation, onStart, () => {
+        if (currentGeneration === generation) onEnd?.();
+        resolve();
+      });
     });
   }
 }
 
 export function cancelSpeech(): void {
+  // Increment generation to invalidate all pending callbacks
+  currentGeneration++;
+  currentAbortController?.abort();
+  currentAbortController = null;
   window.speechSynthesis?.cancel();
   if (currentSource) {
     try { currentSource.stop(); } catch { /* already stopped */ }
