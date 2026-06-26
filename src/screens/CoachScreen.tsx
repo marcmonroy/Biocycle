@@ -1492,6 +1492,10 @@ CRITICAL RULES:
         setTimeout(() => {
           if (nextQ === 'SESSION_COMPLETE') {
             enterSessionComplete();
+          } else if (nextQ === 'RELATIONSHIP_SCORE_Q') {
+            // Circle question must be built by maybeScoreRelationship (needs relationship name)
+            // showQuestion has no text for RELATIONSHIP_SCORE_Q — would speak an empty string
+            void maybeScoreRelationship();
           } else {
             showQuestion(nextQ as ConversationState);
           }
