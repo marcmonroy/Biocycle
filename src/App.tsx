@@ -55,10 +55,17 @@ export default function App() {
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetPasswordDone, setResetPasswordDone] = useState(false);
+  const [pushDebug, setPushDebugState] = useState('');
   const screenRef = useRef<Screen>('register');
 
   useEffect(() => { screenRef.current = screen; }, [screen]);
   useEffect(() => { setDebug('screen', screen); }, [screen]);
+
+  useEffect(() => {
+    const handler = (e: any) => setPushDebugState(e.detail);
+    window.addEventListener('pushDebugUpdate', handler);
+    return () => window.removeEventListener('pushDebugUpdate', handler);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -249,6 +256,16 @@ export default function App() {
   const idioma = profile.idioma ?? 'EN';
 
   return (
+    <>
+    {pushDebug && (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
+        background: '#0a203f', color: '#f0a830', fontSize: '11px',
+        padding: '4px 8px', fontFamily: 'monospace', textAlign: 'center'
+      }}>
+        PUSH: {pushDebug}
+      </div>
+    )}
     <div style={{
       width: '100%',
       maxWidth: 430,
@@ -286,5 +303,6 @@ export default function App() {
       {screen !== 'profile' && <BottomNav active={activeTab} onNavigate={handleNavigate} idioma={idioma} />}
       <DebugOverlay />
     </div>
+    </>
   );
 }
