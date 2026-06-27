@@ -1,21 +1,17 @@
 import { Capacitor } from '@capacitor/core';
-import { PushNotifications } from '@capacitor/push-notifications';
+import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 import { supabase } from '../lib/supabase';
 
-let listenersAttached = false;
-
-// Temporary on-screen debug — shows push status in the app
 export function setPushDebug(msg: string) {
   (window as any).__pushDebug = msg;
   window.dispatchEvent(new CustomEvent('pushDebugUpdate', { detail: msg }));
 }
 
+let listenersAttached = false;
+
 /**
- * Registers the device for push notifications and stores the token in Supabase.
- * Only runs on native platforms (iOS/Android) — no-op on web.
- *
- * CRITICAL: listeners must be attached BEFORE calling register(), because the
- * 'registration' event can fire immediately — before a later-attached listener exists.
+ * Registers for push via @capacitor-firebase/messaging — returns an FCM token
+ * directly (handles the APNs→FCM exchange natively on iOS).
  */
 export async function registerPushNotifications(userId: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
@@ -23,82 +19,71 @@ export async function registerPushNotifications(userId: string): Promise<void> {
   }
 
   try {
-    // 1. Attach listeners FIRST (only once per app lifetime)
+    // Attach token listener once
     if (!listenersAttached) {
       listenersAttached = true;
 
-      PushNotifications.addListener('registration', async (token) => {
-        (window as any).__pushTokenReceived = true;
-        console.log('[push] device token received:', token.value);
-        setPushDebug('token received: ' + token.value.substring(0, 20) + '...');
-        const platform = Capacitor.getPlatform(); // 'ios' or 'android'
+      await FirebaseMessaging.addListener('tokenReceived', async (event) => {
+        const token = event.token;
+        setPushDebug('FCM token received: ' + (token ? token.substring(0, 20) + '...' : 'nil'));
+        if (!token) return;
+        const platform = Capacitor.getPlatform();
         const { error } = await supabase
           .from('profiles')
           .update({
-            push_token: token.value,
+            push_token: token,
             push_platform: platform,
             push_updated_at: new Date().toISOString(),
           })
           .eq('id', userId);
         if (error) {
-          console.error('[push] failed to store token:', error.message);
           setPushDebug('STORE FAILED: ' + error.message);
         } else {
-          console.log('[push] token stored successfully for', platform);
           setPushDebug('TOKEN STORED OK: ' + platform);
         }
       });
 
-      PushNotifications.addListener('registrationError', (err) => {
-        console.error('[push] registration error:', JSON.stringify(err));
-        // Show immediately, then keep it visible with a delayed re-set
-        setPushDebug('REG ERROR: ' + JSON.stringify(err));
-        setTimeout(() => setPushDebug('REG ERROR (persisted): ' + JSON.stringify(err)), 5000);
-      });
-
-      PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        console.log('[push] received in foreground:', notification.title);
-      });
-
-      PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        console.log('[push] tapped:', action.notification.title);
+      await FirebaseMessaging.addListener('notificationReceived', (event) => {
+        console.log('[push] notification received:', event.notification?.title);
       });
     }
 
-    // 2. Check / request permission
-    let permStatus = await PushNotifications.checkPermissions();
-    console.log('[push] permission status:', permStatus.receive);
-    setPushDebug('permission: ' + permStatus.receive);
+    // Request permission
+    setPushDebug('requesting permission...');
+    const perm = await FirebaseMessaging.requestPermissions();
+    setPushDebug('permission: ' + perm.receive);
 
-    if (permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
-      permStatus = await PushNotifications.requestPermissions();
-      console.log('[push] permission after request:', permStatus.receive);
-      setPushDebug('permission after request: ' + permStatus.receive);
-    }
-
-    if (permStatus.receive !== 'granted') {
-      console.log('[push] permission not granted — cannot register');
-      setPushDebug('permission not granted — cannot register');
+    if (perm.receive !== 'granted') {
+      setPushDebug('permission NOT granted');
       return;
     }
 
-    // 3. NOW register — listeners are already in place to catch the token
-    console.log('[push] calling register()...');
-    setPushDebug('calling register()...');
-    await PushNotifications.register();
-    console.log('[push] register() called, awaiting token event');
-    setPushDebug('register() called, awaiting token...');
+    // Get the FCM token directly
+    setPushDebug('getting FCM token...');
+    const result = await FirebaseMessaging.getToken();
+    const token = result.token;
 
-    // Timeout watchdog — if no token in 15s, report it
-    setTimeout(() => {
-      const stored = (window as any).__pushTokenReceived;
-      if (!stored) {
-        setPushDebug('NO TOKEN after 15s — APNs not responding. Check Firebase APNs key + bundle ID match.');
+    if (token) {
+      setPushDebug('FCM token (direct): ' + token.substring(0, 20) + '...');
+      const platform = Capacitor.getPlatform();
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          push_token: token,
+          push_platform: platform,
+          push_updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId);
+      if (error) {
+        setPushDebug('STORE FAILED: ' + error.message);
+      } else {
+        setPushDebug('TOKEN STORED OK: ' + platform);
       }
-    }, 15000);
+    } else {
+      setPushDebug('getToken returned nil');
+    }
 
   } catch (err) {
-    console.error('[push] setup failed:', err);
     setPushDebug('SETUP FAILED: ' + String(err));
   }
 }
