@@ -1,27 +1,26 @@
 import UIKit
 import Capacitor
-import Firebase
-import FirebaseMessaging
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        FirebaseApp.configure()
-        Messaging.messaging().delegate = self
+        // Override point for customization after application launch.
         return true
     }
 
-    // Forward APNs device token to Firebase so it can exchange it for an FCM token
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        Messaging.messaging().apnsToken = deviceToken
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
     }
 
-    // Called when FCM generates or refreshes its registration token
-    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        print("[FCM] registration token: \(fcmToken ?? "nil")")
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
+    func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        NotificationCenter.default.post(name: Notification.Name("didReceiveRemoteNotification"), object: completionHandler, userInfo: userInfo)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -43,7 +42,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
-        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidenterBackground:.
+        // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
