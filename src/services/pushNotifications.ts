@@ -28,6 +28,7 @@ export async function registerPushNotifications(userId: string): Promise<void> {
       listenersAttached = true;
 
       PushNotifications.addListener('registration', async (token) => {
+        (window as any).__pushTokenReceived = true;
         console.log('[push] device token received:', token.value);
         setPushDebug('token received: ' + token.value.substring(0, 20) + '...');
         const platform = Capacitor.getPlatform(); // 'ios' or 'android'
@@ -50,7 +51,9 @@ export async function registerPushNotifications(userId: string): Promise<void> {
 
       PushNotifications.addListener('registrationError', (err) => {
         console.error('[push] registration error:', JSON.stringify(err));
+        // Show immediately, then keep it visible with a delayed re-set
         setPushDebug('REG ERROR: ' + JSON.stringify(err));
+        setTimeout(() => setPushDebug('REG ERROR (persisted): ' + JSON.stringify(err)), 5000);
       });
 
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
@@ -85,6 +88,14 @@ export async function registerPushNotifications(userId: string): Promise<void> {
     await PushNotifications.register();
     console.log('[push] register() called, awaiting token event');
     setPushDebug('register() called, awaiting token...');
+
+    // Timeout watchdog — if no token in 15s, report it
+    setTimeout(() => {
+      const stored = (window as any).__pushTokenReceived;
+      if (!stored) {
+        setPushDebug('NO TOKEN after 15s — APNs not responding. Check Firebase APNs key + bundle ID match.');
+      }
+    }, 15000);
 
   } catch (err) {
     console.error('[push] setup failed:', err);
