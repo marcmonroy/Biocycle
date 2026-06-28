@@ -9,8 +9,23 @@ const APNS_BUNDLE_ID = 'app.biocycle.app';
 const APNS_HOST = 'api.push.apple.com';
 
 function makeProviderToken() {
-  const key = process.env.APNS_KEY;
+  let key = process.env.APNS_KEY;
   if (!key) throw new Error('APNS_KEY env var not set');
+  // Repair newlines that may have been flattened when pasted into Netlify.
+  // Convert literal "\n" sequences back into real newlines, and ensure the
+  // PEM header/footer are on their own lines.
+  key = key.replace(/\\n/g, '\n').trim();
+  if (!key.includes('\n')) {
+    // Single-line key — reconstruct PEM structure
+    key = key
+      .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+      .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+    const match = key.match(/-----BEGIN PRIVATE KEY-----\n(.+?)\n-----END PRIVATE KEY-----/s);
+    if (match) {
+      const body = match[1].replace(/\s/g, '').replace(/(.{64})/g, '$1\n');
+      key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
+    }
+  }
   return jwt.sign(
     { iss: APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) },
     key,
