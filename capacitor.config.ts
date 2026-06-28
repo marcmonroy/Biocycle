@@ -4,17 +4,6 @@ const config: CapacitorConfig = {
   appId: 'app.biocycle.app',
   appName: 'BioCycle',
   webDir: 'dist',
-  experimental: {
-    ios: {
-      spm: {
-        packageOptions: {
-          '@capacitor-firebase/messaging': {
-            symlink: true,
-          },
-        },
-      },
-    },
-  },
 };
 
 export default config;

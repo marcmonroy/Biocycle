@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { FirebaseMessaging } from '@capacitor-firebase/messaging';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '../lib/supabase';
 
 export function setPushDebug(msg: string) {
@@ -9,29 +9,23 @@ export function setPushDebug(msg: string) {
 
 let listenersAttached = false;
 
-/**
- * Registers for push via @capacitor-firebase/messaging — returns an FCM token
- * directly (handles the APNs→FCM exchange natively on iOS).
- */
 export async function registerPushNotifications(userId: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) {
     return;
   }
 
   try {
-    // Attach token listener once
     if (!listenersAttached) {
       listenersAttached = true;
 
-      await FirebaseMessaging.addListener('tokenReceived', async (event) => {
-        const token = event.token;
-        setPushDebug('FCM token received: ' + (token ? token.substring(0, 20) + '...' : 'nil'));
-        if (!token) return;
+      // APNs token arrives here on iOS
+      PushNotifications.addListener('registration', async (token) => {
+        setPushDebug('APNs token: ' + token.value.substring(0, 20) + '...');
         const platform = Capacitor.getPlatform();
         const { error } = await supabase
           .from('profiles')
           .update({
-            push_token: token,
+            push_token: token.value,
             push_platform: platform,
             push_updated_at: new Date().toISOString(),
           })
@@ -43,14 +37,20 @@ export async function registerPushNotifications(userId: string): Promise<void> {
         }
       });
 
-      await FirebaseMessaging.addListener('notificationReceived', (event) => {
-        console.log('[push] notification received:', event.notification?.title);
+      PushNotifications.addListener('registrationError', (err) => {
+        setPushDebug('REG ERROR: ' + JSON.stringify(err));
+      });
+
+      PushNotifications.addListener('pushNotificationReceived', (n) => {
+        console.log('[push] received:', n.title);
       });
     }
 
-    // Request permission
-    setPushDebug('requesting permission...');
-    const perm = await FirebaseMessaging.requestPermissions();
+    setPushDebug('checking permission...');
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+      perm = await PushNotifications.requestPermissions();
+    }
     setPushDebug('permission: ' + perm.receive);
 
     if (perm.receive !== 'granted') {
@@ -58,30 +58,9 @@ export async function registerPushNotifications(userId: string): Promise<void> {
       return;
     }
 
-    // Get the FCM token directly
-    setPushDebug('getting FCM token...');
-    const result = await FirebaseMessaging.getToken();
-    const token = result.token;
-
-    if (token) {
-      setPushDebug('FCM token (direct): ' + token.substring(0, 20) + '...');
-      const platform = Capacitor.getPlatform();
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          push_token: token,
-          push_platform: platform,
-          push_updated_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-      if (error) {
-        setPushDebug('STORE FAILED: ' + error.message);
-      } else {
-        setPushDebug('TOKEN STORED OK: ' + platform);
-      }
-    } else {
-      setPushDebug('getToken returned nil');
-    }
+    setPushDebug('calling register()...');
+    await PushNotifications.register();
+    setPushDebug('register() done, awaiting token');
 
   } catch (err) {
     setPushDebug('SETUP FAILED: ' + String(err));
