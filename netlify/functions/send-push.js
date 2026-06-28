@@ -53,6 +53,8 @@ function sendToApns(deviceToken, payload, useSandbox) {
       'authorization': `bearer ${token}`,
       'apns-topic': APNS_BUNDLE_ID,
       'apns-push-type': 'alert',
+      'apns-priority': '10',
+      'apns-expiration': String(Math.floor(Date.now() / 1000) + 3600),
       'content-type': 'application/json',
       'content-length': Buffer.byteLength(body),
     });
@@ -60,15 +62,12 @@ function sendToApns(deviceToken, payload, useSandbox) {
     let status = 0;
     let responseBody = '';
 
-    req.on('response', (headers) => { status = headers[':status']; });
+    let apnsId = null;
+    req.on('response', (headers) => { status = headers[':status']; apnsId = headers['apns-id'] || null; });
     req.on('data', (chunk) => { responseBody += chunk; });
     req.on('end', () => {
       client.close();
-      if (status === 200) {
-        resolve({ ok: true, status });
-      } else {
-        resolve({ ok: false, status, body: responseBody });
-      }
+      resolve({ ok: status === 200, status, apnsId, body: responseBody });
     });
     req.on('error', (err) => { client.close(); reject(err); });
 
