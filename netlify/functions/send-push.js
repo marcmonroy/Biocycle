@@ -6,7 +6,8 @@ const APNS_KEY_ID = '2T47Q4HDBD';
 const APNS_TEAM_ID = 'N928YZ4T62';
 const APNS_BUNDLE_ID = 'app.biocycle.app';
 // TestFlight + App Store builds use the PRODUCTION APNs host
-const APNS_HOST = 'api.push.apple.com';
+const APNS_HOST_PROD = 'api.push.apple.com';
+const APNS_HOST_SANDBOX = 'api.sandbox.push.apple.com';
 
 function makeProviderToken() {
   let key = process.env.APNS_KEY;
@@ -36,10 +37,11 @@ function makeProviderToken() {
   );
 }
 
-function sendToApns(deviceToken, payload) {
+function sendToApns(deviceToken, payload, useSandbox) {
   return new Promise((resolve, reject) => {
     const token = makeProviderToken();
-    const client = http2.connect(`https://${APNS_HOST}`);
+    const host = useSandbox ? APNS_HOST_SANDBOX : APNS_HOST_PROD;
+    const client = http2.connect(`https://${host}`);
 
     client.on('error', (err) => reject(err));
 
@@ -100,7 +102,8 @@ exports.handler = async (event) => {
         },
         ...(data || {}),
       };
-      const result = await sendToApns(token, payload);
+      const useSandbox = event.queryStringParameters && event.queryStringParameters.env === 'sandbox';
+      const result = await sendToApns(token, payload, useSandbox);
       return {
         statusCode: result.ok ? 200 : 500,
         body: JSON.stringify(result),
