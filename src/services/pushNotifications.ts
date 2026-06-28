@@ -2,11 +2,6 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from '../lib/supabase';
 
-export function setPushDebug(msg: string) {
-  (window as any).__pushDebug = msg;
-  window.dispatchEvent(new CustomEvent('pushDebugUpdate', { detail: msg }));
-}
-
 let listenersAttached = false;
 
 export async function registerPushNotifications(userId: string): Promise<void> {
@@ -18,9 +13,7 @@ export async function registerPushNotifications(userId: string): Promise<void> {
     if (!listenersAttached) {
       listenersAttached = true;
 
-      // APNs token arrives here on iOS
       PushNotifications.addListener('registration', async (token) => {
-        setPushDebug('APNs token: ' + token.value.substring(0, 20) + '...');
         const platform = Capacitor.getPlatform();
         const { error } = await supabase
           .from('profiles')
@@ -31,14 +24,14 @@ export async function registerPushNotifications(userId: string): Promise<void> {
           })
           .eq('id', userId);
         if (error) {
-          setPushDebug('STORE FAILED: ' + error.message);
+          console.error('[push] failed to store token:', error.message);
         } else {
-          setPushDebug('TOKEN STORED OK: ' + platform);
+          console.log('[push] token stored for', platform);
         }
       });
 
       PushNotifications.addListener('registrationError', (err) => {
-        setPushDebug('REG ERROR: ' + JSON.stringify(err));
+        console.error('[push] registration error:', JSON.stringify(err));
       });
 
       PushNotifications.addListener('pushNotificationReceived', (n) => {
@@ -46,23 +39,17 @@ export async function registerPushNotifications(userId: string): Promise<void> {
       });
     }
 
-    setPushDebug('checking permission...');
     let perm = await PushNotifications.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
       perm = await PushNotifications.requestPermissions();
     }
-    setPushDebug('permission: ' + perm.receive);
-
     if (perm.receive !== 'granted') {
-      setPushDebug('permission NOT granted');
+      console.log('[push] permission not granted');
       return;
     }
 
-    setPushDebug('calling register()...');
     await PushNotifications.register();
-    setPushDebug('register() done, awaiting token');
-
   } catch (err) {
-    setPushDebug('SETUP FAILED: ' + String(err));
+    console.error('[push] setup failed:', err);
   }
 }
