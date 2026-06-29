@@ -81,7 +81,7 @@ let fcmInitialized = false;
 function getFcm() {
   if (!fcmInitialized) {
     admin.initializeApp({
-      credential: admin.credential.cert({
+      credential: admin.cert({
         projectId: process.env.FCM_PROJECT_ID,
         clientEmail: process.env.FCM_CLIENT_EMAIL,
         privateKey: process.env.FCM_PRIVATE_KEY.replace(/\\n/g, '\n'),
