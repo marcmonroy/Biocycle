@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const http2 = require('http2');
-const admin = require('firebase-admin');
+const { initializeApp, cert, getApps } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
 
 // APNs configuration
 const APNS_KEY_ID = '2T47Q4HDBD';
@@ -78,16 +79,16 @@ function sendToApns(deviceToken, payload, useSandbox) {
 }
 
 function getFcm() {
-  if (!admin.apps.length) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
         projectId: process.env.FCM_PROJECT_ID,
         clientEmail: process.env.FCM_CLIENT_EMAIL,
         privateKey: process.env.FCM_PRIVATE_KEY.replace(/\\n/g, '\n'),
       }),
     });
   }
-  return admin.messaging();
+  return getMessaging();
 }
 
 async function sendToFcm(deviceToken, title, body, data) {
