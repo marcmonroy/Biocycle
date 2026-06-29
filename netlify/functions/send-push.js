@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const http2 = require('http2');
+const admin = require('firebase-admin');
 
 // APNs configuration
 const APNS_KEY_ID = '2T47Q4HDBD';
@@ -76,6 +77,36 @@ function sendToApns(deviceToken, payload, useSandbox) {
   });
 }
 
+let fcmInitialized = false;
+function getFcm() {
+  if (!fcmInitialized) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FCM_PROJECT_ID,
+        clientEmail: process.env.FCM_CLIENT_EMAIL,
+        privateKey: process.env.FCM_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      }),
+    });
+    fcmInitialized = true;
+  }
+  return admin.messaging();
+}
+
+async function sendToFcm(deviceToken, title, body, data) {
+  const messaging = getFcm();
+  const message = {
+    token: deviceToken,
+    notification: { title, body },
+    data: data || {},
+    android: {
+      priority: 'high',
+      notification: { sound: 'default' },
+    },
+  };
+  const messageId = await messaging.send(message);
+  return { ok: true, messageId };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -109,11 +140,14 @@ exports.handler = async (event) => {
       };
     }
 
-    // Android (FCM) — placeholder for later
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ error: 'Android push not yet implemented' }),
-    };
+    // Android → FCM
+    if (platform === 'android') {
+      const result = await sendToFcm(token, title, body, data);
+      return {
+        statusCode: 200,
+        body: JSON.stringify(result),
+      };
+    }
 
   } catch (err) {
     console.error('[send-push] error:', err);
