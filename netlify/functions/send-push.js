@@ -3,23 +3,12 @@ const http2 = require('http2');
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 
-// APNs configuration
-const APNS_KEY_ID = '2T47Q4HDBD';
-const APNS_TEAM_ID = 'N928YZ4T62';
-const APNS_BUNDLE_ID = 'app.biocycle.app';
-// TestFlight + App Store builds use the PRODUCTION APNs host
-const APNS_HOST_PROD = 'api.push.apple.com';
-const APNS_HOST_SANDBOX = 'api.sandbox.push.apple.com';
-
-function makeProviderToken() {
-  let key = process.env.APNS_KEY;
-  if (!key) throw new Error('APNS_KEY env var not set');
-  // Repair newlines that may have been flattened when pasted into Netlify.
-  // Convert literal "\n" sequences back into real newlines, and ensure the
-  // PEM header/footer are on their own lines.
-  key = key.replace(/\\n/g, '\n').trim();
+// Repair PEM keys that Netlify may have flattened when pasted as env vars.
+// Converts literal "\n" sequences to real newlines and reconstructs
+// header/footer + 64-char line wrapping if the key arrived as a single line.
+function repairPemKey(raw) {
+  let key = raw.replace(/\\n/g, '\n').trim();
   if (!key.includes('\n')) {
-    // Single-line key — reconstruct PEM structure
     key = key
       .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
       .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
@@ -29,6 +18,21 @@ function makeProviderToken() {
       key = `-----BEGIN PRIVATE KEY-----\n${body}\n-----END PRIVATE KEY-----\n`;
     }
   }
+  return key;
+}
+
+// APNs configuration
+const APNS_KEY_ID = '2T47Q4HDBD';
+const APNS_TEAM_ID = 'N928YZ4T62';
+const APNS_BUNDLE_ID = 'app.biocycle.app';
+// TestFlight + App Store builds use the PRODUCTION APNs host
+const APNS_HOST_PROD = 'api.push.apple.com';
+const APNS_HOST_SANDBOX = 'api.sandbox.push.apple.com';
+
+function makeProviderToken() {
+  const raw = process.env.APNS_KEY;
+  if (!raw) throw new Error('APNS_KEY env var not set');
+  const key = repairPemKey(raw);
   return jwt.sign(
     { iss: APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) },
     key,
@@ -84,7 +88,7 @@ function getFcm() {
       credential: cert({
         projectId: process.env.FCM_PROJECT_ID,
         clientEmail: process.env.FCM_CLIENT_EMAIL,
-        privateKey: process.env.FCM_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        privateKey: repairPemKey(process.env.FCM_PRIVATE_KEY),
       }),
     });
   }
