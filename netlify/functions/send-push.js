@@ -77,17 +77,15 @@ function sendToApns(deviceToken, payload, useSandbox) {
   });
 }
 
-let fcmInitialized = false;
 function getFcm() {
-  if (!fcmInitialized) {
+  if (!admin.apps.length) {
     admin.initializeApp({
-      credential: admin.cert({
+      credential: admin.credential.cert({
         projectId: process.env.FCM_PROJECT_ID,
         clientEmail: process.env.FCM_CLIENT_EMAIL,
         privateKey: process.env.FCM_PRIVATE_KEY.replace(/\\n/g, '\n'),
       }),
     });
-    fcmInitialized = true;
   }
   return admin.messaging();
 }
