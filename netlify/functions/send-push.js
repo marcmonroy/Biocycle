@@ -103,7 +103,11 @@ async function sendToFcm(deviceToken, title, body, data) {
     data: data || {},
     android: {
       priority: 'high',
-      notification: { sound: 'default' },
+      notification: {
+        sound: 'default',
+        icon: 'ic_stat_notification',
+        color: '#F0A830',
+      },
     },
   };
   const messageId = await messaging.send(message);
