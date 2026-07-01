@@ -5,14 +5,24 @@ import { supabase } from '../lib/supabase';
 
 const SEND_PUSH_URL = '/.netlify/functions/send-push';
 
+let listenersAttached = false;
+
 export async function registerPushNotifications(userId: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
 
   try {
-    const permission = await PushNotifications.requestPermissions();
-    if (permission.receive !== 'granted') return;
+    // Check first to avoid showing the system dialog when already granted
+    let perm = await PushNotifications.checkPermissions();
+    if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+      perm = await PushNotifications.requestPermissions();
+    }
+    if (perm.receive !== 'granted') return;
 
     await PushNotifications.register();
+
+    // Guard against duplicate listeners when called on every loadProfile
+    if (listenersAttached) return;
+    listenersAttached = true;
 
     PushNotifications.addListener('registration', async (token) => {
       const platform = Capacitor.getPlatform() as 'ios' | 'android';
