@@ -284,7 +284,7 @@ export default function App() {
         />
       )}
       {screen === 'forecast' && <ForecastScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
-      {screen === 'coach'    && <CoachScreen profile={profile} userState={userState} tierLimits={tierLimits} onBack={() => { if (session) loadProfile(session.user.id); setScreen('home'); }} onNavigate={handleNavigate} />}
+      {screen === 'coach'    && <CoachScreen profile={profile} userState={userState} tierLimits={tierLimits} onBack={async () => { if (session) { await loadProfile(session.user.id); } else { setScreen('home'); } }} onNavigate={handleNavigate} />}
       {screen === 'circle'        && <CircleScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'compatibility' && <CompatibilityScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'earnings'      && <DataHubScreen profile={profile} />}

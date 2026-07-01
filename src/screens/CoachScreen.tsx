@@ -839,7 +839,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
       await supabase.from('user_state')
         .update({ last_response_date: new Date().toISOString() })
         .eq('user_id', profile.id);
-      await supabase.from('user_state')
+      const { data: restoreData, error: restoreErr } = await supabase.from('user_state')
         .update({
           state: 'active_trader',
           returned_at: new Date().toISOString(),
@@ -848,7 +848,9 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
           last_response_date: new Date().toISOString(),
         })
         .eq('user_id', profile.id)
-        .eq('state', 'paused_trader');
+        .eq('state', 'paused_trader')
+        .select();
+      console.log('[saveSession] paused→active restore:', restoreData?.length ?? 0, 'rows', restoreErr?.message ?? 'ok');
 
       // Only increment days_of_data once per calendar day.
       // After insert, query returns 1 if this is the first session today.
