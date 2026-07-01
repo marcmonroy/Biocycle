@@ -792,6 +792,27 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     } catch { /* non-blocking */ }
   }
 
+  async function restorePausedUserIfNeeded() {
+    try {
+      const { data, error } = await supabase.from('user_state')
+        .update({
+          state: 'active_trader',
+          returned_at: new Date().toISOString(),
+          resumed_at: new Date().toISOString(),
+          return_method: 'checkin',
+          last_response_date: new Date().toISOString(),
+        })
+        .eq('user_id', profile.id)
+        .eq('state', 'paused_trader')
+        .select();
+      console.log('[restorePaused] rows:', data?.length ?? 0, error?.message ?? 'ok');
+      return (data?.length ?? 0) > 0;
+    } catch (e) {
+      console.error('[restorePaused] failed:', e);
+      return false;
+    }
+  }
+
   async function saveSession(): Promise<{ ok: boolean; error?: string }> {
     try {
       const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
@@ -1943,6 +1964,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         : completedSlots.includes(currentSlot);
 
       if (alreadyDoneToday) {
+        await restorePausedUserIfNeeded();
         const lockedMsg = isDayThirtyPlus
           ? (isES
               ? `Ya completaste tu sesión de hoy, ${name}. Nos vemos mañana.`
