@@ -88,6 +88,21 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Push tap → navigate to correct screen
+  useEffect(() => {
+    function handlePushTap(e: Event) {
+      const data = (e as CustomEvent).detail;
+      if (!data) return;
+      const target = data.screen ?? 'home';
+      if (target === 'forecast')       { setScreen('forecast');       return; }
+      if (target === 'compatibility')  { setScreen('compatibility');  return; }
+      if (target === 'circle')         { setScreen('circle');         return; }
+      setScreen('home');
+    }
+    window.addEventListener('biocycle:push-tap', handlePushTap);
+    return () => window.removeEventListener('biocycle:push-tap', handlePushTap);
+  }, []);
+
   async function loadProfile(userId: string) {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (error || !data) { setAuthLoading(false); return; }

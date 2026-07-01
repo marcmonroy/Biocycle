@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BioCycle</string>
+    <string name="mic_rationale">Si prefieres hablar con Jules en vez de escribir, activa tu microfono. No grabamos tu conversacion — es completamente privada y solo existe durante la conversacion.</string>
+    <string name="notification_rationale">Rastreamos tu futuro biologico y necesitamos avisarte de lo que viene. Sin notificaciones, no podemos cumplir con lo que prometemos — tu pronostico diario, tus patrones y tus momentos con Jules nunca llegaran. Si no activas esto, esta membresia simplemente no es para ti.</string>
+</resources>

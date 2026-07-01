@@ -4,4 +4,6 @@
     <string name="title_activity_main">BioCycle</string>
     <string name="package_name">app.biocycle.app</string>
     <string name="custom_url_scheme">app.biocycle.app</string>
+    <string name="mic_rationale">If you prefer to talk to Jules instead of typing, activate your microphone. We do not record your conversation — it is completely private and only exists during the session.</string>
+    <string name="notification_rationale">We track your biological future and need to reach you with what is coming. Without notifications, we cannot deliver on our promise — your daily forecast, your patterns, and your coaching moments will never reach you. If you do not enable this, this membership simply is not for you.</string>
 </resources>

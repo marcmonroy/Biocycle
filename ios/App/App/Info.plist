@@ -24,6 +24,14 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>If you prefer to talk to Jules instead of typing, activate your microphone. We do not record your conversation — it is completely private and only exists during the session.</string>
+	<key>NSMicrophoneUsageDescription_es</key>
+	<string>Si prefieres hablar con Jules en vez de escribir, activa tu microfono. No grabamos tu conversacion — es completamente privada y solo existe durante la conversacion.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We track your biological future and need to reach you with what is coming. Without notifications, we can not deliver on our promise — your daily forecast, your patterns, and your coaching moments will never reach you. If you do not enable this, this membership simply is not for you.</string>
+	<key>NSUserNotificationUsageDescription_es</key>
+	<string>Rastreamos tu futuro biológico y necesitamos avisarte de lo que viene. Sin notificaciones, no podemos cumplir con lo que prometemos — tu pronóstico diario, tus patrones y tus momentos con Jules nunca llegarán. Si no activas esto, esta membresía simplemente no es para ti.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
