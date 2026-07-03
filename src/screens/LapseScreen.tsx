@@ -1,13 +1,17 @@
+import { useState } from 'react';
 import { colors, fonts } from '../lib/tokens';
 import type { Profile, UserState } from '../lib/supabase';
+import { purchaseTier, restorePurchases } from '../lib/iap';
 
 interface Props {
   profile: Profile;
   userState: UserState;
   onLogout: () => void;
+  onResume: () => void;
+  onTierChange: () => void;
 }
 
-export function LapseScreen({ profile, userState, onLogout }: Props) {
+export function LapseScreen({ profile, userState, onLogout, onResume, onTierChange }: Props) {
   const idioma = profile.idioma ?? 'EN';
   const isES = idioma === 'ES';
   const streakDays = userState.streak_at_lapse ?? 0;
@@ -17,6 +21,44 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
         { month: 'long', day: 'numeric' }
       )
     : null;
+
+  const [purchasing, setPurchasing] = useState<'standard' | 'premium' | 'restore' | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+
+  async function handlePurchase(tier: 'standard' | 'premium') {
+    setPurchasing(tier);
+    setPurchaseError(null);
+    const result = await purchaseTier(tier);
+    setPurchasing(null);
+    if (result.ok) {
+      onTierChange();
+    } else if (!result.cancelled) {
+      setPurchaseError(result.error ?? (isES ? 'Error al procesar la compra.' : 'Purchase failed. Please try again.'));
+    }
+  }
+
+  async function handleRestore() {
+    setPurchasing('restore');
+    setPurchaseError(null);
+    const result = await restorePurchases();
+    setPurchasing(null);
+    if (result.ok && result.tier) {
+      onTierChange();
+    } else if (!result.ok) {
+      setPurchaseError(result.error ?? (isES ? 'No se encontraron compras.' : 'No purchases found.'));
+    } else {
+      setPurchaseError(isES ? 'No se encontraron compras activas.' : 'No active purchases found.');
+    }
+  }
+
+  const btnBase: React.CSSProperties = {
+    display: 'block', width: '100%', textAlign: 'center',
+    borderRadius: 10, padding: '11px',
+    fontSize: 13, fontWeight: 600,
+    letterSpacing: '0.05em', cursor: 'pointer',
+    fontFamily: fonts.body, border: 'none',
+    transition: 'opacity 0.15s',
+  };
 
   return (
     <div style={{
@@ -55,30 +97,33 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
 
       {/* Streak info */}
       {streakDays > 0 && (
-        <div style={{
-          fontSize: 13,
-          color: colors.boneFaint,
-          textAlign: 'center',
-          marginBottom: 8,
-          lineHeight: 1.6,
-        }}>
+        <div style={{ fontSize: 13, color: colors.boneFaint, textAlign: 'center', marginBottom: 8, lineHeight: 1.6 }}>
           {isES
             ? `Construiste una racha de ${streakDays} días${lapseDate ? ` hasta el ${lapseDate}` : ''}.`
             : `You built a ${streakDays}-day streak${lapseDate ? ` through ${lapseDate}` : ''}.`}
         </div>
       )}
 
-      <div style={{
-        fontSize: 13,
-        color: colors.boneFaint,
-        textAlign: 'center',
-        marginBottom: 32,
-        lineHeight: 1.6,
-        maxWidth: 300,
-      }}>
+      <div style={{ fontSize: 13, color: colors.boneFaint, textAlign: 'center', marginBottom: 28, lineHeight: 1.6, maxWidth: 300 }}>
         {isES
           ? 'Los accesos gratuitos requieren uso continuo. Una pausa de más de 7 días pausa el acceso gratuito.'
           : 'Free access requires continuous use. A pause of more than 7 days pauses your free access.'}
+      </div>
+
+      {/* ── PRIMARY: resume free via check-in ────────────────────────────── */}
+      <div style={{ width: '100%', maxWidth: 340, marginBottom: 24 }}>
+        <button
+          onClick={onResume}
+          style={{
+            ...btnBase,
+            background: colors.amber,
+            color: colors.midnight,
+            fontSize: 14,
+            padding: '14px',
+          }}
+        >
+          {isES ? 'Retomar gratis — check-in ahora' : 'Resume free — check in now'}
+        </button>
       </div>
 
       {/* Data reassurance */}
@@ -87,7 +132,7 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
         border: '1px solid rgba(0,200,150,0.2)',
         borderRadius: 14,
         padding: '16px 20px',
-        marginBottom: 28,
+        marginBottom: 24,
         width: '100%',
         maxWidth: 340,
       }}>
@@ -96,13 +141,16 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
         </div>
         <div style={{ fontSize: 12, color: 'rgba(245,242,238,0.7)', lineHeight: 1.6 }}>
           {isES
-            ? `Todos tus datos de BioCycle están preservados. Suscríbete para continuar donde lo dejaste.`
-            : `All your BioCycle data is preserved. Subscribe to continue where you left off.`}
+            ? 'Todos tus datos de BioCycle están preservados. Suscríbete para continuar sin pausas.'
+            : 'All your BioCycle data is preserved. Subscribe to continue without interruptions.'}
         </div>
       </div>
 
-      {/* Pricing options */}
-      <div style={{ width: '100%', maxWidth: 340, marginBottom: 16 }}>
+      {/* ── OPTIONAL: upgrade ────────────────────────────────────────────── */}
+      <div style={{ width: '100%', maxWidth: 340, marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: colors.boneFaint, textAlign: 'center', marginBottom: 14, letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>
+          {isES ? 'O suscríbete para acceso continuo' : 'Or subscribe for uninterrupted access'}
+        </div>
 
         {/* Standard */}
         <div style={{
@@ -112,33 +160,32 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
           padding: '16px 20px',
           marginBottom: 10,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: colors.bone }}>
-              {isES ? 'Estándar' : 'Standard'}
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.bone }}>{isES ? 'Estándar' : 'Standard'}</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: colors.bone, fontFamily: fonts.mono }}>
               $12.99<span style={{ fontSize: 11, fontWeight: 400, color: colors.boneFaint }}>/mo</span>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.6, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.6, marginBottom: 12 }}>
             {isES
               ? '3 turnos con Jules · Pronóstico 7 días · Círculo de 5 · 1 compatibilidad'
               : '3 Jules turns · 7-day forecast · Circle of 5 · 1 compatibility'}
           </div>
-          <a
-            href="mailto:hello@biocycle.app?subject=Standard subscription"
+          <button
+            onClick={() => handlePurchase('standard')}
+            disabled={purchasing !== null}
             style={{
-              display: 'block', textAlign: 'center',
+              ...btnBase,
               background: 'rgba(245,242,238,0.08)',
               border: '1px solid rgba(245,242,238,0.2)',
-              borderRadius: 10, padding: '10px',
-              color: colors.bone, fontSize: 12,
-              fontWeight: 600, textDecoration: 'none',
-              letterSpacing: '0.06em',
+              color: colors.bone,
+              opacity: purchasing !== null ? 0.5 : 1,
             }}
           >
-            {isES ? 'Suscribirse — $12.99/mes' : 'Subscribe — $12.99/mo'}
-          </a>
+            {purchasing === 'standard'
+              ? (isES ? 'Procesando…' : 'Processing…')
+              : (isES ? 'Suscribirse — $12.99/mes' : 'Subscribe — $12.99/mo')}
+          </button>
         </div>
 
         {/* Premium */}
@@ -149,59 +196,87 @@ export function LapseScreen({ profile, userState, onLogout }: Props) {
           padding: '16px 20px',
           marginBottom: 10,
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: colors.tierElite }}>
-              Premium
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: colors.tierElite }}>Premium</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: colors.tierElite, fontFamily: fonts.mono }}>
               $22.99<span style={{ fontSize: 11, fontWeight: 400, color: colors.boneFaint }}>/mo</span>
             </div>
           </div>
-          <div style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.6, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.6, marginBottom: 12 }}>
             {isES
               ? '7 turnos con Jules · Pronóstico 14 días · Círculo de 10 · 3 compatibilidades · Trading de datos prioritario'
               : '7 Jules turns · 14-day forecast · Circle of 10 · 3 compatibilities · Priority data trading'}
           </div>
-          <a
-            href="mailto:hello@biocycle.app?subject=Premium subscription"
+          <button
+            onClick={() => handlePurchase('premium')}
+            disabled={purchasing !== null}
             style={{
-              display: 'block', textAlign: 'center',
+              ...btnBase,
               background: 'rgba(123,97,255,0.15)',
               border: '1px solid rgba(123,97,255,0.4)',
-              borderRadius: 10, padding: '10px',
-              color: colors.tierElite, fontSize: 12,
-              fontWeight: 600, textDecoration: 'none',
-              letterSpacing: '0.06em',
+              color: colors.tierElite,
+              opacity: purchasing !== null ? 0.5 : 1,
             }}
           >
-            {isES ? 'Suscribirse — $22.99/mes' : 'Subscribe — $22.99/mo'}
+            {purchasing === 'premium'
+              ? (isES ? 'Procesando…' : 'Processing…')
+              : (isES ? 'Suscribirse — $22.99/mes' : 'Subscribe — $22.99/mo')}
+          </button>
+        </div>
+
+        {purchaseError && (
+          <div style={{ fontSize: 12, color: '#ff6b6b', textAlign: 'center', marginTop: 8, lineHeight: 1.5 }}>
+            {purchaseError}
+          </div>
+        )}
+
+        {/* Auto-renewal disclosure — required by Apple & Google */}
+        <div style={{ fontSize: 10, color: 'rgba(245,242,238,0.35)', textAlign: 'center', lineHeight: 1.6, marginTop: 12, padding: '0 4px' }}>
+          {isES
+            ? 'Las suscripciones se renuevan automáticamente a menos que las canceles al menos 24 horas antes del final del período vigente. Puedes gestionar y cancelar tus suscripciones en la configuración de tu cuenta de la App Store o Google Play.'
+            : 'Subscriptions automatically renew unless cancelled at least 24 hours before the end of the current period. Manage or cancel in your App Store or Google Play account settings.'}
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+          <a href="https://biocycle.app/terms" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 10, color: 'rgba(245,242,238,0.35)', textDecoration: 'underline' }}>
+            {isES ? 'Términos de uso' : 'Terms of Use'}
+          </a>
+          <a href="https://biocycle.app/privacy" target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 10, color: 'rgba(245,242,238,0.35)', textDecoration: 'underline' }}>
+            {isES ? 'Privacidad' : 'Privacy Policy'}
           </a>
         </div>
       </div>
 
-      {/* Export data — legal right, always accessible */}
-      <div style={{ marginBottom: 20, textAlign: 'center' }}>
-        <a
-          href={`mailto:hello@biocycle.app?subject=Data export request&body=Please send me a CSV export of all my BioCycle data. My registered email is: ${profile.id}`}
-          style={{ fontSize: 11, color: colors.boneFaint, textDecoration: 'underline' }}
-        >
-          {isES ? 'Exportar mis datos (CSV)' : 'Export my data (CSV)'}
-        </a>
-      </div>
+      {/* Restore purchases */}
+      <button
+        onClick={handleRestore}
+        disabled={purchasing !== null}
+        style={{
+          background: 'none', border: 'none',
+          color: 'rgba(245,242,238,0.4)', fontSize: 11,
+          cursor: 'pointer', letterSpacing: '0.04em',
+          marginBottom: 12, fontFamily: fonts.body,
+          opacity: purchasing !== null ? 0.4 : 1,
+        }}
+      >
+        {purchasing === 'restore'
+          ? (isES ? 'Restaurando…' : 'Restoring…')
+          : (isES ? 'Restaurar compras' : 'Restore Purchases')}
+      </button>
 
       {/* Sign out */}
       <button
         onClick={onLogout}
         style={{
           background: 'none', border: 'none',
-          color: 'rgba(245,242,238,0.3)', fontSize: 11,
+          color: 'rgba(245,242,238,0.25)', fontSize: 11,
           cursor: 'pointer', letterSpacing: '0.06em',
+          fontFamily: fonts.body,
         }}
       >
         {isES ? 'Cerrar sesión' : 'Sign out'}
       </button>
-
-      {/* Note: Stripe integration will replace mailto links once approved */}
     </div>
   );
 }

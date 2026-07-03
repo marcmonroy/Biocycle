@@ -5,6 +5,8 @@ import { getTierLimits } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
 import { registerPushNotifications } from './services/pushNotifications';
+import { initIAP, checkEntitlements } from './lib/iap';
+import { Capacitor } from '@capacitor/core';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { DashboardScreen } from './screens/DashboardScreen';
@@ -138,6 +140,18 @@ export default function App() {
 
     setVerifyResume(null);
     void registerPushNotifications(userId);
+
+    // Init RevenueCat and reconcile tier from entitlements
+    if (Capacitor.isNativePlatform()) {
+      await initIAP(userId);
+      const rcTier = await checkEntitlements();
+      // If RevenueCat reports a higher tier than Supabase has, update local state
+      // optimistically. _syncTierToServer already fired inside checkEntitlements.
+      if (rcTier && rcTier !== (us?.tier ?? 'free')) {
+        setUserState(us ? { ...us, tier: rcTier as 'standard' | 'premium' } : null);
+      }
+    }
+
     setAuthLoading(false);
     setScreen('home');
 
@@ -237,6 +251,8 @@ export default function App() {
         profile={profile}
         userState={userState}
         onLogout={handleLogout}
+        onResume={() => setScreen('coach')}
+        onTierChange={() => session && loadProfile(session.user.id)}
       />
     );
   }
@@ -295,6 +311,7 @@ export default function App() {
           onProfileUpdate={handleProfileUpdate}
           onLogout={handleLogout}
           onComplete={() => setScreen('home')}
+          onTierChange={() => session && loadProfile(session.user.id)}
         />
       )}
 
