@@ -798,7 +798,6 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
         .update({
           state: 'active_trader',
           returned_at: new Date().toISOString(),
-          resumed_at: new Date().toISOString(),
           return_method: 'checkin',
           last_response_date: new Date().toISOString(),
         })
@@ -864,7 +863,6 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
         .update({
           state: 'active_trader',
           returned_at: new Date().toISOString(),
-          resumed_at: new Date().toISOString(),
           return_method: 'checkin',
           last_response_date: new Date().toISOString(),
         })
