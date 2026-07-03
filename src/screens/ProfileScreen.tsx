@@ -5,7 +5,7 @@ import type { Profile, UserState } from '../lib/supabase';
 import { getTierLimits } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
-import { purchaseTier, restorePurchases } from '../lib/iap';
+import { UpgradeSheet } from '../components/UpgradeSheet';
 
 interface Props {
   profile: Profile;
@@ -109,8 +109,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [purchasing, setPurchasing] = useState<'standard' | 'premium' | 'restore' | null>(null);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   // Preferences
   const [picardia, setPicardia] = useState(profile.picardia_mode);
@@ -120,30 +119,6 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   const isPremium = tierLimits.adhocTurns === 7;
   const tierLabel = isFounding ? 'Founding Trader' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Standard' : 'Free';
   const tierLabelES = isFounding ? 'Founding Trader' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Estándar' : 'Gratis';
-
-  async function handlePurchase(tier: 'standard' | 'premium') {
-    setPurchasing(tier);
-    setPurchaseError(null);
-    const result = await purchaseTier(tier);
-    setPurchasing(null);
-    if (result.ok) {
-      onTierChange?.();
-    } else if (!result.cancelled) {
-      setPurchaseError(result.error ?? (idioma === 'ES' ? 'Error al procesar la compra.' : 'Purchase failed. Please try again.'));
-    }
-  }
-
-  async function handleRestore() {
-    setPurchasing('restore');
-    setPurchaseError(null);
-    const result = await restorePurchases();
-    setPurchasing(null);
-    if (result.ok && result.tier) {
-      onTierChange?.();
-    } else {
-      setPurchaseError(idioma === 'ES' ? 'No se encontraron compras activas.' : 'No active purchases found.');
-    }
-  }
 
   // Unit system — persisted to localStorage
   const [units, setUnits] = useState<'metric' | 'imperial'>(() =>
@@ -459,95 +434,21 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
         </div>
       </div>
 
-      {/* ── Upgrade / Restore (non-founding, non-premium only) ─────────── */}
+      {/* ── Upgrade (non-founding, non-premium only) ────────────────────── */}
       {!isFounding && !isPremium && (
         <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
-          <div style={{ fontSize: 11, color: colors.boneFaint, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 12 }}>
-            {idioma === 'ES' ? 'Actualizar plan' : 'Upgrade'}
-          </div>
-
-          {/* Standard — only show if currently free */}
-          {tierLimits.adhocTurns < 3 && (
-            <button
-              onClick={() => handlePurchase('standard')}
-              disabled={purchasing !== null}
-              style={{
-                width: '100%', padding: '11px', marginBottom: 8,
-                background: 'rgba(245,242,238,0.06)',
-                border: '1px solid rgba(245,242,238,0.18)',
-                borderRadius: 10, cursor: 'pointer',
-                color: colors.bone, fontSize: 13, fontWeight: 600,
-                letterSpacing: '0.04em', fontFamily: fonts.body,
-                opacity: purchasing !== null ? 0.5 : 1,
-              }}
-            >
-              {purchasing === 'standard'
-                ? (idioma === 'ES' ? 'Procesando…' : 'Processing…')
-                : (idioma === 'ES' ? 'Estándar — $12.99/mes' : 'Standard — $12.99/mo')}
-            </button>
-          )}
-
-          {/* Premium */}
           <button
-            onClick={() => handlePurchase('premium')}
-            disabled={purchasing !== null}
+            onClick={() => setShowUpgrade(true)}
             style={{
-              width: '100%', padding: '11px', marginBottom: 8,
-              background: 'rgba(123,97,255,0.12)',
-              border: '1px solid rgba(123,97,255,0.35)',
+              width: '100%', padding: '11px',
+              background: 'rgba(133,183,235,0.08)',
+              border: '1px solid rgba(133,183,235,0.25)',
               borderRadius: 10, cursor: 'pointer',
               color: colors.tierElite, fontSize: 13, fontWeight: 600,
               letterSpacing: '0.04em', fontFamily: fonts.body,
-              opacity: purchasing !== null ? 0.5 : 1,
             }}
           >
-            {purchasing === 'premium'
-              ? (idioma === 'ES' ? 'Procesando…' : 'Processing…')
-              : (idioma === 'ES' ? 'Premium — $22.99/mes' : 'Premium — $22.99/mo')}
-          </button>
-
-          {purchaseError && (
-            <div style={{ fontSize: 12, color: '#ff6b6b', marginBottom: 8, lineHeight: 1.5 }}>
-              {purchaseError}
-            </div>
-          )}
-
-          {/* Auto-renewal disclosure */}
-          <div style={{ fontSize: 10, color: 'rgba(245,242,238,0.3)', lineHeight: 1.6, marginTop: 4, marginBottom: 4 }}>
-            {idioma === 'ES'
-              ? 'Renovación automática mensual. Cancela en la App Store o Google Play en cualquier momento.'
-              : 'Renews monthly automatically. Cancel anytime in App Store or Google Play settings.'}
-          </div>
-          <div style={{ display: 'flex', gap: 16, marginBottom: 4 }}>
-            <a href="https://biocycle.app/terms" target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 10, color: 'rgba(245,242,238,0.3)', textDecoration: 'underline' }}>
-              {idioma === 'ES' ? 'Términos' : 'Terms'}
-            </a>
-            <a href="https://biocycle.app/privacy" target="_blank" rel="noopener noreferrer"
-              style={{ fontSize: 10, color: 'rgba(245,242,238,0.3)', textDecoration: 'underline' }}>
-              {idioma === 'ES' ? 'Privacidad' : 'Privacy'}
-            </a>
-          </div>
-        </div>
-      )}
-
-      {/* ── Restore Purchases (all non-founding users) ───────────────────── */}
-      {!isFounding && (
-        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 12px' }}>
-          <button
-            onClick={handleRestore}
-            disabled={purchasing !== null}
-            style={{
-              background: 'none', border: 'none',
-              color: 'rgba(245,242,238,0.4)', fontSize: 12,
-              cursor: 'pointer', fontFamily: fonts.body,
-              letterSpacing: '0.03em', padding: 0,
-              opacity: purchasing !== null ? 0.4 : 1,
-            }}
-          >
-            {purchasing === 'restore'
-              ? (idioma === 'ES' ? 'Restaurando…' : 'Restoring…')
-              : (idioma === 'ES' ? 'Restaurar compras' : 'Restore Purchases')}
+            {L('View plans — from $12.99/mo', 'Ver planes — desde $12.99/mes')}
           </button>
         </div>
       )}
@@ -1140,6 +1041,15 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
             </ModalBtn>
           </div>
         </Modal>
+      )}
+
+      {/* ── UpgradeSheet modal ───────────────────────────────────────────────── */}
+      {showUpgrade && (
+        <UpgradeSheet
+          lang={idioma}
+          onSuccess={() => { setShowUpgrade(false); onTierChange?.(); }}
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </div>
   );

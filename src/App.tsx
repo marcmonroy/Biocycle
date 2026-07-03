@@ -5,7 +5,7 @@ import { getTierLimits } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
 import { registerPushNotifications } from './services/pushNotifications';
-import { initIAP, checkEntitlements } from './lib/iap';
+import { initIAP, getActiveTierFromEntitlements } from './lib/iap';
 import { Capacitor } from '@capacitor/core';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { LoginScreen } from './screens/LoginScreen';
@@ -144,7 +144,7 @@ export default function App() {
     // Init RevenueCat and reconcile tier from entitlements
     if (Capacitor.isNativePlatform()) {
       await initIAP(userId);
-      const rcTier = await checkEntitlements();
+      const rcTier = await getActiveTierFromEntitlements();
       // If RevenueCat reports a higher tier than Supabase has, update local state
       // optimistically. _syncTierToServer already fired inside checkEntitlements.
       if (rcTier && rcTier !== (us?.tier ?? 'free')) {
