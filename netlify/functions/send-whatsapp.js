@@ -34,7 +34,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { to, language = 'EN', teaserText, action, userId } = parsed;
+  const { to, language = 'EN', teaserText, action, userId, code: submittedCode } = parsed;
 
   console.log('[send-whatsapp] action:', action);
   console.log('[send-whatsapp] to:', to);
@@ -252,6 +252,77 @@ exports.handler = async (event) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       body: JSON.stringify({ sid: twilioData.sid }),
     };
+  }
+
+  // ── verify_code ───────────────────────────────────────────────────────────
+  // Server-side only: uses SERVICE ROLE key so RLS is bypassed entirely.
+  // Client must never read whatsapp_verification_codes directly — RLS has
+  // zero client-read policies, so the anon key always returns empty rows.
+  if (action === 'verify_code') {
+    if (!userId || !submittedCode) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'userId and code are required' }) };
+    }
+
+    const supabaseUrl        = process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'Missing Supabase credentials' }) };
+    }
+
+    const dbHeaders = {
+      'Content-Type':  'application/json',
+      'apikey':        supabaseServiceKey,
+      'Authorization': `Bearer ${supabaseServiceKey}`,
+    };
+
+    // Read the stored code (service role bypasses RLS)
+    let codeRow = null;
+    try {
+      const readRes = await fetch(
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=code,expires_at&limit=1`,
+        { method: 'GET', headers: dbHeaders }
+      );
+      if (readRes.ok) {
+        const rows = await readRes.json();
+        if (rows.length > 0) codeRow = rows[0];
+      }
+    } catch (err) {
+      console.error('[send-whatsapp] verify_code DB read error:', err.message);
+      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'DB read failed' }) };
+    }
+
+    if (!codeRow) {
+      return { statusCode: 404, headers: corsHeaders, body: JSON.stringify({ error: 'not_found' }) };
+    }
+
+    if (new Date() > new Date(codeRow.expires_at)) {
+      return { statusCode: 410, headers: corsHeaders, body: JSON.stringify({ error: 'expired' }) };
+    }
+
+    if (String(submittedCode).trim() !== String(codeRow.code).trim()) {
+      return { statusCode: 422, headers: corsHeaders, body: JSON.stringify({ error: 'incorrect' }) };
+    }
+
+    // Code matches — mark verified and clean up
+    try {
+      await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
+        {
+          method:  'PATCH',
+          headers: { ...dbHeaders, Prefer: 'return=minimal' },
+          body:    JSON.stringify({ whatsapp_verified: true }),
+        }
+      );
+      await fetch(
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}`,
+        { method: 'DELETE', headers: dbHeaders }
+      );
+    } catch (err) {
+      console.error('[send-whatsapp] verify_code post-match update error:', err.message);
+      // Non-fatal: code matched, return ok — client will retry profile update if needed
+    }
+
+    return { statusCode: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
   }
 
   // ── compatibility_invite — plain text direct message ──────────────────────

@@ -314,6 +314,9 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   };
 
   // ── Step 5 ───────────────────────────────────────────────────────────────
+  // Verification is done server-side via the verify_code action so the server
+  // can read whatsapp_verification_codes with the service-role key (RLS has no
+  // client-read policy — a direct anon-key read always returns empty rows).
   const handleStep5 = async () => {
     const entered = verificationCode.join('');
     if (entered.length < 6) { setError(isES ? 'Ingresa los 6 dígitos.' : 'Enter all 6 digits.'); return; }
@@ -321,14 +324,21 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setCodeExpired(false);
     setLoading(true);
 
-    // Query code from Supabase (server-generated, RLS: user can read own row)
-    const { data: codeRow } = await supabase
-      .from('whatsapp_verification_codes')
-      .select('code, expires_at')
-      .eq('user_id', userIdRef.current)
-      .maybeSingle();
+    let verifyRes: Response;
+    try {
+      verifyRes = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'verify_code', userId: userIdRef.current, code: entered }),
+      });
+    } catch {
+      setLoading(false);
+      setError(isES ? 'Error de red. Intenta de nuevo.' : 'Network error. Please try again.');
+      return;
+    }
 
-    if (!codeRow || new Date() > new Date(codeRow.expires_at)) {
+    if (verifyRes.status === 404 || verifyRes.status === 410) {
+      // No row found, or row is expired — could also be a replaced code
       setLoading(false);
       setCodeExpired(true);
       setError(isES
@@ -337,15 +347,21 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       return;
     }
 
-    if (entered !== codeRow.code) {
+    if (verifyRes.status === 422) {
       setLoading(false);
       setError(isES ? 'Ese código es incorrecto.' : 'That code is incorrect.');
       return;
     }
 
-    // Match — mark verified, delete code row, upsert user_state
-    await supabase.from('profiles').update({ whatsapp_verified: true }).eq('id', userIdRef.current);
-    await supabase.from('whatsapp_verification_codes').delete().eq('user_id', userIdRef.current);
+    if (!verifyRes.ok) {
+      setLoading(false);
+      setError(isES ? 'Error al verificar. Intenta de nuevo.' : 'Verification failed. Please try again.');
+      return;
+    }
+
+    // Server confirmed match — whatsapp_verified already set by server.
+    // Finish with the remaining client-writable fields (anon key has RLS
+    // policies for profiles + user_state on the authenticated user).
     const { error: stateError5 } = await supabase.from('user_state').upsert({
       user_id:         userIdRef.current,
       state:           'active_trader',
