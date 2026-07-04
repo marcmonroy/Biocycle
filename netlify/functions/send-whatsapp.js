@@ -279,7 +279,7 @@ exports.handler = async (event) => {
     let codeRow = null;
     try {
       const readRes = await fetch(
-        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=code,expires_at&limit=1`,
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=code,expires_at,attempts&limit=1`,
         { method: 'GET', headers: dbHeaders }
       );
       if (readRes.ok) {
@@ -300,7 +300,42 @@ exports.handler = async (event) => {
     }
 
     if (String(submittedCode).trim() !== String(codeRow.code).trim()) {
-      return { statusCode: 422, headers: corsHeaders, body: JSON.stringify({ error: 'incorrect' }) };
+      const newAttempts = (codeRow.attempts ?? 0) + 1;
+      const MAX_ATTEMPTS = 5;
+
+      if (newAttempts >= MAX_ATTEMPTS) {
+        // Burn the code — force the user to request a fresh one
+        try {
+          await fetch(
+            `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}`,
+            { method: 'DELETE', headers: dbHeaders }
+          );
+          console.log('[send-whatsapp] verify_code: max attempts reached, code deleted for user', userId);
+        } catch (err) {
+          console.warn('[send-whatsapp] verify_code: failed to delete burned code:', err.message);
+        }
+        return {
+          statusCode: 429,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'too_many_attempts' }),
+        };
+      }
+
+      // Increment attempt counter and let the user try again
+      try {
+        await fetch(
+          `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}`,
+          {
+            method:  'PATCH',
+            headers: { ...dbHeaders, Prefer: 'return=minimal' },
+            body:    JSON.stringify({ attempts: newAttempts }),
+          }
+        );
+      } catch (err) {
+        console.warn('[send-whatsapp] verify_code: failed to increment attempts:', err.message);
+      }
+
+      return { statusCode: 422, headers: corsHeaders, body: JSON.stringify({ error: 'incorrect', attemptsLeft: MAX_ATTEMPTS - newAttempts }) };
     }
 
     // Code matches — mark verified and clean up

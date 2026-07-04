@@ -353,6 +353,16 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       return;
     }
 
+    if (verifyRes.status === 429) {
+      // Brute-force limit reached — code has been deleted server-side
+      setLoading(false);
+      setCodeExpired(true);
+      setError(isES
+        ? 'Demasiados intentos incorrectos. El código fue invalidado — solicita uno nuevo.'
+        : 'Too many incorrect attempts. The code has been invalidated — please request a new one.');
+      return;
+    }
+
     if (!verifyRes.ok) {
       setLoading(false);
       setError(isES ? 'Error al verificar. Intenta de nuevo.' : 'Verification failed. Please try again.');
