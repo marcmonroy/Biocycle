@@ -126,16 +126,39 @@ exports.handler = async (event) => {
       };
     }
 
-    const code      = String(randomInt(100000, 1000000));
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-
     const dbHeaders = {
       'Content-Type':  'application/json',
       'apikey':        supabaseServiceKey,
       'Authorization': `Bearer ${supabaseServiceKey}`,
     };
 
-    // Delete existing codes for this user
+    // ── (a) Rate-limit check FIRST — touch nothing in DB if exceeded ──────────
+    // Read created_at of any existing code row for this user.
+    // If a code was issued within the last 60 seconds, refuse and preserve it.
+    try {
+      const checkRes = await fetch(
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1`,
+        { method: 'GET', headers: dbHeaders }
+      );
+      if (checkRes.ok) {
+        const rows = await checkRes.json();
+        if (rows.length > 0) {
+          const secondsAgo = (Date.now() - new Date(rows[0].created_at).getTime()) / 1000;
+          if (secondsAgo < 60) {
+            console.log('[send-whatsapp] Rate limit hit — code sent', Math.round(secondsAgo), 's ago');
+            return {
+              statusCode: 429,
+              headers: corsHeaders,
+              body: JSON.stringify({ error: 'Too many codes requested. Please wait before trying again.' }),
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[send-whatsapp] Rate-limit check error (non-fatal):', err.message);
+    }
+
+    // ── (b) Delete old codes ──────────────────────────────────────────────────
     try {
       const delRes = await fetch(
         `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}`,
@@ -146,7 +169,10 @@ exports.handler = async (event) => {
       console.warn('[send-whatsapp] Supabase DELETE error (non-fatal):', err.message);
     }
 
-    // Insert new code
+    // ── (c) Insert new code ───────────────────────────────────────────────────
+    const code      = String(randomInt(100000, 1000000));
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+
     const insertRes = await fetch(
       `${supabaseUrl}/rest/v1/whatsapp_verification_codes`,
       {
@@ -172,7 +198,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // Send using approved WhatsApp authentication template
+    // ── (d) Send via Twilio ───────────────────────────────────────────────────
     const verificationTemplateSid = language === 'es'
       ? 'HX1f50aaf2631e92ccade44d1ca80109ec'
       : 'HXfd5c75c1b32d3758bb171483d9598bf8';
@@ -203,6 +229,17 @@ exports.handler = async (event) => {
     console.log('[send-whatsapp] Twilio template response:', JSON.stringify(twilioData));
 
     if (!twilioRes.ok) {
+      // Twilio failed — delete the code we just stored so the user is not stuck
+      // with an undeliverable code blocking future resend attempts.
+      try {
+        await fetch(
+          `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}`,
+          { method: 'DELETE', headers: dbHeaders }
+        );
+        console.log('[send-whatsapp] Rolled back inserted code after Twilio failure');
+      } catch (rollbackErr) {
+        console.warn('[send-whatsapp] Rollback DELETE failed:', rollbackErr.message);
+      }
       return {
         statusCode: twilioRes.status,
         headers: corsHeaders,

@@ -328,22 +328,18 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       .eq('user_id', userIdRef.current)
       .maybeSingle();
 
-    if (!codeRow) {
-      setLoading(false);
-      setError(isES ? 'Código no encontrado. Reenvía el código.' : 'Code not found. Please resend.');
-      return;
-    }
-
-    if (new Date() > new Date(codeRow.expires_at)) {
+    if (!codeRow || new Date() > new Date(codeRow.expires_at)) {
       setLoading(false);
       setCodeExpired(true);
-      setError(isES ? 'El código expiró.' : 'Code expired.');
+      setError(isES
+        ? 'Ese código expiró o fue reemplazado — usa el mensaje más reciente o solicita un nuevo código.'
+        : 'That code has expired or was replaced — use the newest message or request a new code.');
       return;
     }
 
     if (entered !== codeRow.code) {
       setLoading(false);
-      setError(isES ? 'Código incorrecto. Intenta de nuevo.' : 'Incorrect code. Please try again.');
+      setError(isES ? 'Ese código es incorrecto.' : 'That code is incorrect.');
       return;
     }
 
@@ -392,6 +388,12 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     });
 
     setLoading(false);
+    if (res.status === 429) {
+      setError(isES
+        ? 'Demasiados códigos solicitados. Por favor espera antes de intentar de nuevo.'
+        : 'Too many codes requested. Please wait before trying again.');
+      return;
+    }
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       setError(errData.error || (isES ? 'Error al reenviar.' : 'Failed to resend.'));
@@ -617,6 +619,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
             {isES
               ? 'Enviamos un código de 6 dígitos a tu WhatsApp. Ingrésalo abajo.'
               : 'We sent a 6-digit code to your WhatsApp. Enter it below.'}
+          </p>
+          <p style={{ fontSize: 11, color: colors.boneFaint, margin: 0, lineHeight: 1.5 }}>
+            {isES
+              ? 'Usa siempre el código del mensaje de WhatsApp más reciente.'
+              : 'Always use the code from the newest WhatsApp message.'}
           </p>
           <input
             type="number"
