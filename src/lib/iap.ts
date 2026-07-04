@@ -1,14 +1,16 @@
 // src/lib/iap.ts
-// RevenueCat IAP wrapper — works on iOS (App Store) and Android (Google Play).
-// The code operates on entitlement IDs ("standard", "premium"), never on
-// store-specific product IDs, so the same logic runs on both platforms.
+// RevenueCat IAP wrapper — iOS (App Store) + Android (Google Play).
+// Operates on entitlement IDs ("standard", "premium") — never raw product IDs.
 
 import { Purchases, LOG_LEVEL } from '@revenuecat/purchases-capacitor';
+import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 import { Capacitor } from '@capacitor/core';
+
+export type { PurchasesPackage };
 
 const UPDATE_TIER_URL = '/.netlify/functions/update-tier';
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 export async function initIAP(userId: string): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
@@ -31,7 +33,7 @@ export async function initIAP(userId: string): Promise<void> {
   }
 }
 
-// ── Offerings ────────────────────────────────────────────────────────────────
+// ── Offerings ─────────────────────────────────────────────────────────────────
 
 export async function getOfferings() {
   if (!Capacitor.isNativePlatform()) return null;
@@ -44,44 +46,32 @@ export async function getOfferings() {
   }
 }
 
-// ── Purchase ─────────────────────────────────────────────────────────────────
+// ── Purchase a specific package ───────────────────────────────────────────────
+// The UpgradeSheet loads offerings, lets the user pick a package, then calls this.
 
-export async function purchaseTier(
-  tier: 'standard' | 'premium'
+export async function purchasePackage(
+  pkg: PurchasesPackage
 ): Promise<{ ok: boolean; cancelled?: boolean; error?: string }> {
   if (!Capacitor.isNativePlatform()) {
     return { ok: false, error: 'IAP only available on native platforms' };
   }
   try {
-    const { current } = await Purchases.getOfferings();
-    if (!current) return { ok: false, error: 'No offerings available' };
-
-    // Match the package whose identifier contains the tier name.
-    // In RevenueCat dashboard the packages should be named e.g. "$rc_monthly_standard"
-    // or use the entitlement identifier. Fall back to any package if no match.
-    const pkg =
-      current.availablePackages.find(p =>
-        p.identifier.toLowerCase().includes(tier)
-      ) ?? current.availablePackages[tier === 'premium' ? 0 : 1];
-
-    if (!pkg) return { ok: false, error: `No package found for ${tier}` };
-
     const result = await Purchases.purchasePackage({ aPackage: pkg });
-    const active = result.customerInfo.entitlements.active;
-
-    if (active[tier]) {
-      await _syncTierToServer(result.customerInfo.originalAppUserId, tier);
+    const userId  = result.customerInfo.originalAppUserId;
+    const tier    = _highestActiveTier(result.customerInfo.entitlements.active);
+    if (tier) {
+      await _syncToServer(userId);
       return { ok: true };
     }
     return { ok: false, error: 'Entitlement not active after purchase' };
   } catch (e: any) {
     if (e?.userCancelled) return { ok: false, cancelled: true };
-    console.error('[iap] purchaseTier failed:', e);
+    console.error('[iap] purchasePackage failed:', e);
     return { ok: false, error: e?.message ?? 'Purchase failed' };
   }
 }
 
-// ── Restore ──────────────────────────────────────────────────────────────────
+// ── Restore ───────────────────────────────────────────────────────────────────
 
 export async function restorePurchases(): Promise<{
   ok: boolean;
@@ -91,8 +81,8 @@ export async function restorePurchases(): Promise<{
   if (!Capacitor.isNativePlatform()) return { ok: false, tier: null, error: 'Native only' };
   try {
     const result = await Purchases.restorePurchases();
-    const tier = _highestActiveTier(result.customerInfo.entitlements.active);
-    if (tier) await _syncTierToServer(result.customerInfo.originalAppUserId, tier);
+    const tier   = _highestActiveTier(result.customerInfo.entitlements.active);
+    if (tier) await _syncToServer(result.customerInfo.originalAppUserId);
     return { ok: true, tier };
   } catch (e: any) {
     console.error('[iap] restorePurchases failed:', e);
@@ -100,20 +90,19 @@ export async function restorePurchases(): Promise<{
   }
 }
 
-// ── Check on launch ───────────────────────────────────────────────────────────
-// Call after initIAP. Returns the active tier from RevenueCat (or null).
-// Also fires a server sync if the entitlement is active, so Supabase stays
-// current across devices/platforms.
+// ── On-launch entitlement check ───────────────────────────────────────────────
+// Reads RC CustomerInfo (cached by RC SDK), syncs to server if tier is active.
+// Renamed from checkEntitlements to match spec naming.
 
-export async function checkEntitlements(): Promise<string | null> {
+export async function getActiveTierFromEntitlements(): Promise<string | null> {
   if (!Capacitor.isNativePlatform()) return null;
   try {
     const result = await Purchases.getCustomerInfo();
-    const tier = _highestActiveTier(result.customerInfo.entitlements.active);
-    if (tier) await _syncTierToServer(result.customerInfo.originalAppUserId, tier);
+    const tier   = _highestActiveTier(result.customerInfo.entitlements.active);
+    if (tier) await _syncToServer(result.customerInfo.originalAppUserId);
     return tier;
   } catch (e) {
-    console.warn('[iap] checkEntitlements failed:', e);
+    console.warn('[iap] getActiveTierFromEntitlements failed:', e);
     return null;
   }
 }
@@ -123,23 +112,22 @@ export async function checkEntitlements(): Promise<string | null> {
 function _highestActiveTier(
   active: Record<string, unknown>
 ): 'standard' | 'premium' | null {
-  if (active['premium']) return 'premium';
+  if (active['premium'])  return 'premium';
   if (active['standard']) return 'standard';
   return null;
 }
 
-async function _syncTierToServer(userId: string, tier: string): Promise<void> {
+// Server determines the authoritative tier from RevenueCat REST API — client
+// sends only the userId, never a self-reported tier value.
+async function _syncToServer(userId: string): Promise<void> {
   try {
     const res = await fetch(UPDATE_TIER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, tier }),
+      body: JSON.stringify({ userId }),
     });
-    if (!res.ok) {
-      const body = await res.text();
-      console.warn('[iap] syncTierToServer non-ok:', res.status, body);
-    }
+    if (!res.ok) console.warn('[iap] syncToServer non-ok:', res.status, await res.text());
   } catch (e) {
-    console.error('[iap] syncTierToServer failed:', e);
+    console.error('[iap] syncToServer failed:', e);
   }
 }

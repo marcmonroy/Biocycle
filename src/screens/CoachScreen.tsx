@@ -695,9 +695,14 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     const firstUser = apiMsgs.findIndex(m => m.role === 'user');
     const safe = firstUser >= 0 ? apiMsgs.slice(firstUser) : apiMsgs;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return '';
       const res  = await fetch(`${API_BASE}/.netlify/functions/coach`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body:    JSON.stringify({ model: 'claude-sonnet-4-6', messages: safe, system: systemPrompt, max_tokens: maxTokens }),
       });
       const data = await res.json();

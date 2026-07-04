@@ -1,6 +1,7 @@
 // update-tier.js — Netlify Function
-// Verifies a RevenueCat entitlement server-side, then writes tier to Supabase.
-// Never trusts the client's claimed tier — always verifies via RC REST API.
+// Receives { userId }, queries RevenueCat REST API with a server-side secret key
+// to determine the active entitlement, then writes the resolved tier to Supabase.
+// Client never supplies or influences the tier value.
 
 'use strict';
 
@@ -10,16 +11,13 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
 
   try {
-    const { userId, tier } = JSON.parse(event.body);
+    const { userId } = JSON.parse(event.body);
 
-    if (!userId || !tier) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'userId and tier are required' }) };
-    }
-    if (!['standard', 'premium'].includes(tier)) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'tier must be standard or premium' }) };
+    if (!userId) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'userId is required' }) };
     }
 
-    // ── Verify entitlement via RevenueCat REST API ──────────────────────
+    // ── Query RevenueCat REST API (server-side secret — never in client) ──
     const rcSecretKey = process.env.REVENUECAT_SECRET_KEY;
     if (!rcSecretKey) throw new Error('REVENUECAT_SECRET_KEY env var not set');
 
@@ -31,21 +29,26 @@ exports.handler = async (event) => {
     if (!rcRes.ok) {
       const body = await rcRes.text();
       console.error('[update-tier] RC API error:', rcRes.status, body);
-      return { statusCode: 402, body: JSON.stringify({ error: 'RevenueCat verification failed' }) };
+      return { statusCode: 402, body: JSON.stringify({ error: 'RevenueCat lookup failed' }) };
     }
 
     const rcData = await rcRes.json();
-    const entitlement = rcData.subscriber?.entitlements?.[tier];
+    const entitlements = rcData.subscriber?.entitlements ?? {};
+    const now = new Date();
 
-    if (!entitlement) {
-      return { statusCode: 402, body: JSON.stringify({ error: `Entitlement '${tier}' not found` }) };
-    }
-    // expires_date is null for lifetime; string ISO date for subscriptions
-    if (entitlement.expires_date && new Date(entitlement.expires_date) < new Date()) {
-      return { statusCode: 402, body: JSON.stringify({ error: `Entitlement '${tier}' has expired` }) };
+    // Helper: is an entitlement active (not expired)?
+    function isActive(ent) {
+      if (!ent) return false;
+      if (!ent.expires_date) return true;           // lifetime / no expiry
+      return new Date(ent.expires_date) > now;
     }
 
-    // ── Write tier to Supabase via service-role key ─────────────────────
+    // Resolve highest active tier (premium beats standard)
+    let tier = 'free';
+    if (isActive(entitlements['premium']))  tier = 'premium';
+    else if (isActive(entitlements['standard'])) tier = 'standard';
+
+    // ── Write to Supabase via service-role key ────────────────────────────
     const supabase = createClient(
       process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY

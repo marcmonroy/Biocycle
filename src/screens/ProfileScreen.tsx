@@ -288,14 +288,17 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   async function handleDeleteAccount() {
     setDeleting(true);
     try {
-      const uid = profile.id;
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
 
       // Single server-side call handles everything:
       // data deletion in correct FK order + auth account deletion
-      const deleteRes = await fetch(`${API_BASE}/.netlify/functions/delete-account`, {
+      // delete-own-account validates the caller's JWT — no unauthenticated deletion
+      const deleteRes = await fetch(`${API_BASE}/.netlify/functions/delete-own-account`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: uid }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${currentSession?.access_token}`,
+        },
       });
 
       const deleteData = await deleteRes.json();

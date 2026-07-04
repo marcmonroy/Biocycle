@@ -1,18 +1,53 @@
+const { createClient } = require('@supabase/supabase-js');
+
 // Minimal safety-net prompt used only when the client sends no system prompt at all
 const FALLBACK_SYSTEM = `You are Jules, BioCycle's biological intelligence coach. You are warm, grounded, wise, and experienced. You speak from a place of earned knowledge, not theory. You are direct but gentle. You make data collection feel like an act of care.`;
 
+const APPROVED_MODEL  = 'claude-sonnet-4-6';
+const MAX_TOKENS_CAP  = 1024;
+
+const ALLOWED_ORIGINS = [
+  'https://app.biocycle.app',
+  'https://biocycle.app',
+  'capacitor://localhost',
+  'http://localhost',
+];
+
+function corsHeaders(requestOrigin) {
+  const origin = ALLOWED_ORIGINS.includes(requestOrigin)
+    ? requestOrigin
+    : ALLOWED_ORIGINS[0];
+  return {
+    'Access-Control-Allow-Origin':  origin,
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
+
 exports.handler = async (event) => {
+  const requestOrigin = event.headers.origin || '';
+
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: ''
-    }
+    return { statusCode: 200, headers: corsHeaders(requestOrigin), body: '' };
   }
+
+  // ── Auth ────────────────────────────────────────────────────────────────
+  const authHeader = event.headers.authorization || '';
+  const token = authHeader.replace('Bearer ', '').trim();
+  if (!token) {
+    return { statusCode: 401, headers: corsHeaders(requestOrigin), body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY,
+  );
+  const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
+  if (userErr || !user) {
+    return { statusCode: 401, headers: corsHeaders(requestOrigin), body: JSON.stringify({ error: 'Invalid token' }) };
+  }
+
+  // ── Build request ────────────────────────────────────────────────────────
   try {
     const parsed = JSON.parse(event.body || '{}');
 
@@ -20,10 +55,11 @@ exports.handler = async (event) => {
     delete parsed.picardia_mode;
     delete parsed.days_of_data;
 
-    // Ensure model is always set
-    if (!parsed.model) {
-      parsed.model = 'claude-sonnet-4-6';
-    }
+    // Force approved model — never trust the client for this
+    parsed.model = APPROVED_MODEL;
+
+    // Clamp max_tokens to server-side ceiling
+    parsed.max_tokens = Math.min(parsed.max_tokens ?? MAX_TOKENS_CAP, MAX_TOKENS_CAP);
 
     // If the client did not provide a system prompt (should never happen in normal flow),
     // inject the safety-net Jules prompt with today's date.
@@ -41,24 +77,23 @@ exports.handler = async (event) => {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
       },
-      body: JSON.stringify(parsed)
-    })
-    const data = await response.json()
+      body: JSON.stringify(parsed),
+    });
+
+    const data = await response.json();
     return {
       statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    }
+      headers: { ...corsHeaders(requestOrigin), 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    };
+
   } catch (error) {
     return {
       statusCode: 500,
-      headers: { 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({ error: error.message })
-    }
+      headers: corsHeaders(requestOrigin),
+      body: JSON.stringify({ error: error.message }),
+    };
   }
-}
+};

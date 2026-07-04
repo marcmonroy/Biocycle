@@ -1,4 +1,5 @@
 import { API_BASE } from '../lib/apiBase';
+import { supabase } from '../lib/supabase';
 
 // ElevenLabs voice IDs per personality and language
 const VOICE_IDS: Record<string, string> = {
@@ -101,9 +102,19 @@ export async function speakWithElevenLabs(
     const abortController = new AbortController();
     currentAbortController = abortController;
 
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // No authenticated session — fall back to on-device speech
+      speakWithWebSpeech(text, language, generation, onStart, onEnd);
+      return;
+    }
+
     const response = await fetch(`${API_BASE}/.netlify/functions/elevenlabs-tts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ text, voiceId }),
       signal: abortController.signal,
     });
