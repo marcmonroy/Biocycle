@@ -23,6 +23,7 @@ const COUNTRY_CODES = [
   { code: '+1809', label: 'DR' },
   { code: '+1829', label: 'DR' },
   { code: '+57',   label: 'CO' },
+  { code: '+591',  label: 'BO' },
   { code: '+54',   label: 'AR' },
   { code: '+56',   label: 'CL' },
   { code: '+58',   label: 'VE' },
