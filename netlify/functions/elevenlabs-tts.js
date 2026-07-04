@@ -3,14 +3,21 @@ const { createClient } = require('@supabase/supabase-js');
 const ALLOWED_ORIGINS = [
   'https://app.biocycle.app',
   'https://biocycle.app',
-  'capacitor://localhost',
+  'https://localhost',       // Android Capacitor webview
+  'capacitor://localhost',   // iOS Capacitor webview
   'http://localhost',
+  'http://localhost:5173',   // local Vite dev server
 ];
 
 function corsHeaders(requestOrigin) {
-  const origin = ALLOWED_ORIGINS.includes(requestOrigin)
-    ? requestOrigin
-    : ALLOWED_ORIGINS[0];
+  // No Origin header → native/server call; JWT is the real gate, allow with *
+  // Origin in list → echo it so the browser accepts the response
+  // Origin not in list → echo app.biocycle.app; browser will block the mismatch
+  const origin = !requestOrigin
+    ? '*'
+    : ALLOWED_ORIGINS.includes(requestOrigin)
+      ? requestOrigin
+      : ALLOWED_ORIGINS[0];
   return {
     'Access-Control-Allow-Origin':  origin,
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -33,8 +40,8 @@ exports.handler = async (event) => {
   }
 
   const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY,
+    process.env.SUPABASE_URL      || process.env.VITE_SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY,
   );
   const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
   if (userErr || !user) {
