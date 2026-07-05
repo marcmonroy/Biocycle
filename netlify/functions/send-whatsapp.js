@@ -137,7 +137,7 @@ exports.handler = async (event) => {
     // If a code was issued within the last 60 seconds, refuse and preserve it.
     try {
       const checkRes = await fetch(
-        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=created_at&limit=1`,
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=created_at&order=created_at.desc&limit=1`,
         { method: 'GET', headers: dbHeaders }
       );
       if (checkRes.ok) {
@@ -275,11 +275,14 @@ exports.handler = async (event) => {
       'Authorization': `Bearer ${supabaseServiceKey}`,
     };
 
-    // Read the stored code (service role bypasses RLS)
+    // Read the stored code (service role bypasses RLS).
+    // ORDER BY created_at DESC so we always get the newest row — without this,
+    // limit=1 returns in heap order and a stale row from a failed prior DELETE
+    // will be read instead of the fresh one, causing instant "expired" errors.
     let codeRow = null;
     try {
       const readRes = await fetch(
-        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=code,expires_at,attempts&limit=1`,
+        `${supabaseUrl}/rest/v1/whatsapp_verification_codes?user_id=eq.${encodeURIComponent(userId)}&select=code,expires_at,attempts&order=created_at.desc&limit=1`,
         { method: 'GET', headers: dbHeaders }
       );
       if (readRes.ok) {
@@ -291,11 +294,17 @@ exports.handler = async (event) => {
       return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'DB read failed' }) };
     }
 
+    // Diagnostic log — shows raw DB value so we can confirm tz format in Netlify logs
+    console.log('[send-whatsapp] verify_code | now:', new Date().toISOString(),
+      '| expires_at:', codeRow?.expires_at ?? 'NO ROW',
+      '| row count check — if expired_at has no Z, column may be timestamp not timestamptz');
+
     if (!codeRow) {
       return { statusCode: 404, headers: corsHeaders, body: JSON.stringify({ error: 'not_found' }) };
     }
 
     if (new Date() > new Date(codeRow.expires_at)) {
+      console.log('[send-whatsapp] verify_code EXPIRED | now:', new Date().toISOString(), '| expires_at:', codeRow.expires_at);
       return { statusCode: 410, headers: corsHeaders, body: JSON.stringify({ error: 'expired' }) };
     }
 
