@@ -4,9 +4,9 @@ import { supabase } from '../lib/supabase';
 // ElevenLabs voice IDs per personality and language
 const VOICE_IDS: Record<string, string> = {
   jules_en:  'gJx1vCzNCD1EQHT212Ls',
-  jules_es:  'GU72V6Yk5oxNHCpv7yxQ',
+  jules_es:  '3Fx71T889APcHRu4VtQf',
   sienna_en: '4tRn1lSkEn13EVTuqb0g',
-  sienna_es: 'NNLcf0MlUZirnZQqeMJ8',
+  sienna_es: 'bN1bDXgDIGX5lw0rtY2B',
 };
 
 function getVoiceId(language: string, picardiaMode: boolean): string {
