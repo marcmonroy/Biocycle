@@ -9,6 +9,9 @@
 [functions]
   node_bundler = "nft"
 
+[functions."daily-push-scheduler"]
+  schedule = "0 * * * *"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
