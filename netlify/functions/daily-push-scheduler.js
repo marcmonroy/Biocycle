@@ -203,15 +203,17 @@ exports.handler = async () => {
 
   const eligibleIds = eligible.map(e => e.profile.id);
 
-  // ── Step 2: Fetch today's real send log (dry_run=false ONLY) ─────────────
-  // Amendment B + correction: dry_run=true rows are audit logs only.
-  // Frequency cap and slot dedup are enforced exclusively against real sends.
+  // ── Step 2: Fetch today's send log ───────────────────────────────────────
+  // Fetch ALL rows (both dry_run=true and false) so we can apply mode-aware rules:
+  //   Frequency cap  → counts dry_run=false rows only (always — cap is about real sends)
+  //   Slot dedup     → live mode: dry_run=false only (amendment: real sends never blocked
+  //                    by dry-run rows); dry-run mode: all rows (so two overlapping dry-run
+  //                    runs or a Netlify retry cannot double-fire the same slot in testing)
 
   const { data: todayLogs, error: logsErr } = await supabase
     .from('push_send_log')
-    .select('user_id, push_type, slot')
+    .select('user_id, push_type, slot, dry_run')
     .in('user_id', eligibleIds)
-    .eq('dry_run', false)                 // ← NEVER read dry-run rows for gating
     .gte('sent_at', dayStart)
     .lt('sent_at',  dayEnd);
 
@@ -220,13 +222,18 @@ exports.handler = async () => {
     return { statusCode: 500, body: 'send_log fetch error' };
   }
 
-  // Build lookup structures from real sends only
-  const dailySentCount = {};    // user_id → number of real pushes sent today
-  const sentSlots      = new Set(); // `${user_id}:daily_checkin:${slot}` sent today (real only)
+  const dailySentCount = {};  // user_id → real send count today (dry_run=false only)
+  const sentSlots      = new Set(); // `${user_id}:${push_type}:${slot}` already handled today
 
   for (const row of (todayLogs || [])) {
-    dailySentCount[row.user_id] = (dailySentCount[row.user_id] || 0) + 1;
-    sentSlots.add(`${row.user_id}:${row.push_type}:${row.slot}`);
+    // Cap: real sends only
+    if (!row.dry_run) {
+      dailySentCount[row.user_id] = (dailySentCount[row.user_id] || 0) + 1;
+    }
+    // Dedup: real sends always block; dry-run rows block only in dry-run mode
+    if (!row.dry_run || isDryRun) {
+      sentSlots.add(`${row.user_id}:${row.push_type}:${row.slot}`);
+    }
   }
 
   // ── Step 3: Fetch push tokens for eligible users ─────────────────────────
@@ -271,10 +278,13 @@ exports.handler = async () => {
       continue;
     }
 
-    // Guard: slot dedup — only real sends (dry_run=false) count here
+    // Guard: slot dedup
+    // live mode  → only dry_run=false rows in sentSlots (amendment: real sends never
+    //              blocked by dry-run rows)
+    // dry-run mode → all rows in sentSlots (overlapping runs can't double-fire)
     const dedupKey = `${userId}:daily_checkin:${slot}`;
     if (sentSlots.has(dedupKey)) {
-      console.log(`[scheduler] skip user=${userId} — slot '${slot}' already sent today (real)`);
+      console.log(`[scheduler] skip user=${userId} — slot '${slot}' already handled today (dedup, dry_run=${isDryRun})`);
       skipped++;
       continue;
     }
@@ -298,7 +308,7 @@ exports.handler = async () => {
         `[DRY-RUN] user=${userId} slot=${slot} utc_hour=${utcHour}` +
         ` tokens=${tokens.length} card=${card.cardId} title="${title}"`
       );
-      // Write audit row — dry_run=true, NEVER read back for gating
+      // Write audit row — dry_run=true, never read back to gate a real send
       await supabase.from('push_send_log').insert({
         user_id:     userId,
         push_type:   'daily_checkin',
@@ -308,6 +318,9 @@ exports.handler = async () => {
         platform:    tokens.map(t => t.platform).join('+'),
         token_count: tokens.length,
       });
+      // Update in-memory dedup set so a retry or overlapping run in the same
+      // second cannot pass the dedup check within this process lifetime
+      sentSlots.add(dedupKey);
       sent++;
       continue;
     }
