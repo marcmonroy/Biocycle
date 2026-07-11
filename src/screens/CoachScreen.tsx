@@ -213,12 +213,7 @@ function getChoiceOptions(state: ConversationState, isES: boolean): string[] {
 
 // ── State transition graph ────────────────────────────────────────────────
 
-function getNextQState(qState: ConversationState, slot: SessionSlot, isGap: boolean, liveDays = 0): ConversationState | 'SESSION_COMPLETE' {
-  if (isGap) {
-    if (qState === 'ENERGY_Q') return 'STRESS_Q';
-    return 'SESSION_COMPLETE';
-  }
-
+function getNextQState(qState: ConversationState, slot: SessionSlot, _isGap: boolean, liveDays = 0): ConversationState | 'SESSION_COMPLETE' {
   // Day 30+: 4-day rotating cycle — liveDays % 4 determines which dimensions today
   const isDayThirtyPlus = liveDays >= 30;
   if (isDayThirtyPlus) {
@@ -1168,29 +1163,24 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
     const scoredTodayIds = new Set((todayInteractions ?? []).map((i: any) => i.relationship_id));
 
-    // Rotate by least recently scored across all days
-    const unscoredToday = (allRels as any[]).find((r: any) => !scoredTodayIds.has(r.id));
-    let rel: any;
-    if (unscoredToday) {
-      rel = unscoredToday;
-    } else {
-      const { data: recentInts } = await supabase
-        .from('relationship_interactions')
-        .select('relationship_id, interaction_date')
-        .eq('user_id', profile.id)
-        .order('interaction_date', { ascending: false })
-        .limit(50);
-      const lastScored: Record<string, string> = {};
-      (recentInts ?? []).forEach((i: any) => {
-        if (!lastScored[i.relationship_id]) lastScored[i.relationship_id] = i.interaction_date;
-      });
-      const sorted = [...(allRels as any[])].sort((a: any, b: any) => {
-        const aDate = lastScored[a.id] ?? '2000-01-01';
-        const bDate = lastScored[b.id] ?? '2000-01-01';
-        return aDate < bDate ? -1 : 1;
-      });
-      rel = sorted[0];
-    }
+    // Rotate by least recently scored across all days, skipping anyone already scored today
+    const { data: recentInts } = await supabase
+      .from('relationship_interactions')
+      .select('relationship_id, interaction_date')
+      .eq('user_id', profile.id)
+      .order('interaction_date', { ascending: false })
+      .limit(50);
+    const lastScored: Record<string, string> = {};
+    (recentInts ?? []).forEach((i: any) => {
+      if (!lastScored[i.relationship_id]) lastScored[i.relationship_id] = i.interaction_date;
+    });
+    const sorted = [...(allRels as any[])].sort((a: any, b: any) => {
+      const aDate = lastScored[a.id] ?? '2000-01-01';
+      const bDate = lastScored[b.id] ?? '2000-01-01';
+      return aDate < bDate ? -1 : 1;
+    });
+    // Pick the first person not yet scored today; fall back to least-recently-scored if all scored today
+    const rel = sorted.find((r: any) => !scoredTodayIds.has(r.id)) ?? sorted[0];
 
     if (!rel) {
       _enterNameCollectionOrClose();
@@ -2200,8 +2190,8 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
 
         // ── 6. After opening — decide what comes next
         if (isGap) {
-          // Gap: abbreviated check-in, just energy
-          showQuestion('ENERGY_Q');
+          // Gap: run full slot check-in (opening already acknowledged the break)
+          enterFirstDimension(liveDays);
           return;
         }
 
