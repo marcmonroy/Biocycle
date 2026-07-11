@@ -118,6 +118,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           // Signed in successfully — check if they need to continue setup
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
+            userIdRef.current = user.id; // must be set before handleStep4 runs
             const { data: profileData } = await supabase
               .from('profiles')
               .select('whatsapp_verified')
@@ -153,6 +154,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       if (!signInErr) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          userIdRef.current = user.id; // must be set before handleStep4 runs
           const { data: profileData } = await supabase
             .from('profiles')
             .select('whatsapp_verified')
