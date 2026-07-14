@@ -58,6 +58,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [savedPhone, setSavedPhone] = useState(() => initialPhone ?? '');
+  // 'whatsapp' | 'email' | null (null = picker not yet shown / not yet chosen)
+  // When resuming at step 5 with no phone the user used the email path.
+  const [verifyChannel, setVerifyChannel] = useState<'whatsapp' | 'email' | null>(
+    () => (initialStep === 5 && !initialPhone) ? 'email' : null
+  );
 
   // Step 5
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
@@ -74,6 +79,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const autoSentRef = useRef(false);
   useEffect(() => {
     if (initialUserId) userIdRef.current = initialUserId;
+
+    // WhatsApp resume path
     if (initialStep === 5 && userIdRef.current && savedPhone && !autoSentRef.current) {
       autoSentRef.current = true;
       setLoading(true);
@@ -81,6 +88,25 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
+      })
+        .then(res => {
+          setLoading(false);
+          if (res.ok) startResendCooldown();
+          else setError(isES ? 'Error al enviar el código.' : 'Failed to send code.');
+        })
+        .catch(() => { setLoading(false); setError('Network error.'); });
+      return;
+    }
+
+    // Email resume path (no phone = email channel was chosen)
+    if (initialStep === 5 && userIdRef.current && !savedPhone && initialEmail && !autoSentRef.current) {
+      autoSentRef.current = true;
+      setVerifyChannel('email');
+      setLoading(true);
+      fetch(`${API_BASE}/.netlify/functions/send-email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send_verification', userId: userIdRef.current, email: initialEmail }),
       })
         .then(res => {
           setLoading(false);
@@ -306,6 +332,71 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setStep(5);
   };
 
+  // ── Step 4 — Email verification path ─────────────────────────────────────
+  const handleEmailVerification = async () => {
+    setError('');
+    setLoading(true);
+
+    const uid = userIdRef.current;
+
+    // Save profile without phone number
+    const { error: insertError } = await supabase.from('profiles').insert({
+      id:               uid,
+      nombre:           name,
+      genero:           gender || null,
+      idioma:           language,
+      fecha_nacimiento: (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
+      age_verified:     true,
+      whatsapp_verified: false,
+    });
+
+    if (insertError && insertError.code === '23505') {
+      const { error: updateError } = await supabase.from('profiles').update({
+        nombre:           name,
+        genero:           gender || null,
+        idioma:           language,
+        fecha_nacimiento: (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
+        age_verified:     true,
+      }).eq('id', uid);
+
+      if (updateError) {
+        setError('Profile save failed: ' + updateError.message);
+        setLoading(false);
+        return;
+      }
+    } else if (insertError) {
+      setError('Profile save failed: ' + insertError.message);
+      setLoading(false);
+      return;
+    }
+
+    // Create user_state row
+    await supabase.from('user_state').upsert({
+      user_id:         uid,
+      state:           'active_trader',
+      founding_trader: true,
+    }, { onConflict: 'user_id' });
+
+    // Send email verification code
+    const res = await fetch(`${API_BASE}/.netlify/functions/send-email-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'send_verification', userId: uid, email }),
+    });
+
+    setLoading(false);
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      setError(errData.error || (isES ? 'Error al enviar el código.' : 'Failed to send code.'));
+      return;
+    }
+
+    setVerifyChannel('email');
+    startResendCooldown();
+    setStep(5);
+  };
+
   const startResendCooldown = () => {
     setResendCooldown(30);
     const interval = setInterval(() => {
@@ -317,9 +408,10 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   };
 
   // ── Step 5 ───────────────────────────────────────────────────────────────
-  // Verification is done server-side via the verify_code action so the server
-  // can read whatsapp_verification_codes with the service-role key (RLS has no
+  // Verification is done server-side so the server can read
+  // whatsapp_verification_codes with the service-role key (RLS has no
   // client-read policy — a direct anon-key read always returns empty rows).
+  // Both channels use the same table; the correct function is chosen by channel.
   const handleStep5 = async () => {
     const entered = verificationCode.join('');
     if (entered.length < 6) { setError(isES ? 'Ingresa los 6 dígitos.' : 'Enter all 6 digits.'); return; }
@@ -327,9 +419,13 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setCodeExpired(false);
     setLoading(true);
 
+    const verifyFn = verifyChannel === 'email'
+      ? `${API_BASE}/.netlify/functions/send-email-code`
+      : `${API_BASE}/.netlify/functions/send-whatsapp`;
+
     let verifyRes: Response;
     try {
-      verifyRes = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
+      verifyRes = await fetch(verifyFn, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ action: 'verify_code', userId: userIdRef.current, code: entered }),
@@ -410,11 +506,20 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setVerificationCode(['', '', '', '', '', '']);
     setLoading(true);
 
-    const res = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
-    });
+    let res: Response;
+    if (verifyChannel === 'email') {
+      res = await fetch(`${API_BASE}/.netlify/functions/send-email-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'send_verification', userId: userIdRef.current, email }),
+      });
+    } else {
+      res = await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: savedPhone, userId: userIdRef.current, action: 'send_verification' }),
+      });
+    }
 
     setLoading(false);
     if (res.status === 429) {
@@ -615,45 +720,105 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         {/* STEP 4 */}
         {step === 4 && (<>
           <h2 style={headingStyle}>
-            {isES ? 'Tu WhatsApp' : 'Your WhatsApp'}
+            {isES ? 'Verifica tu cuenta' : 'Verify your account'}
           </h2>
           <p style={bodyStyle}>
             {isES
-              ? 'Jules te enviará tus sesiones diarias por WhatsApp.'
-              : "Jules will send your daily sessions via WhatsApp."}
+              ? 'Elige cómo recibir tu código de verificación.'
+              : 'Choose how to receive your verification code.'}
           </p>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <select value={countryCode} onChange={e => setCountryCode(e.target.value)}
-              style={{ ...inputStyle, width: 90, flexShrink: 0 }}>
-              {COUNTRY_CODES.map(c => (
-                <option key={c.code + c.label} value={c.code}>{c.code} {c.label}</option>
-              ))}
-            </select>
-            <input style={{ ...inputStyle, flex: 1 }} type="tel"
-              placeholder={isES ? 'Número de teléfono' : 'Phone number'}
-              value={phone} onChange={e => setPhone(e.target.value)} />
-          </div>
+
+          {/* Channel picker — shown until user selects one */}
+          {verifyChannel === null && (<>
+            <button
+              style={{ ...btnStyle, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', padding: '16px 20px' }}
+              onClick={() => { setVerifyChannel('whatsapp'); setError(''); }}
+            >
+              <span style={{ fontSize: 22 }}>💬</span>
+              <span style={{ textAlign: 'left' }}>
+                <strong style={{ display: 'block', fontSize: '0.95rem' }}>
+                  {isES ? 'Verificar por WhatsApp' : 'Verify via WhatsApp'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', fontWeight: 400, opacity: 0.7 }}>
+                  {isES ? 'Recibe el código en tu WhatsApp' : 'Receive the code on WhatsApp'}
+                </span>
+              </span>
+            </button>
+
+            <button
+              style={{ ...btnStyle, background: 'transparent', border: `1px solid ${colors.amber}55`, color: colors.bone, display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-start', padding: '16px 20px' }}
+              onClick={() => { setError(''); handleEmailVerification(); }}
+              disabled={loading}
+            >
+              <span style={{ fontSize: 22 }}>✉️</span>
+              <span style={{ textAlign: 'left' }}>
+                <strong style={{ display: 'block', fontSize: '0.95rem' }}>
+                  {isES ? 'Verificar por correo' : 'Verify via email'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', fontWeight: 400, opacity: 0.7 }}>
+                  {isES ? `Enviaremos el código a ${email}` : `We'll send the code to ${email}`}
+                </span>
+              </span>
+            </button>
+          </>)}
+
+          {/* WhatsApp sub-form — shown after user chooses WhatsApp */}
+          {verifyChannel === 'whatsapp' && (<>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <select value={countryCode} onChange={e => setCountryCode(e.target.value)}
+                style={{ ...inputStyle, width: 90, flexShrink: 0 }}>
+                {COUNTRY_CODES.map(c => (
+                  <option key={c.code + c.label} value={c.code}>{c.code} {c.label}</option>
+                ))}
+              </select>
+              <input style={{ ...inputStyle, flex: 1 }} type="tel"
+                placeholder={isES ? 'Número de teléfono' : 'Phone number'}
+                value={phone} onChange={e => setPhone(e.target.value)} />
+            </div>
+            <button
+              style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 13, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}
+              onClick={() => { setVerifyChannel(null); setError(''); }}
+            >
+              ← {isES ? 'Cambiar método' : 'Change method'}
+            </button>
+          </>)}
+
           {error && <p style={errorStyle}>{error}</p>}
-          <button style={btnStyle} onClick={handleStep4} disabled={loading || !phone}>
-            {loading ? '...' : (isES ? 'Enviar código →' : 'Send code →')}
-          </button>
+
+          {verifyChannel === 'whatsapp' && (
+            <button style={btnStyle} onClick={handleStep4} disabled={loading || !phone}>
+              {loading ? '...' : (isES ? 'Enviar código →' : 'Send code →')}
+            </button>
+          )}
+
+          {verifyChannel === null && loading && (
+            <p style={{ ...bodyStyle, textAlign: 'center' }}>...</p>
+          )}
         </>)}
 
         {/* STEP 5 */}
         {step === 5 && (<>
           <h2 style={headingStyle}>
-            {isES ? 'Verifica tu WhatsApp' : 'Verify your WhatsApp'}
+            {verifyChannel === 'email'
+              ? (isES ? 'Verifica tu correo' : 'Verify your email')
+              : (isES ? 'Verifica tu WhatsApp' : 'Verify your WhatsApp')}
           </h2>
           <p style={bodyStyle}>
-            {isES
-              ? 'Enviamos un código de 6 dígitos a tu WhatsApp. Ingrésalo abajo.'
-              : 'We sent a 6-digit code to your WhatsApp. Enter it below.'}
+            {verifyChannel === 'email'
+              ? (isES
+                  ? `Enviamos un código de 6 dígitos a ${email}. Ingrésalo abajo.`
+                  : `We sent a 6-digit code to ${email}. Enter it below.`)
+              : (isES
+                  ? 'Enviamos un código de 6 dígitos a tu WhatsApp. Ingrésalo abajo.'
+                  : 'We sent a 6-digit code to your WhatsApp. Enter it below.')}
           </p>
-          <p style={{ fontSize: 11, color: colors.boneFaint, margin: 0, lineHeight: 1.5 }}>
-            {isES
-              ? 'Usa siempre el código del mensaje de WhatsApp más reciente.'
-              : 'Always use the code from the newest WhatsApp message.'}
-          </p>
+          {verifyChannel !== 'email' && (
+            <p style={{ fontSize: 11, color: colors.boneFaint, margin: 0, lineHeight: 1.5 }}>
+              {isES
+                ? 'Usa siempre el código del mensaje de WhatsApp más reciente.'
+                : 'Always use the code from the newest WhatsApp message.'}
+            </p>
+          )}
           <input
             type="number"
             inputMode="numeric"

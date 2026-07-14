@@ -183,6 +183,7 @@ exports.handler = async (event) => {
           code,
           expires_at: expiresAt,
           created_at: new Date().toISOString(),
+          channel:    'whatsapp',
         }),
       }
     );
