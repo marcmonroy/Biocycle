@@ -137,7 +137,7 @@ export async function computeDeltaVector(profile: Profile): Promise<Record<strin
     .select('phase_at_session, time_slot, factor_energia, factor_cognitivo, factor_estres, factor_ansiedad, factor_sueno, factor_emocional, factor_social, factor_sexual')
     .eq('user_id', profile.id)
     .eq('session_complete', true)
-    .gte('session_date', thirtyDaysAgo.toISOString().split('T')[0]);
+    .gte('session_date', thirtyDaysAgo.toLocaleDateString('en-CA'));
 
   if (!sessions || sessions.length === 0) return {};
 
@@ -312,7 +312,7 @@ export async function generateForecast(profile: Profile, forecastDays: number = 
       .from('forecast_accuracy')
       .select('accuracy_pct')
       .eq('user_id', profile.id)
-      .gte('forecast_date', thirtyAgo.toISOString().split('T')[0])
+      .gte('forecast_date', thirtyAgo.toLocaleDateString('en-CA'))
       .not('accuracy_pct', 'is', null);
     if (accRows && accRows.length > 0) {
       const avg = accRows.reduce((a: number, r: any) => a + r.accuracy_pct, 0) / accRows.length;
@@ -334,7 +334,7 @@ export async function recordForecastPrediction(
 ): Promise<void> {
   await supabase.from('forecast_accuracy').insert({
     user_id: userId,
-    forecast_date: date.toISOString().split('T')[0],
+    forecast_date: date.toLocaleDateString('en-CA'),
     time_slot: timeSlot,
     dimension,
     predicted_value: predictedValue,
@@ -350,7 +350,7 @@ export async function scoreActualVsPredicted(
   dimension: Dimension,
   actualValue: number
 ): Promise<void> {
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = date.toLocaleDateString('en-CA');
   const { data: pred } = await supabase
     .from('forecast_accuracy')
     .select('id, predicted_value')

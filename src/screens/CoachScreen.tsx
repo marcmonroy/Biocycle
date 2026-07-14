@@ -1315,7 +1315,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
           .select('factor_energia, factor_estres, factor_ansiedad, factor_sexual, factor_sueno, factor_cognitivo')
           .eq('user_id', profile.id)
           .eq('session_complete', true)
-          .gte('session_date', sevenDaysAgo.toISOString().split('T')[0])
+          .gte('session_date', sevenDaysAgo.toLocaleDateString('en-CA'))
           .order('session_date', { ascending: false })
           .limit(14);
 
@@ -2041,7 +2041,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         .from('relationship_interactions')
         .select('connection_score, relationship_id, relationships(name)')
         .eq('user_id', profile.id)
-        .gte('interaction_date', yesterday.toISOString().split('T')[0])
+        .gte('interaction_date', yesterday.toLocaleDateString('en-CA'))
         .order('interaction_date', { ascending: false })
         .limit(3);
 

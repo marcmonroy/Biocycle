@@ -101,14 +101,14 @@ export function DataHubScreen({ profile }: Props) {
           .from('relationship_interactions')
           .select('connection_score, interaction_date')
           .eq('relationship_id', rel.id)
-          .gte('interaction_date', sevenDaysAgo.toISOString().split('T')[0]);
+          .gte('interaction_date', sevenDaysAgo.toLocaleDateString('en-CA'));
 
         const { data: previous } = await supabase
           .from('relationship_interactions')
           .select('connection_score, interaction_date')
           .eq('relationship_id', rel.id)
-          .gte('interaction_date', fourteenDaysAgo.toISOString().split('T')[0])
-          .lt('interaction_date', sevenDaysAgo.toISOString().split('T')[0]);
+          .gte('interaction_date', fourteenDaysAgo.toLocaleDateString('en-CA'))
+          .lt('interaction_date', sevenDaysAgo.toLocaleDateString('en-CA'));
 
         const avgRecent = recent && recent.length > 0
           ? recent.reduce((s: number, r: { connection_score: number | null }) => s + (r.connection_score ?? 0), 0) / recent.length
@@ -142,7 +142,7 @@ export function DataHubScreen({ profile }: Props) {
   const last14 = Array.from({ length: 14 }, (_, i) => {
     const d = new Date(today);
     d.setDate(d.getDate() - (13 - i));
-    return d.toISOString().split('T')[0];
+    return d.toLocaleDateString('en-CA');
   });
   const sessionDates = new Set(sessions.map(s => s.session_date));
 

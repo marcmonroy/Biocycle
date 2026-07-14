@@ -67,7 +67,7 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
         .from('relationship_interactions')
         .select('connection_score, interaction_date')
         .eq('relationship_id', r.id)
-        .gte('interaction_date', since.toISOString().split('T')[0])
+        .gte('interaction_date', since.toLocaleDateString('en-CA'))
         .order('interaction_date', { ascending: true });
 
       let avgScore: number | null = null;

@@ -269,7 +269,7 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
         .select('session_date,time_slot,factor_energia,factor_estres,factor_ansiedad,factor_cognitivo,factor_sueno,factor_emocional')
         .eq('user_id', profile.id)
         .eq('session_complete', true)
-        .gte('session_date', sevenDaysAgo.toISOString().split('T')[0])
+        .gte('session_date', sevenDaysAgo.toLocaleDateString('en-CA'))
         .order('session_date', { ascending: true }),
     ]).then(([forecastResult, { data: sessions }]) => {
       setForecast(forecastResult);

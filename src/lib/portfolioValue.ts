@@ -33,7 +33,7 @@ export async function computePortfolioMetrics(profile: Profile): Promise<Portfol
   }
 
   const last30 = allSessions.filter((s: any) =>
-    s.session_date >= thirtyDaysAgo.toISOString().split('T')[0]
+    s.session_date >= thirtyDaysAgo.toLocaleDateString('en-CA')
   );
 
   // Quality score

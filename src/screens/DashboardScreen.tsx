@@ -8,6 +8,8 @@ import { generateForecast, type ForecastDay } from '../lib/forecastEngine';
 import type { Tab } from '../components/BottomNav';
 import { colors, fonts } from '../lib/tokens';
 import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 interface Props {
   profile: Profile;
@@ -99,15 +101,16 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
 
       if (allSessions) {
         const uniqueDates = [...new Set(allSessions.map((s: any) => s.session_date as string))].sort().reverse();
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date().toLocaleDateString('en-CA');
         let currentStreak = 0;
         let checkDate = todayStr;
         for (const date of uniqueDates) {
           if (date === checkDate) {
             currentStreak++;
-            const prev = new Date(checkDate);
+            // Use noon local time to avoid UTC-midnight parsing edge cases
+            const prev = new Date(checkDate + 'T12:00:00');
             prev.setDate(prev.getDate() - 1);
-            checkDate = prev.toISOString().split('T')[0];
+            checkDate = prev.toLocaleDateString('en-CA');
           } else break;
         }
         setStreak(currentStreak);
@@ -134,7 +137,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           .from('forecast_accuracy')
           .select('accuracy_pct')
           .eq('user_id', profile.id)
-          .gte('forecast_date', thirtyDaysAgo.toISOString().split('T')[0])
+          .gte('forecast_date', thirtyDaysAgo.toLocaleDateString('en-CA'))
           .not('accuracy_pct', 'is', null);
         if (accRows && accRows.length > 0) {
           const avg = accRows.reduce((a: number, r: any) => a + r.accuracy_pct, 0) / accRows.length;
@@ -157,7 +160,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             .from('relationship_interactions')
             .select('connection_score')
             .eq('relationship_id', r.id)
-            .gte('interaction_date', since.toISOString().split('T')[0]);
+            .gte('interaction_date', since.toLocaleDateString('en-CA'));
           let avgScore: number | null = null;
           if (interactions && interactions.length > 0) {
             const scores = interactions.map((i: any) => i.connection_score).filter((s: number) => s != null);
@@ -262,6 +265,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
     if (sharing) return;
     setSharing(true);
     try {
+      // ── Build canvas image ─────────────────────────────────────────────
       const canvas = document.createElement('canvas');
       const W = 720, H = 900;
       canvas.width = W; canvas.height = H;
@@ -299,21 +303,51 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       if (line.trim()) lines.push(line.trim());
       let y = H - 50 - (lines.length - 1) * 42;
       for (const l of lines) { ctx.fillText(l, 40, y); y += 42; }
+
       const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(b => resolve(b), 'image/png'));
       if (!blob) { setSharing(false); return; }
+
+      const shareText = idioma === 'ES' ? 'Pronostica tu futuro — biocycle.app' : 'Forecast your future — biocycle.app';
+      const shareTitle = cardHeadline;
+
+      // ── Native path: Capacitor Share plugin ───────────────────────────
+      if (Capacitor.isNativePlatform()) {
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const fileName = `biocycle-card-${Date.now()}.png`;
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: shareTitle,
+          text: shareText,
+          url: writeResult.uri,
+          dialogTitle: shareTitle,
+        });
+        return;
+      }
+
+      // ── Web/PWA path: navigator.share with file ────────────────────────
       const file = new File([blob], 'biocycle-card.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ files: [file], text: idioma === 'ES' ? 'Pronostica tu futuro — biocycle.app' : 'Forecast your future — biocycle.app' });
-      } else {
-        try {
-          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          alert(idioma === 'ES' ? 'Imagen copiada' : 'Image copied');
-        } catch {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a'); a.href = url; a.download = 'biocycle-card.png'; a.click();
-          URL.revokeObjectURL(url);
-        }
+        await navigator.share({ files: [file], text: shareText });
+        return;
       }
+
+      // ── Web fallback: download ─────────────────────────────────────────
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'biocycle-card.png'; a.click();
+      URL.revokeObjectURL(url);
     } catch (e) { console.error('share failed', e); }
     finally { setSharing(false); }
   }
