@@ -53,6 +53,9 @@ export default function App() {
   const [userState, setUserState] = useState<UserState | null>(null);
   const tierLimits = getTierLimits(userState);
   const [screen, setScreen] = useState<Screen>('register');
+  // Incrementing this key forces CoachScreen to remount (fresh slot, fresh session)
+  // whenever the user explicitly navigates to the coach tab.
+  const [coachMountKey, setCoachMountKey] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
@@ -164,10 +167,11 @@ export default function App() {
   function handleNavigate(tab: Tab) {
     if (!profile) return;
     if (tab === 'home' && session) loadProfile(session.user.id);
+    if (tab === 'coach') setCoachMountKey(k => k + 1);
     setScreen(tab);
   }
 
-  function handleStartCoach() { setScreen('coach'); }
+  function handleStartCoach() { setCoachMountKey(k => k + 1); setScreen('coach'); }
   function handleOpenProfile() { setScreen('profile'); }
 
   async function handleRegisterComplete() {
@@ -300,7 +304,7 @@ export default function App() {
         />
       )}
       {screen === 'forecast' && <ForecastScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
-      {screen === 'coach'    && <CoachScreen profile={profile} userState={userState} tierLimits={tierLimits} onBack={async () => { if (session) { await loadProfile(session.user.id); } else { setScreen('home'); } }} onNavigate={handleNavigate} />}
+      {screen === 'coach'    && <CoachScreen key={coachMountKey} profile={profile} userState={userState} tierLimits={tierLimits} onBack={async () => { if (session) { await loadProfile(session.user.id); } else { setScreen('home'); } }} onNavigate={handleNavigate} />}
       {screen === 'circle'        && <CircleScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'compatibility' && <CompatibilityScreen profile={profile} userState={userState} tierLimits={tierLimits} />}
       {screen === 'earnings'      && <DataHubScreen profile={profile} />}

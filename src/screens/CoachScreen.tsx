@@ -1177,7 +1177,10 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     const sorted = [...(allRels as any[])].sort((a: any, b: any) => {
       const aDate = lastScored[a.id] ?? '2000-01-01';
       const bDate = lastScored[b.id] ?? '2000-01-01';
-      return aDate < bDate ? -1 : 1;
+      if (aDate !== bDate) return aDate < bDate ? -1 : 1;
+      // Stable tiebreaker: rank ascending so rotation is deterministic when
+      // multiple people share the same last-scored date (e.g. all new).
+      return (a.rank ?? 999) - (b.rank ?? 999);
     });
     // Pick the first person not yet scored today; fall back to least-recently-scored if all scored today
     const rel = sorted.find((r: any) => !scoredTodayIds.has(r.id)) ?? sorted[0];
@@ -1911,7 +1914,11 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
     let cancelled = false;
 
     (async () => {
-      // ── 1. Clear screen
+      // ── 1. Clear screen + refresh slot from current local hour
+      // Defense against Capacitor keeping the WebView alive across midnight —
+      // the useRef initializer ran at mount time; this ensures the slot always
+      // reflects the hour when the session actually starts.
+      sessionRef.current.slot = getSessionSlot();
       setMessages([]);
       convHistoryRef.current = [];
 
