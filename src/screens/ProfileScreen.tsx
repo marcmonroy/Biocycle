@@ -437,24 +437,27 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
         </div>
       </div>
 
-      {/* ── Upgrade (non-founding, non-premium only) ────────────────────── */}
-      {!isFounding && !isPremium && (
-        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
-          <button
-            onClick={() => setShowUpgrade(true)}
-            style={{
-              width: '100%', padding: '11px',
-              background: 'rgba(133,183,235,0.08)',
-              border: '1px solid rgba(133,183,235,0.25)',
-              borderRadius: 10, cursor: 'pointer',
-              color: colors.tierElite, fontSize: 13, fontWeight: 600,
-              letterSpacing: '0.04em', fontFamily: fonts.body,
-            }}
-          >
-            {L('View plans — from $12.99/mo', 'Ver planes — desde $12.99/mes')}
-          </button>
-        </div>
-      )}
+      {/* ── Membership / Upgrade button — visible to all accounts ─────── */}
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
+        <button
+          onClick={() => setShowUpgrade(true)}
+          style={{
+            width: '100%', padding: '11px',
+            background: isFounding ? 'rgba(239,159,39,0.1)' : 'rgba(133,183,235,0.08)',
+            border: isFounding ? `1px solid ${colors.amber}44` : '1px solid rgba(133,183,235,0.25)',
+            borderRadius: 10, cursor: 'pointer',
+            color: isFounding ? colors.amber : colors.tierElite,
+            fontSize: 13, fontWeight: 600,
+            letterSpacing: '0.04em', fontFamily: fonts.body,
+          }}
+        >
+          {isFounding
+            ? L('⚡ Your Founding Trader membership', '⚡ Tu membresía Founding Trader')
+            : isPremium
+            ? L('Your Premium plan', 'Tu plan Premium')
+            : L('View plans — from $12.99/mo', 'Ver planes — desde $12.99/mes')}
+        </button>
+      </div>
 
       {/* ── Preferences ───────────────────────────────────────────────────── */}
       <Section label={L('Preferences', 'Preferencias')}>
@@ -1050,6 +1053,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       {showUpgrade && (
         <UpgradeSheet
           lang={idioma}
+          currentTier={isFounding ? 'founding' : isPremium ? 'premium' : tierLimits.adhocTurns === 3 ? 'standard' : 'free'}
           onSuccess={() => { setShowUpgrade(false); onTierChange?.(); }}
           onClose={() => setShowUpgrade(false)}
         />

@@ -10,6 +10,7 @@ import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   lang: 'EN' | 'ES';
+  currentTier: 'founding' | 'premium' | 'standard' | 'free';
   onSuccess: () => void;   // called after purchase/restore — triggers tier reload
   onClose: () => void;
 }
@@ -38,7 +39,7 @@ function matchesPeriod(pkg: PurchasesPackage, period: Period): boolean {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function UpgradeSheet({ lang, onSuccess, onClose }: Props) {
+export function UpgradeSheet({ lang, currentTier, onSuccess, onClose }: Props) {
   const isES = lang === 'ES';
   const L = (en: string, es: string) => isES ? es : en;
 
@@ -137,12 +138,41 @@ export function UpgradeSheet({ lang, onSuccess, onClose }: Props) {
         <div style={{ width: 36, height: 4, background: 'rgba(245,242,238,0.15)', borderRadius: 2, margin: '0 auto 24px' }} />
 
         {/* Title */}
-        <div style={{ fontSize: 20, fontWeight: 700, color: colors.bone, textAlign: 'center', marginBottom: 6, fontFamily: fonts.display }}>
-          {L('Upgrade BioCycle', 'Actualizar BioCycle')}
+        <div style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 6, fontFamily: fonts.display,
+          color: currentTier === 'founding' ? colors.amber : colors.bone }}>
+          {currentTier === 'founding'
+            ? L('⚡ Founding Trader', '⚡ Founding Trader')
+            : currentTier === 'premium'
+            ? L('Your Premium Plan', 'Tu plan Premium')
+            : L('Upgrade BioCycle', 'Actualizar BioCycle')}
         </div>
         <div style={{ fontSize: 13, color: colors.boneFaint, textAlign: 'center', marginBottom: 20 }}>
-          {L('Unlock full access. Cancel anytime.', 'Acceso completo. Cancela cuando quieras.')}
+          {currentTier === 'founding'
+            ? L('Premium access, free for life. Here is what you have:', 'Acceso Premium, de por vida. Esto es lo que tienes:')
+            : currentTier === 'premium'
+            ? L('You are on our top tier.', 'Estas en el nivel mas alto.')
+            : L('Unlock full access. Cancel anytime.', 'Acceso completo. Cancela cuando quieras.')}
         </div>
+
+        {/* Current-plan status badge — shown for founding and premium so reviewer can see their status */}
+        {(currentTier === 'founding' || currentTier === 'premium') && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            background: currentTier === 'founding' ? 'rgba(239,159,39,0.12)' : 'rgba(133,183,235,0.10)',
+            border: `1px solid ${currentTier === 'founding' ? 'rgba(239,159,39,0.35)' : 'rgba(133,183,235,0.3)'}`,
+            borderRadius: 10, padding: '8px 14px', marginBottom: 16,
+          }}>
+            <span style={{ fontSize: 14 }}>{currentTier === 'founding' ? '⚡' : '★'}</span>
+            <span style={{
+              fontSize: 12, fontWeight: 700, letterSpacing: '0.04em',
+              color: currentTier === 'founding' ? colors.amber : colors.tierElite,
+            }}>
+              {currentTier === 'founding'
+                ? L('Premium — free for life', 'Premium — de por vida')
+                : L('Current plan: Premium', 'Plan actual: Premium')}
+            </span>
+          </div>
+        )}
 
         {/* Monthly / Yearly toggle */}
         <div style={{ display: 'flex', background: 'rgba(245,242,238,0.06)', borderRadius: 10, padding: 3, marginBottom: 20 }}>

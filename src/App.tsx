@@ -58,6 +58,8 @@ export default function App() {
   const [coachMountKey, setCoachMountKey] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [verifyResume, setVerifyResume] = useState<VerifyResume>(null);
+  // Set when an auth user exists but has no profile — routes to step 2 to complete registration
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetPasswordDone, setResetPasswordDone] = useState(false);
   const screenRef = useRef<Screen>('register');
@@ -110,7 +112,14 @@ export default function App() {
 
   async function loadProfile(userId: string) {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    if (error || !data) { setAuthLoading(false); return; }
+    if (error) { setAuthLoading(false); return; }
+    if (!data) {
+      // Auth user exists but profile was never created (registration was abandoned after step 1).
+      // Route them to complete registration from step 2.
+      setPendingUserId(userId);
+      setAuthLoading(false);
+      return;
+    }
 
     const p = data as Profile;
     setProfile(p);
@@ -134,7 +143,7 @@ export default function App() {
         // They got to phone step — resume at WhatsApp verification
         setVerifyResume({ userId: p.id, phone: (p as any).whatsapp_phone || '' });
       } else {
-        // They never finished profile setup — resume at Step 2
+        // No phone = email verification path was chosen; resume at step 5
         setVerifyResume({ userId: p.id, phone: '' });
       }
       setAuthLoading(false);
@@ -241,10 +250,23 @@ export default function App() {
       <RegisterScreen
         onComplete={handleRegisterComplete}
         onSignIn={() => setScreen('login')}
-        initialStep={verifyResume.phone ? 5 : 2}
+        initialStep={5}
         initialUserId={verifyResume.userId}
         initialPhone={verifyResume.phone}
         initialEmail={session?.user?.email ?? ''}
+      />
+    );
+  }
+
+  // Auth user exists but no profile — registration was abandoned after step 1
+  if (session && pendingUserId && !profile) {
+    return (
+      <RegisterScreen
+        onComplete={handleRegisterComplete}
+        onSignIn={() => setScreen('login')}
+        initialStep={2}
+        initialUserId={pendingUserId}
+        initialEmail={session.user.email ?? ''}
       />
     );
   }

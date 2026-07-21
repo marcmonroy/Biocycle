@@ -145,6 +145,7 @@ export function LapseScreen({ profile, userState, onLogout, onResume, onTierChan
       {showUpgrade && (
         <UpgradeSheet
           lang={idioma as 'EN' | 'ES'}
+          currentTier="free"
           onSuccess={() => { setShowUpgrade(false); onTierChange(); }}
           onClose={() => setShowUpgrade(false)}
         />

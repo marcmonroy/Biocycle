@@ -158,10 +158,15 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
               onComplete(); // Already fully registered
               setLoading(false);
               return;
+            } else {
+              // Auth user exists but profile was never created — continue registration
+              setStep(2);
+              setLoading(false);
+              return;
             }
           }
         }
-        // Wrong password for existing account
+        // Sign-in failed — wrong password
         setError('An account with this email exists. Check your password or use "Sign in" below.');
         setLoading(false);
         return;
@@ -192,6 +197,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
             return;
           } else if (profileData?.whatsapp_verified) {
             onComplete();
+            setLoading(false);
+            return;
+          } else {
+            // Auth user exists but profile was never created — continue registration
+            setStep(2);
             setLoading(false);
             return;
           }
