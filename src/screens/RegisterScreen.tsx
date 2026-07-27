@@ -58,6 +58,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [countryCode, setCountryCode] = useState('+1');
   const [phone, setPhone] = useState('');
   const [savedPhone, setSavedPhone] = useState(() => initialPhone ?? '');
+  const [smsConsent, setSmsConsent] = useState(false);
   // 'whatsapp' | 'email' | null (null = picker not yet shown / not yet chosen)
   // When resuming at step 5 with no phone the user used the email path.
   const [verifyChannel, setVerifyChannel] = useState<'whatsapp' | 'email' | null>(
@@ -285,6 +286,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       age_verified:      true,
       whatsapp_phone:    fullPhone,
       whatsapp_verified: false,
+      sms_consent:       smsConsent,
+      sms_consent_at:    smsConsent ? new Date().toISOString() : null,
     });
 
     if (insertError && insertError.code === '23505') {
@@ -296,6 +299,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         age_verified:      true,
         whatsapp_phone:    fullPhone,
         whatsapp_verified: false,
+        sms_consent:       smsConsent,
+        sms_consent_at:    smsConsent ? new Date().toISOString() : null,
       }).eq('id', uid);
 
       if (updateError) {
@@ -358,6 +363,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       fecha_nacimiento: (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
       age_verified:     true,
       whatsapp_verified: false,
+      sms_consent:      smsConsent,
+      sms_consent_at:   smsConsent ? new Date().toISOString() : null,
     });
 
     if (insertError && insertError.code === '23505') {
@@ -367,6 +374,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         idioma:           language,
         fecha_nacimiento: (dobYear && dobMonth && dobDay) ? `${dobYear}-${dobMonth}-${dobDay}` : null,
         age_verified:     true,
+        sms_consent:      smsConsent,
+        sms_consent_at:   smsConsent ? new Date().toISOString() : null,
       }).eq('id', uid);
 
       if (updateError) {
@@ -794,6 +803,35 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           </>)}
 
           {error && <p style={errorStyle}>{error}</p>}
+
+          {/* SMS consent checkbox — optional, does not block registration */}
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={smsConsent}
+              onChange={e => setSmsConsent(e.target.checked)}
+              style={{ marginTop: 2, flexShrink: 0, cursor: 'pointer', accentColor: colors.amber }}
+            />
+            <span style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.5, fontFamily: fonts.body }}>
+              {isES ? (
+                <>
+                  (Opcional) Acepto recibir mensajes de texto de BioCycle al número proporcionado: códigos de verificación de cuenta, invitaciones de conexión de compatibilidad y alertas ocasionales de eventos. La frecuencia de mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar, HELP para ayuda. Consulta la{' '}
+                  <a href="https://biocycle.app/privacy" target="_blank" rel="noopener noreferrer" style={{ color: colors.boneFaint, textDecoration: 'underline' }}>Política de Privacidad</a>
+                  {' '}y los{' '}
+                  <a href="https://biocycle.app/terms" target="_blank" rel="noopener noreferrer" style={{ color: colors.boneFaint, textDecoration: 'underline' }}>Términos</a>
+                  . Puedes usar BioCycle sin SMS.
+                </>
+              ) : (
+                <>
+                  (Optional) I agree to receive text messages from BioCycle at the number provided: account verification codes, compatibility connection invitations, and occasional event alerts. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe, HELP for help. See{' '}
+                  <a href="https://biocycle.app/privacy" target="_blank" rel="noopener noreferrer" style={{ color: colors.boneFaint, textDecoration: 'underline' }}>Privacy Policy</a>
+                  {' '}and{' '}
+                  <a href="https://biocycle.app/terms" target="_blank" rel="noopener noreferrer" style={{ color: colors.boneFaint, textDecoration: 'underline' }}>Terms</a>
+                  . You can use BioCycle without SMS.
+                </>
+              )}
+            </span>
+          </label>
 
           {verifyChannel === 'whatsapp' && (
             <button style={btnStyle} onClick={handleStep4} disabled={loading || !phone}>
