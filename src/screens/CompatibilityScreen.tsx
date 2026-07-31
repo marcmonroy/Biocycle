@@ -370,7 +370,7 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
     const { data, error } = await supabase
       .from('compatibility_connections')
       .select('*')
-      .eq('user_a_id', profile.id)
+      .or(`user_a_id.eq.${profile.id},user_b_id.eq.${profile.id}`)
       .order('initiated_at', { ascending: false });
 
     if (error || !data) { setLoading(false); return; }
