@@ -13,6 +13,9 @@ import { BottomNav } from '../components/BottomNav';
 import type { Tab } from '../components/BottomNav';
 import { getCurrentPhase } from '../lib/phaseEngine';
 import { generateForecast } from '../lib/forecastEngine';
+import { scanUpcomingSignals } from '../lib/forecastSignals';
+import { decideQuestionDay } from '../lib/cadence';
+import { personaName, VOICE_RULES } from '../lib/voice';
 import { RelationshipCategorySelector } from '../components/RelationshipCategorySelector';
 import { colors, fonts } from '../lib/tokens';
 
@@ -564,11 +567,11 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   // Stable constants — derived from props once, never stale
   const idioma       = profile.idioma ?? 'EN';
   const isES         = idioma === 'ES';
-  // Prepended to every system prompt so Jules never re-introduces herself
-  const noIntro      = isES
-    ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
-    : 'CRITICAL: You have already introduced yourself. NEVER say your name. NEVER say "I\'m Jules". NEVER greet. Start every response directly with the content.\n\n';
   const picardiaMode = profile.picardia_mode ?? false;
+  // Prepended to every system prompt so Jules never re-introduces herself
+  const noIntro      = (isES
+    ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
+    : 'CRITICAL: You have already introduced yourself. NEVER say your name. NEVER say "I\'m Jules". NEVER greet. Start every response directly with the content.\n\n') + ' ' + VOICE_RULES;
 
   const name         = profile.nombre ?? '';
 
@@ -671,7 +674,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
   // Every Jules message plays voice. onEnd fires even when muted (enables auto-advance).
   function speak(text: string, onEnd?: () => void) {
     cancelSpeech();
-    if (isMutedRef.current) {
+    if (isMutedRef.current || !tierLimits.voiceEnabled) {
       setBioState('idle');
       if (onEnd) setTimeout(onEnd, 400);
       return;
@@ -1093,21 +1096,40 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
   function enterFirstDimension(daysOverride?: number) {
     const days = daysOverride !== undefined ? daysOverride : liveDaysRef.current;
     if (days >= 30) {
-      // Day 30+ is one session per day. Default reminder is night, but the session
-      // adapts to whenever the user actually opens it — use clock-derived slot so
-      // greeting, tone, and forecast match the real time of day.
+      // Day 30+ is one session per day; adapt to whenever the user opens it.
       const h = new Date().getHours();
-      sessionRef.current.slot = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'night';
-      // First question varies by 4-day cycle
-      const cycle = days % 4;
-      if (cycle === 1) {
-        showQuestion('COGNITIVE_Q');
-      } else if (cycle === 2) {
-        showQuestion('SOCIAL_Q');
-      } else {
-        // cycle 0, 3, default: start with ENERGY_Q
-        showQuestion('ENERGY_Q');
-      }
+      const slot = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'night';
+      sessionRef.current.slot = slot;
+
+      // Post-day-30 cadence: collect the dimension questions only ~2x/week,
+      // biased to fill forecast gaps. Off-days skip questions and flow straight
+      // to Circle + forecast heads-up.
+      void (async () => {
+        let phaseLabel = getCurrentPhase(profile).phase ?? 'morning_peak';
+        if (phaseLabel === 'andropause') {
+          phaseLabel = slot === 'morning' ? 'morning_peak' : slot === 'afternoon' ? 'afternoon_dip' : 'evening_balance';
+        } else if (phaseLabel === 'perimenopause') {
+          phaseLabel = slot === 'morning' ? 'follicular' : slot === 'afternoon' ? 'luteal' : 'late_luteal';
+        }
+
+        let ask = true;
+        try {
+          const decision = await decideQuestionDay(profile.id, phaseLabel);
+          ask = decision.ask;
+        } catch (e) {
+          console.warn('[BioCycle] cadence decision failed, defaulting to ask:', e);
+        }
+
+        if (!ask) {
+          enterSessionComplete(); // off-day: Circle scoring -> _doSessionComplete -> forecast + close
+          return;
+        }
+
+        const cycle = days % 4;
+        if (cycle === 1) showQuestion('COGNITIVE_Q');
+        else if (cycle === 2) showQuestion('SOCIAL_Q');
+        else showQuestion('ENERGY_Q');
+      })();
       return;
     }
     // Days 1-29: slot-based entry
@@ -1267,6 +1289,81 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
     });
   }
 
+  async function deliverForecastHeadsUpAndClose() {
+    const farewellName = profile.nombre ?? name;
+    const farewell = isES
+      ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos pronto.`
+      : `That's it for today, ${farewellName}. Session saved. See you soon.`;
+
+    const goNext = () => {
+      if (liveDaysRef.current >= 30) {
+        sessionRef.current.state = 'SESSION_COMPLETE';
+        setConvState('SESSION_COMPLETE');
+        addJulesMsg(farewell);
+        speak(farewell);
+      } else {
+        sessionRef.current.state = 'ADHOC';
+        setConvState('ADHOC');
+      }
+    };
+
+    try {
+      const lookahead = tierLimits.alertLookaheadDays;
+      const forecast = await generateForecast(profile, lookahead + 1);
+
+      let partnerName: string | undefined;
+      try {
+        const { data: romantic } = await supabase
+          .from('relationships')
+          .select('name')
+          .eq('user_id', profile.id)
+          .eq('intimacy', true)
+          .order('rank', { ascending: true })
+          .limit(1);
+        partnerName = (romantic?.[0] as any)?.name || undefined;
+      } catch { /* no partner is fine */ }
+
+      const signals = scanUpcomingSignals(forecast, lookahead, { isES, partnerName });
+
+      if (signals.length === 0) { goNext(); return; }
+
+      const hasEarly = signals.some(s => s.confidence === 'early');
+      const signalDesc = signals.map(s => {
+        const dirText =
+          s.kind === 'decision'
+            ? (s.direction === 'high' ? 'a GOOD decision window' : 'a POOR decision window')
+            : (s.kind === 'stress' || s.kind === 'anxiety')
+              ? 'spiking high'
+              : (s.direction === 'high' ? 'a peak (high)' : 'low');
+        const partner = s.partnerName ? ` [partner: ${s.partnerName}]` : '';
+        return `${s.dayLabel}: ${s.kind} — ${dirText}${partner}; tips: ${s.tips.join(' / ')}`;
+      }).join('\n');
+
+      const hedgeEN = hasEarly ? 'Frame this as an early read on their pattern, not a certainty. ' : '';
+      const hedgeES = hasEarly ? 'Enmárcalo como una lectura temprana de su patrón, no una certeza. ' : '';
+
+      const fSys = isES
+        ? `${noIntro}Eres ${personaName(picardiaMode)}. El usuario acaba de terminar su check-in. Da un aviso breve y positivo sobre lo que viene en los próximos días, basándote SOLO en estas señales. Integra una o dos de las sugerencias de forma natural. ${hedgeES}Termina invitándole a abrir su pestaña de Pronóstico para ver el panorama completo. 2-4 oraciones, sin preguntas, sin listas.\n\nSeñales:\n${signalDesc}`
+        : `${noIntro}You are ${personaName(picardiaMode)}. The user just finished their check-in. Give a brief, upbeat heads-up about the next few days, based ONLY on these signals. Weave in one or two of the tips naturally. ${hedgeEN}End by inviting them to open their Forecast tab for the full picture. 2-4 sentences, no questions, no lists.\n\nSignals:\n${signalDesc}`;
+
+      const forecastText = await callCoachAPI(
+        [{ role: 'user', content: 'forecast heads-up' }],
+        fSys,
+        160,
+      ) ?? '';
+
+      if (forecastText) {
+        addJulesMsg(forecastText);
+        speak(forecastText, () => { goNext(); });
+      } else {
+        goNext();
+      }
+    } catch (err) {
+      console.warn('[BioCycle] forecast signal delivery failed:', err);
+      goNext();
+    }
+  }
+
   async function _doSessionComplete() {
     // Save session first
     const saveResult = await saveSession();
@@ -1353,7 +1450,7 @@ FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`
 
       const isDay30Plus = liveDaysRef.current >= 30;
       const coachSys = isES
-        ? `${noIntro}Eres Jules, coach de inteligencia biológica de BioCycle. El usuario acaba de completar su check-in de ${slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche'}.
+        ? `${noIntro}Eres ${personaName(picardiaMode)}. El usuario acaba de completar su check-in de ${slot === 'morning' ? 'mañana' : slot === 'afternoon' ? 'tarde' : 'noche'}.
 
 Fase actual: ${phaseLabel} (día ${daysData} de datos).
 Puntuaciones de hoy:
@@ -1370,7 +1467,7 @@ REGLAS CRÍTICAS:
 ${isDay30Plus ? '- NO termines con una pregunta. Termina con una afirmación calmada — el pronóstico viene después, no una conversación.' : '- Termina con UNA pregunta corta y abierta apropiada para LA HORA DEL DÍA (slot: ${slot}). Ejemplos de mañana: "¿Qué tienes por delante hoy?" / "¿Qué necesita esta mañana de ti?" Ejemplos de tarde: "¿Cómo está aguantando tu cuerpo?" / "¿Qué cambió desde esta mañana?" Ejemplos de noche: "¿Qué necesita tu cuerpo para descansar bien?" / "¿Qué haría que mañana se sintiera diferente?" NUNCA uses preguntas nocturnas durante sesiones de mañana o tarde.'}
 - NUNCA digas tu nombre. NUNCA saludes. Empieza directo con la interpretación.
 - Máximo 3 oraciones + 1 pregunta. Menos de 60 palabras en total.`
-        : `${noIntro}You are Jules, BioCycle's biological intelligence coach. The user just completed their ${slot} check-in.
+        : `${noIntro}You are ${personaName(picardiaMode)}. The user just completed their ${slot} check-in.
 
 Current phase: ${phaseLabel} (day ${daysData} of data).
 Today's scores:
@@ -1399,87 +1496,19 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
       if (coachingText) {
         addJulesMsg(coachingText);
 
-        // For day 30+ users: deliver tomorrow forecast then close
-        // For day 1-29 users: open ADHOC conversation
-        if (liveDaysRef.current >= 30) {
-          speak(coachingText, () => {
-            // Non-async callback — use setTimeout instead of await
-            setTimeout(async () => {
-              try {
-                const forecast = await generateForecast(profile, 2);
-                const tomorrow = forecast.days[1];
-
-                let forecastText = '';
-                if (tomorrow) {
-                  const c = tomorrow.composite;
-                  const signals = [
-                    { label: isES ? 'rendimiento' : 'performance',      value: c.performance,        dir: c.performance >= 70 ? 'high' : c.performance <= 35 ? 'low' : 'mid' },
-                    { label: isES ? 'filo cognitivo' : 'cognitive edge', value: c.cognitiveEdge,      dir: c.cognitiveEdge >= 70 ? 'high' : c.cognitiveEdge <= 35 ? 'low' : 'mid' },
-                    { label: isES ? 'carga de estrés' : 'stress load',   value: c.stressLoad,         dir: c.stressLoad >= 70 ? 'high' : c.stressLoad <= 35 ? 'low' : 'mid' },
-                    { label: isES ? 'intimidad' : 'intimacy readiness',  value: c.intimacyReadiness,  dir: c.intimacyReadiness >= 70 ? 'high' : c.intimacyReadiness <= 35 ? 'low' : 'mid' },
-                    { label: isES ? 'vitalidad' : 'vitality',            value: c.biologicalVitality, dir: c.biologicalVitality >= 70 ? 'high' : c.biologicalVitality <= 35 ? 'low' : 'mid' },
-                  ]
-                  .sort((a, b) => Math.abs(b.value - 50) - Math.abs(a.value - 50))
-                  .slice(0, 2);
-
-                  const signalLines = signals.map(s => `${s.label}: ${s.value} (${s.dir})`).join(', ');
-                  const fSlot = sessionRef.current.slot;
-                  const openerEN = fSlot === 'morning' ? 'Before the day starts —' : fSlot === 'afternoon' ? 'For the rest of today and tomorrow —' : 'Before you sleep —';
-                  const openerES = fSlot === 'morning' ? 'Antes de que empiece el día —' : fSlot === 'afternoon' ? 'Para el resto de hoy y mañana —' : 'Antes de que descanses —';
-                  const whenEN = fSlot === 'morning' ? 'morning' : fSlot === 'afternoon' ? 'afternoon' : 'night';
-                  const whenES = fSlot === 'morning' ? 'mañana' : fSlot === 'afternoon' ? 'tarde' : 'noche';
-                  const forecastSys = isES
-                    ? `${noIntro}Eres Jules. El usuario acaba de terminar su check-in de ${whenES}. Basándote en los datos de pronóstico de mañana, entrega una vista previa de 2-3 oraciones de lo que viene. Empieza con "${openerES}" o similar apropiado para la hora. Sé específica y accionable. Sin preguntas. Máximo 40 palabras.\n\nDatos de mañana: ${signalLines}`
-                    : `${noIntro}You are Jules. The user just finished their ${whenEN} check-in. Based on tomorrow's forecast data, deliver a 2-3 sentence preview of what's coming. Start with "${openerEN}" or similar appropriate to the time of day. Be specific and actionable. No questions. Maximum 40 words.\n\nTomorrow's data: ${signalLines}`;
-
-                  forecastText = await callCoachAPI(
-                    [{ role: 'user', content: 'tomorrow preview' }],
-                    forecastSys,
-                    80
-                  ) ?? '';
-                }
-
-                const farewellName = profile.nombre ?? name;
-                const farewell = isES
-                  ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
-                  : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
-
-                if (forecastText) {
-                  addJulesMsg(forecastText);
-                  speak(forecastText, () => {
-                    addJulesMsg(farewell);
-                    sessionRef.current.state = 'SESSION_COMPLETE';
-                    setConvState('SESSION_COMPLETE');
-                    speak(farewell);
-                  });
-                } else {
-                  addJulesMsg(farewell);
-                  sessionRef.current.state = 'SESSION_COMPLETE';
-                  setConvState('SESSION_COMPLETE');
-                  speak(farewell);
-                }
-              } catch (err) {
-                console.warn('[BioCycle] forecast preview failed:', err);
-                const farewellName = profile.nombre ?? name;
-                const farewell = isES
-                  ? `Eso es todo por hoy, ${farewellName}. Sesión guardada. Nos vemos mañana.`
-                  : `That's it for today, ${farewellName}. Session saved. See you tomorrow.`;
-                addJulesMsg(farewell);
-                sessionRef.current.state = 'SESSION_COMPLETE';
-                setConvState('SESSION_COMPLETE');
-                speak(farewell);
-              }
-            }, 1200);
-          });
-        } else {
-          // Day 1-29: open ADHOC conversation as before
-          speak(coachingText, () => {
-            sessionRef.current.state = 'ADHOC';
-            setConvState('ADHOC');
-          });
-        }
+        // Deliver the forecast heads-up (all tiers), then close (30+) or open ADHOC (<30)
+        speak(coachingText, () => {
+          setTimeout(() => { void deliverForecastHeadsUpAndClose(); }, 1000);
+        });
         return;
       }
+    }
+
+    // Day 30+ off-days (no dimension scores): still deliver the forecast
+    // heads-up, then close.
+    if (liveDaysRef.current >= 30) {
+      void deliverForecastHeadsUpAndClose();
+      return;
     }
 
     // Fallback if no scores or API fails
@@ -1625,8 +1654,8 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         : '';
       const isLastTurn = turn === adhocMaxTurns;
       const sys = isES
-        ? `${noIntro}Eres Jules, compañera de IA cálida de BioCycle. MODO ADHOC (turno ${turn} de ${adhocMaxTurns}).\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nREGLA CRÍTICA — privacidad del Círculo: SOLO referencia a miembros del Círculo en contextos íntimos, sexuales o románticos si están explícitamente etiquetados como [intimate-partner] en el contexto de la sesión. Los familiares, amigos y colegas NUNCA deben ser referenciados en contextos sexuales o románticos bajo ninguna circunstancia, aunque el usuario los mencione. Si el usuario expresa un deseo de intimidad y no aparece ningún [intimate-partner] en el contexto, responde con orientación general de bienestar biológico sin nombrar a ninguna persona.\n${isLastTurn ? 'Esta es tu última respuesta antes del cierre — termina con calidez y SIN hacer más preguntas. No preguntes nada.' : 'Sé cálida y directa. Puedes terminar con una pregunta breve.'}\nResponde en máximo 30 palabras.${ctx}`
-        : `${noIntro}You are Jules, BioCycle's warm AI companion. ADHOC MODE (turn ${turn} of ${adhocMaxTurns}).\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns, sleep quality, stress sources and physical response.\nIf user goes off-topic, bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment.\nCRITICAL — Circle member privacy rule: ONLY reference Circle members in intimate, sexual, or romantic contexts if they are explicitly tagged as [intimate-partner] in the session context. Family members, friends, and colleagues must NEVER be referenced in sexual or romantic contexts under any circumstance, even if the user mentions them. If the user expresses a desire for intimacy and no [intimate-partner] appears in the context, respond with general biological wellness guidance without naming any person.\n${isLastTurn ? 'This is your final response — end warmly with NO question. Do not ask anything.' : 'Be warm and direct. May end with a brief question.'}\nRespond in 30 words maximum.${ctx}`;
+        ? `${noIntro}Eres ${personaName(picardiaMode)}. MODO ADHOC (turno ${turn} de ${adhocMaxTurns}).\nTemas permitidos: emociones y patrones emocionales, relaciones y correlación de fase, autopercepción y conciencia corporal, patrones de comportamiento, sueños y calidad del sueño, fuentes de estrés y respuesta física.\nSi el usuario se desvía del tema, reconoce y redirige: "Eso suena a mucho. Me pregunto — ¿cómo está respondiendo tu cuerpo a todo eso?"\nNUNCA: diagnósticos médicos, política, noticias, entretenimiento.\nREGLA CRÍTICA — privacidad del Círculo: SOLO referencia a miembros del Círculo en contextos íntimos, sexuales o románticos si están explícitamente etiquetados como [intimate-partner] en el contexto de la sesión. Los familiares, amigos y colegas NUNCA deben ser referenciados en contextos sexuales o románticos bajo ninguna circunstancia, aunque el usuario los mencione. Si el usuario expresa un deseo de intimidad y no aparece ningún [intimate-partner] en el contexto, responde con orientación general de bienestar biológico sin nombrar a ninguna persona.\n${isLastTurn ? 'Esta es tu última respuesta antes del cierre — termina con calidez y SIN hacer más preguntas. No preguntes nada.' : 'Sé cálida y directa. Puedes terminar con una pregunta breve.'}\nResponde en máximo 30 palabras.${ctx}`
+        : `${noIntro}You are ${personaName(picardiaMode)}. ADHOC MODE (turn ${turn} of ${adhocMaxTurns}).\nPermitted topics: emotions and emotional patterns, relationships and phase correlation, self-perception and body awareness, behavioral patterns, sleep quality, stress sources and physical response.\nIf user goes off-topic, bridge back: "That sounds like a lot. I am curious — how is your body responding to all of that?"\nNEVER: medical diagnoses, politics, news, entertainment.\nCRITICAL — Circle member privacy rule: ONLY reference Circle members in intimate, sexual, or romantic contexts if they are explicitly tagged as [intimate-partner] in the session context. Family members, friends, and colleagues must NEVER be referenced in sexual or romantic contexts under any circumstance, even if the user mentions them. If the user expresses a desire for intimacy and no [intimate-partner] appears in the context, respond with general biological wellness guidance without naming any person.\n${isLastTurn ? 'This is your final response — end warmly with NO question. Do not ask anything.' : 'Be warm and direct. May end with a brief question.'}\nRespond in 30 words maximum.${ctx}`;
 
       const text = await callCoachAPI(convHistoryRef.current, sys, 80);
       setBioState('idle');
@@ -1697,8 +1726,8 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         addUserMsg(text);
         setBioState('thinking');
         const sys = isES
-          ? `${noIntro}Eres Jules. Explica BioCycle en exactamente 2 oraciones.`
-          : `${noIntro}You are Jules. Explain BioCycle in exactly 2 sentences.`;
+          ? `${noIntro}Eres ${personaName(picardiaMode)}. Explica BioCycle en exactamente 2 oraciones.`
+          : `${noIntro}You are ${personaName(picardiaMode)}. Explain BioCycle in exactly 2 sentences.`;
         const reply = await callCoachAPI(convHistoryRef.current, sys, 80);
         setBioState('idle');
         if (reply) { addJulesMsg(reply); speak(reply); }
@@ -1765,15 +1794,34 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         if (!personName) break;
         addUserMsg(personName);
 
-        // Handle "solo / no one / alone / nadie" — user was by themselves
+        // ── Guard: reject answers that are not a person's name ──────────────
+        // Fix: previously any text (e.g. "work") was saved as a Circle person.
+        const nameLc = personName.toLowerCase().trim();
         const soloWords = ['solo', 'sola', 'alone', 'no one', 'nadie', 'nobody', 'myself', 'yo solo', 'yo sola', 'ninguno', 'ninguna'];
-        if (soloWords.some(w => personName.toLowerCase().trim() === w || personName.toLowerCase().includes(w))) {
-          const soloAck = isES
-            ? 'Tiempo para ti. Eso también cuenta.'
-            : 'Time for yourself. That counts too.';
-          addJulesMsg(soloAck);
+        const nonPersonWords = [
+          'work', 'working', 'job', 'nothing', 'none', 'meeting', 'meetings',
+          'gym', 'home', 'house', 'office', 'school', 'class', 'errands',
+          'chores', 'study', 'studying', 'tv', 'phone', 'computer', 'everyone',
+          'people', 'stuff', 'things',
+          'trabajo', 'trabajando', 'nada', 'reunion', 'reunión', 'reuniones',
+          'gimnasio', 'casa', 'oficina', 'escuela', 'clase', 'mandados',
+          'tareas', 'estudiando', 'estudiar', 'teléfono', 'telefono',
+          'computadora', 'todos', 'gente', 'cosas',
+        ];
+        const nameWords = nameLc.split(/\s+/).filter(Boolean);
+        const isSolo = soloWords.some(w => nameLc === w || nameLc.includes(w));
+        const isNonPerson =
+          nameWords.length >= 4 ||
+          !/[a-záéíóúñü]/i.test(personName) ||
+          nameWords.some(w => nonPersonWords.includes(w));
+
+        if (isSolo || isNonPerson) {
+          const ack = isES
+            ? (isSolo ? 'Tiempo para ti. Eso también cuenta.' : 'Eso suena más a tu día que a una persona — lo dejo así. Seguimos.')
+            : (isSolo ? 'Time for yourself. That counts too.' : "That sounds more like your day than a person — no worries, we'll skip that. Onward.");
+          addJulesMsg(ack);
           sessionRef.current.collectedThisSession = true;
-          speak(soloAck, () => { _doSessionComplete(); });
+          speak(ack, () => { _doSessionComplete(); });
           break;
         }
 
@@ -2127,11 +2175,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         if (ctx && liveDays >= 30) {
           const phase = getCurrentPhase(profile);
           const phaseLabel = isES ? phase.displayNameES : phase.displayName;
-          const persona = picardiaMode
-            ? (isES
-                ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
-                : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
-            : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
+          const persona = personaName(picardiaMode);
           const timeOfDayEN = slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening';
           const timeOfDayES = slot === 'morning' ? 'la mañana' : slot === 'afternoon' ? 'la tarde' : 'la noche';
           const openSys = isES
@@ -2155,18 +2199,14 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
           : `Hi ${name}, I'm Jules — really glad you're here.`;
       } else if (liveDays < 30) {
         openingText = isES
-          ? `Hola ${name}, buenos ${slotWord}. Día ${liveDays} — estás construyendo algo real.`
+          ? `Hola ${name}, ${slot === 'morning' ? 'buenos días' : slot === 'afternoon' ? 'buenas tardes' : 'buenas noches'}. Día ${liveDays} — estás construyendo algo real.`
           : `Hey ${name}, good ${slotWord}. Day ${liveDays} — you're building something real.`;
       } else if (liveDays < 90) {
         const ctx = sessionRef.current.sessionContext;
         if (ctx) {
           const phase = getCurrentPhase(profile);
           const phaseLabel = isES ? phase.displayNameES : phase.displayName;
-          const persona = picardiaMode
-            ? (isES
-                ? 'Sienna, compañera de IA de BioCycle. Directa, cálida, ligeramente provocadora. Nunca vulgar.'
-                : 'Sienna, BioCycle\'s AI companion. Direct, warm, slightly provocative. Never crude.')
-            : (isES ? 'Jules, coach de inteligencia biológica de BioCycle.' : 'Jules, BioCycle\'s biological intelligence coach.');
+          const persona = personaName(picardiaMode);
           const timeOfDayEN = slot === 'morning' ? 'morning' : slot === 'afternoon' ? 'afternoon' : 'evening';
           const timeOfDayES = slot === 'morning' ? 'la mañana' : slot === 'afternoon' ? 'la tarde' : 'la noche';
           const openSys = isES
@@ -2183,7 +2223,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         }
       } else {
         openingText = isES
-          ? `Hola ${name}. Buenos ${slotWord}.`
+          ? `Hola ${name}. ${slot === 'morning' ? 'Buenos días' : slot === 'afternoon' ? 'Buenas tardes' : 'Buenas noches'}.`
           : `Hey ${name}. Good ${slotWord}.`;
       }
 

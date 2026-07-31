@@ -96,6 +96,8 @@ export interface TierLimits {
   dataTrading: boolean;     // eligible for data trading
   dataTradingShare: number; // revenue share % (0 if not eligible)
   lapseProtection: boolean; // keeps access if lapses 7+ days
+  voiceEnabled: boolean;    // Jules/Sienna spoken voice — paying tiers only
+  alertLookaheadDays: number; // forecast-alert lookahead window (days)
 }
 
 export function getTierLimits(userState: UserState | null): TierLimits {
@@ -106,6 +108,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
       forecastDays: 14, forecastAllDims: true, forecastComposite: true,
       forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 80, lapseProtection: true,
+      voiceEnabled: true, alertLookaheadDays: 5,
     };
   }
   const tier = userState?.tier ?? 'free';
@@ -115,6 +118,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
       forecastDays: 14, forecastAllDims: true, forecastComposite: true,
       forecastHighlights: true, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 80, lapseProtection: true,
+      voiceEnabled: true, alertLookaheadDays: 5,
     };
   }
   if (tier === 'standard') {
@@ -123,6 +127,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
       forecastDays: 7, forecastAllDims: true, forecastComposite: false,
       forecastHighlights: false, vulnerabilityAlerts: true, accuracyDisplay: true,
       dataTrading: true, dataTradingShare: 70, lapseProtection: true,
+      voiceEnabled: true, alertLookaheadDays: 3,
     };
   }
   // free (default)
@@ -131,6 +136,7 @@ export function getTierLimits(userState: UserState | null): TierLimits {
     forecastDays: 3, forecastAllDims: false, forecastComposite: false,
     forecastHighlights: false, vulnerabilityAlerts: false, accuracyDisplay: false,
     dataTrading: false, dataTradingShare: 0, lapseProtection: false,
+    voiceEnabled: false, alertLookaheadDays: 1,
   };
 }
 

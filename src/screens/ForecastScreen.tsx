@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { generateForecast, type ForecastResult, type ForecastDay } from '../lib/forecastEngine';
 import { getDaysOfData } from '../lib/phaseEngine';
+import { topSignalForDay } from '../lib/forecastSignals';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
@@ -104,13 +105,17 @@ function LockedBanner({ label, labelES, idioma }: { label: string; labelES: stri
   );
 }
 
-function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite }: {
+function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite, partnerName }: {
   day: ForecastDay; isToday: boolean; idioma: 'EN' | 'ES';
-  showSexual: boolean; showAllDims: boolean; showComposite: boolean;
+  showSexual: boolean; showAllDims: boolean; showComposite: boolean; partnerName?: string;
 }) {
   const [expanded, setExpanded] = useState(isToday);
   const sexualColor = day.sexual >= 70 ? colors.success : day.sexual >= 40 ? colors.amber : colors.boneFaint;
   const anxietyColor = day.anxiety >= 70 ? colors.danger : day.anxiety >= 50 ? colors.amber : colors.success;
+  const badge = topSignalForDay(day, { isES: idioma === 'ES', partnerName });
+  const toneColor = badge
+    ? (badge.tone === 'watch' ? colors.amber : badge.tone === 'opportunity' ? colors.success : colors.tierElite)
+    : null;
 
   return (
     <div
@@ -119,6 +124,7 @@ function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite 
         background: isToday ? 'rgba(245,242,238,0.06)' : 'rgba(245,242,238,0.02)',
         border: `1px solid ${isToday ? 'rgba(245,242,238,0.18)' : 'rgba(245,242,238,0.07)'}`,
         borderRadius: 14, padding: '14px 16px', marginBottom: 10, cursor: 'pointer',
+        ...(toneColor ? { borderLeft: `3px solid ${toneColor}` } : {}),
       }}
     >
       {/* Row 1: date + phase + vitality */}
@@ -132,6 +138,11 @@ function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite 
             <div style={{ fontSize: 10, color: colors.boneFaint, letterSpacing: '0.04em' }}>
               {day.phaseLabel}
             </div>
+            {badge && (
+              <div style={{ marginTop: 4, display: 'inline-block', background: 'rgba(245,242,238,0.06)', color: toneColor as string, border: `1px solid ${toneColor}`, fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10 }}>
+                {badge.label}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -157,6 +168,13 @@ function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite 
           <span style={{ color: colors.boneFaint, fontSize: 12 }}>{expanded ? '▲' : '▼'}</span>
         </div>
       </div>
+
+      {badge && badge.tip && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+          <span style={{ color: toneColor as string, fontSize: 12, lineHeight: 1.2 }}>•</span>
+          <span style={{ fontSize: 11, color: 'rgba(245,242,238,0.75)', lineHeight: 1.45 }}>{badge.tip}</span>
+        </div>
+      )}
 
       {/* Expanded content */}
       {expanded && (
@@ -244,6 +262,7 @@ function DayCard({ day, isToday, idioma, showSexual, showAllDims, showComposite 
 export function ForecastScreen({ profile, userState: _userState, tierLimits }: Props) {
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [partnerName, setPartnerName] = useState<string | undefined>(undefined);
   const [trendData, setTrendData] = useState<Array<{
     session_date: string; time_slot: string;
     factor_energia: number | null; factor_estres: number | null;
@@ -271,9 +290,17 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
         .eq('session_complete', true)
         .gte('session_date', sevenDaysAgo.toLocaleDateString('en-CA'))
         .order('session_date', { ascending: true }),
-    ]).then(([forecastResult, { data: sessions }]) => {
+      supabase
+        .from('relationships')
+        .select('name')
+        .eq('user_id', profile.id)
+        .eq('intimacy', true)
+        .order('rank', { ascending: true })
+        .limit(1),
+    ]).then(([forecastResult, { data: sessions }, { data: romantic }]) => {
       setForecast(forecastResult);
       if (sessions) setTrendData(sessions as any[]);
+      setPartnerName((romantic?.[0] as any)?.name || undefined);
       setLoading(false);
     });
   }, [profile.id, forecastDays]);
@@ -516,6 +543,7 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
             showSexual={showSexual}
             showAllDims={forecastAllDims}
             showComposite={forecastComposite}
+            partnerName={partnerName}
           />
         ))}
       </div>

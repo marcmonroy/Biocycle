@@ -8,6 +8,9 @@ import {
   COMPATIBILITY_TYPES,
 } from '../lib/compatibilityEngine';
 import type { CompatibilityType, CompatibilityResult } from '../lib/compatibilityEngine';
+import { buildTypeCalendar, hasAnyPeak, TYPE_VISUAL } from '../lib/compatibilityCalendar';
+import { CalendarGrid, type CalendarMark, type LegendEntry } from '../components/CalendarGrid';
+import { getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
@@ -34,90 +37,6 @@ function StatusDot({ status }: { status: CompatibilityConnection['status'] }) {
   );
 }
 
-function ScoreArc({ score, color, label }: { score: number; color: string; label: string }) {
-  const r = 44;
-  const cx = 56, cy = 56;
-  const circ = 2 * Math.PI * r;
-  const arc = circ * (score / 100);
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-      <svg width={112} height={112} viewBox="0 0 112 112">
-        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={10} />
-        <circle
-          cx={cx} cy={cy} r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth={10}
-          strokeDasharray={`${arc} ${circ - arc}`}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${cx} ${cy})`}
-          style={{ transition: 'stroke-dasharray 0.6s ease' }}
-        />
-        <text x={cx} y={cy + 6} textAnchor="middle" fill={colors.bone} fontSize={22} fontFamily={fonts.display} fontWeight={300}>
-          {score}
-        </text>
-      </svg>
-      <span style={{ fontSize: 11, color: colors.boneFaint, fontFamily: fonts.body, textAlign: 'center' }}>{label}</span>
-    </div>
-  );
-}
-
-function DayBar({
-  result,
-  idioma,
-}: {
-  result: CompatibilityResult;
-  idioma: 'EN' | 'ES';
-}) {
-  const [expanded, setExpanded] = useState<number | null>(null);
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {result.days.map((day, i) => {
-        const pct = day.sharedScore;
-        const barColor =
-          day.isSharedPeak ? '#00c896' :
-          day.isSharedRisk ? '#ef4444' :
-          pct >= 50        ? colors.amber : colors.boneFaint;
-        const label = idioma === 'ES' ? day.dateLabelES : day.dateLabel;
-        const insight = idioma === 'ES' ? day.insightES : day.insight;
-        const isOpen = expanded === i;
-
-        return (
-          <div key={i}>
-            <button
-              onClick={() => setExpanded(isOpen ? null : i)}
-              style={{
-                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0',
-              }}
-            >
-              <span style={{ width: 70, fontSize: 11, color: colors.boneFaint, fontFamily: fonts.body, textAlign: 'left', flexShrink: 0 }}>
-                {label}
-              </span>
-              <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.08)', overflow: 'hidden' }}>
-                <div style={{
-                  width: `${pct}%`, height: '100%',
-                  borderRadius: 3, background: barColor,
-                  transition: 'width 0.5s ease',
-                }} />
-              </div>
-              <span style={{ width: 30, fontSize: 11, color: colors.bone, fontFamily: fonts.body, textAlign: 'right', flexShrink: 0 }}>
-                {pct}
-              </span>
-              {day.isSharedPeak && <span style={{ fontSize: 10 }}>★</span>}
-            </button>
-            {isOpen && (
-              <div style={{ padding: '4px 0 6px 78px', fontSize: 11, color: colors.boneFaint, fontFamily: fonts.body, lineHeight: 1.5 }}>
-                {insight}
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function NewInviteForm({
   profile,
@@ -345,17 +264,21 @@ function CompatibilityDetail({
 }) {
   const [result, setResult] = useState<CompatibilityResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [computeError, setComputeError] = useState(false);
   const ES = idioma === 'ES';
 
   useEffect(() => {
     if (!conn.partner_profile) { setLoading(false); return; }
     computeCompatibility(profile, conn.partner_profile, conn.type, tierLimits.forecastDays)
       .then(r => { setResult(r); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch((err) => { console.error('[compat] compute failed:', err); setComputeError(true); setLoading(false); });
   }, [conn, profile, tierLimits.forecastDays]);
 
+  const allowedTypes = getCompatibilityTierAccess(tierLimits);
   const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === conn.type)!;
   const typeLabel = ES ? typeConfig.labelES : typeConfig.label;
+  const partnerDays = conn.partner_profile ? getDaysOfData(conn.partner_profile) : 0;
+  const earlyEstimate = getDaysOfData(profile) < 30 || partnerDays < 30;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -380,7 +303,13 @@ function CompatibilityDetail({
         </div>
       )}
 
-      {!loading && !result && (
+      {!loading && !result && computeError && (
+        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
+          {ES ? 'No se pudo calcular la sincronía. Intenta de nuevo.' : 'Could not compute sync. Try again.'}
+        </div>
+      )}
+
+      {!loading && !result && !computeError && (
         <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
           {ES ? 'No hay datos suficientes aún.' : 'Not enough data yet.'}
         </div>
@@ -388,37 +317,55 @@ function CompatibilityDetail({
 
       {!loading && result && (
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-around', padding: '8px 0' }}>
-            <ScoreArc
-              score={result.todayScore}
-              color={result.overallColor}
-              label={ES ? 'Hoy' : 'Today'}
-            />
-            <ScoreArc
-              score={result.weekAverage}
-              color={result.overallColor}
-              label={ES ? `Promedio ${tierLimits.forecastDays}d` : `${tierLimits.forecastDays}d avg`}
-            />
-          </div>
-
-          <div style={{
-            padding: '10px 14px',
-            background: 'rgba(255,255,255,0.04)',
-            borderRadius: 10,
-            fontSize: 12,
-            color: result.overallColor,
-            fontFamily: fonts.body,
-            textAlign: 'center',
-          }}>
-            {ES ? result.overallLabelES : result.overallLabel}
-            {result.bestDayLabel !== '—' && (
-              <span style={{ color: colors.boneFaint }}>
-                {' · '}{ES ? 'Mejor día:' : 'Best day:'} {ES ? result.bestDayLabelES : result.bestDayLabel}
-              </span>
-            )}
-          </div>
-
-          <DayBar result={result} idioma={idioma} />
+          {earlyEstimate && (
+            <div style={{
+              padding: '10px 14px',
+              background: 'rgba(255,217,61,0.08)',
+              border: '1px solid rgba(255,217,61,0.25)',
+              borderRadius: 10,
+              fontSize: 11.5,
+              color: colors.amber,
+              fontFamily: fonts.body,
+              lineHeight: 1.5,
+            }}>
+              {ES
+                ? 'Estimación temprana — la sincronía se afina cuando ambos alcanzan 30 días de datos.'
+                : 'Early estimate — your sync sharpens once you both reach 30 days of data.'}
+            </div>
+          )}
+          {(() => {
+                const cal = buildTypeCalendar(result);
+                const vis = TYPE_VISUAL[conn.type];
+                const days = cal.map(c => c.date);
+                const marksByDay: Record<string, CalendarMark[]> = {};
+                for (const c of cal) {
+                  if (c.isPeak) {
+                    marksByDay[c.date.toLocaleDateString('en-CA')] = [{ icon: vis.icon, color: vis.color }];
+                  }
+                }
+                const legend: LegendEntry[] = COMPATIBILITY_TYPES.map(t => {
+                  const v = TYPE_VISUAL[t.id];
+                  return { icon: v.icon, color: v.color, label: ES ? v.labelES : v.labelEN, active: allowedTypes.includes(t.id) };
+                });
+                const peaks = hasAnyPeak(cal);
+                const inSync = result.weekAverage >= 55;
+                const caption = peaks
+                  ? (ES ? 'Estos son sus días en sintonía.' : 'These are your days in sync.')
+                  : inSync
+                    ? (ES ? 'Van muy sincronizados — sin días que sobresalgan en las próximas semanas.' : "You're steadily in sync — no standout days in the next couple of weeks.")
+                    : (ES ? 'Llevan ritmos distintos — no hay días pico compartidos por ahora.' : "You run on different rhythms — no shared peak days for now.");
+                const emptyLine = peaks ? undefined : caption;
+                return (
+                  <CalendarGrid
+                    days={days}
+                    marksByDay={marksByDay}
+                    legend={legend}
+                    caption={peaks ? caption : undefined}
+                    emptyLine={emptyLine}
+                    isES={ES}
+                  />
+                );
+              })()}
         </>
       )}
     </div>
@@ -613,10 +560,11 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
     const enriched: CompatibilityConnection[] = await Promise.all(
       (data as CompatibilityConnection[]).map(async conn => {
         if (conn.status === 'accepted' && conn.user_b_id) {
+          const partnerId = conn.user_a_id === profile.id ? conn.user_b_id : conn.user_a_id;
           const { data: pData } = await supabase
             .from('profiles')
             .select('*')
-            .eq('id', conn.user_b_id)
+            .eq('id', partnerId)
             .maybeSingle();
           return { ...conn, partner_profile: pData ?? null };
         }

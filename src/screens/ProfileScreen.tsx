@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiBase';
 import type { Profile, UserState } from '../lib/supabase';
@@ -6,6 +6,7 @@ import { getTierLimits } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
 import { UpgradeSheet } from '../components/UpgradeSheet';
+import { registerPushNotifications } from '../services/pushNotifications';
 
 interface Props {
   profile: Profile;
@@ -102,6 +103,25 @@ function toggleMulti(prev: string[], val: string): string[] {
   return without.includes(val) ? without.filter(v => v !== val) : [...without, val];
 }
 
+function ToggleSwitch({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: 48, height: 28, borderRadius: 14,
+        background: on ? colors.amber : 'rgba(245, 242, 238,0.1)',
+        border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <div style={{
+        width: 22, height: 22, borderRadius: '50%', background: 'white',
+        position: 'absolute', top: 3, left: on ? 23 : 3, transition: 'left 0.2s',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+      }} />
+    </button>
+  );
+}
+
 export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, onComplete, onTierChange }: Props) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -184,6 +204,38 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   const [preferredSlot, setPreferredSlot] = useState<'morning' | 'afternoon' | 'night'>(
     (profile as any).preferred_checkin_slot ?? 'morning'
   );
+
+  // Notification preferences (stored in notification_prefs table)
+  const [pushEnabled, setPushEnabled]     = useState(true);
+  const [notifDailyCard, setNotifDailyCard] = useState(true);
+  const [notifForecast, setNotifForecast]   = useState(true);
+  const [notifCompat, setNotifCompat]       = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    supabase
+      .from('notification_prefs')
+      .select('push_enabled, daily_card, forecast_alerts, compatibility_invites')
+      .eq('user_id', profile.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!active || !data) return;
+        setPushEnabled(data.push_enabled);
+        setNotifDailyCard(data.daily_card);
+        setNotifForecast(data.forecast_alerts);
+        setNotifCompat(data.compatibility_invites);
+      });
+    return () => { active = false; };
+  }, [profile.id]);
+
+  async function handlePushToggle() {
+    if (pushEnabled) {
+      setPushEnabled(false);
+    } else {
+      setPushEnabled(true);
+      try { await registerPushNotifications(profile.id); } catch { /* permission denied is fine */ }
+    }
+  }
 
   const phase = getCurrentPhase(profile);
   const daysOfData = getDaysOfData(profile);
@@ -268,6 +320,17 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       .eq('id', profile.id)
       .select()
       .single();
+
+    await supabase
+      .from('notification_prefs')
+      .upsert({
+        user_id: profile.id,
+        push_enabled: pushEnabled,
+        daily_card: notifDailyCard,
+        forecast_alerts: notifForecast,
+        compatibility_invites: notifCompat,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
 
     setSaving(false);
     if (!error && data) {
@@ -512,6 +575,39 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
         />
         <ReadRow label={L('Language', 'Idioma')} value={profile.idioma} />
         <ReadRow label="WhatsApp" value={profile.whatsapp_phone ?? '—'} />
+      </Section>
+
+      {/* ── Notifications ───────────────────────────────────────────────── */}
+      <Section label={L('Notifications', 'Notificaciones')}>
+        <FieldRow
+          label={L('Push notifications', 'Notificaciones push')}
+          sublabel={L('Master switch for all reminders', 'Interruptor general de todos los recordatorios')}
+        >
+          <ToggleSwitch on={pushEnabled} onClick={handlePushToggle} />
+        </FieldRow>
+
+        {pushEnabled && (
+          <>
+            <FieldRow
+              label={L('Daily card', 'Carta diaria')}
+              sublabel={L('Your daily insight from Jules', 'Tu revelación diaria de Jules')}
+            >
+              <ToggleSwitch on={notifDailyCard} onClick={() => setNotifDailyCard(v => !v)} />
+            </FieldRow>
+            <FieldRow
+              label={L('Forecast alerts', 'Alertas del pronóstico')}
+              sublabel={L('Heads-up on big days ahead', 'Aviso sobre los días importantes que vienen')}
+            >
+              <ToggleSwitch on={notifForecast} onClick={() => setNotifForecast(v => !v)} />
+            </FieldRow>
+            <FieldRow
+              label={L('Compatibility invites', 'Invitaciones de compatibilidad')}
+              sublabel={L('When someone invites you to connect', 'Cuando alguien te invita a conectar')}
+            >
+              <ToggleSwitch on={notifCompat} onClick={() => setNotifCompat(v => !v)} />
+            </FieldRow>
+          </>
+        )}
       </Section>
 
       {/* ── Check-in times — 3 slots for days 1-29, single slot for day 30+ */}

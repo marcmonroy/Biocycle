@@ -253,6 +253,18 @@ exports.handler = async () => {
     (tokensByUser[row.user_id] = tokensByUser[row.user_id] || []).push(row);
   }
 
+  // ── Step 3b: Fetch notification_prefs for eligible users ─────────────────
+
+  const { data: allPrefRows } = await supabase
+    .from('notification_prefs')
+    .select('user_id, push_enabled, daily_card')
+    .in('user_id', eligibleIds);
+
+  const prefsByUser = {};
+  for (const row of (allPrefRows || [])) {
+    prefsByUser[row.user_id] = row;
+  }
+
   // ── Step 4: Process each eligible user ───────────────────────────────────
 
   let sent = 0, skipped = 0;
@@ -265,6 +277,15 @@ exports.handler = async () => {
     // Guard: no tokens
     if (tokens.length === 0) {
       console.log(`[scheduler] skip user=${userId} — no tokens`);
+      skipped++;
+      continue;
+    }
+
+    // Guard: notification prefs — respect master switch and per-type opt-out.
+    // If no row exists in notification_prefs, treat as opted-in (default behaviour).
+    const prefs = prefsByUser[userId];
+    if (prefs && (prefs.push_enabled === false || prefs.daily_card === false)) {
+      console.log(`[scheduler] skip user=${userId} — push disabled by notification_prefs`);
       skipped++;
       continue;
     }

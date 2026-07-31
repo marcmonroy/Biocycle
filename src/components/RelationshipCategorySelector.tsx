@@ -17,9 +17,20 @@ const CATEGORIES = [
   { en: 'Someone Special', es: 'Alguien Especial' },
 ];
 
+// Only these categories may carry a romantic/intimate attribute.
+const ROMANTIC_CATEGORIES = ['Partner', 'Someone Special'];
+
 export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [intimacy, setIntimacy] = useState(false);
+
+  const canBeRomantic = ROMANTIC_CATEGORIES.includes(selectedCategory);
+
+  function pickCategory(en: string) {
+    setSelectedCategory(en);
+    // Clear any romantic flag if the new category can't be romantic.
+    if (!ROMANTIC_CATEGORIES.includes(en)) setIntimacy(false);
+  }
 
   return (
     <div style={{
@@ -43,7 +54,7 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
           return (
             <button
               key={cat.en}
-              onClick={() => setSelectedCategory(cat.en)}
+              onClick={() => pickCategory(cat.en)}
               style={{
                 background: isSelected ? colors.amberGlow : 'rgba(245,242,238,0.04)',
                 border: `1px solid ${isSelected ? colors.amber : 'rgba(245,242,238,0.1)'}`,
@@ -62,31 +73,33 @@ export function RelationshipCategorySelector({ name, isES, onSelect }: Props) {
         })}
       </div>
 
-      {/* Intimacy toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
-        <span style={{ color: colors.boneFaint, fontSize: 13 }}>
-          {isES ? 'Intimidad sexual' : 'Sexual intimacy'}
-        </span>
-        <button
-          onClick={() => setIntimacy(i => !i)}
-          style={{
-            background: intimacy ? colors.amberGlow : 'rgba(245,242,238,0.06)',
-            border: `1px solid ${intimacy ? colors.amber : 'rgba(245,242,238,0.1)'}`,
-            borderRadius: 20,
-            padding: '4px 14px',
-            color: intimacy ? colors.amber : colors.boneFaint,
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {intimacy ? 'ON' : 'OFF'}
-        </button>
-      </div>
+      {/* Romantic toggle — ONLY for romantic-eligible categories */}
+      {canBeRomantic && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+          <span style={{ color: colors.boneFaint, fontSize: 13 }}>
+            {isES ? 'Relación romántica' : 'Romantic relationship'}
+          </span>
+          <button
+            onClick={() => setIntimacy(i => !i)}
+            style={{
+              background: intimacy ? colors.amberGlow : 'rgba(245,242,238,0.06)',
+              border: `1px solid ${intimacy ? colors.amber : 'rgba(245,242,238,0.1)'}`,
+              borderRadius: 20,
+              padding: '4px 14px',
+              color: intimacy ? colors.amber : colors.boneFaint,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            {intimacy ? 'ON' : 'OFF'}
+          </button>
+        </div>
+      )}
 
-      {/* Confirm */}
+      {/* Confirm — force intimacy false for any non-romantic category */}
       <button
-        onClick={() => selectedCategory && onSelect(selectedCategory, intimacy)}
+        onClick={() => selectedCategory && onSelect(selectedCategory, canBeRomantic ? intimacy : false)}
         disabled={!selectedCategory}
         style={{
           background: selectedCategory ? colors.amber : 'rgba(255,255,255,0.06)',

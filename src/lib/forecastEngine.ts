@@ -80,18 +80,18 @@ const MALE_TEXTBOOK: Record<string, Record<Dimension, number>> = {
 };
 
 const PHASE_INSIGHTS: Record<string, { en: string; es: string }> = {
-  menstrual:    { en: 'Rest and restoration. Your body is recalibrating.',        es: 'Descanso y restauración. Tu cuerpo se está recalibrando.' },
-  follicular:   { en: 'Rising energy. Ideal for starting new things.',            es: 'Energía en ascenso. Ideal para empezar cosas nuevas.' },
-  ovulatory:    { en: 'Peak window. Magnetism and confidence at full.',           es: 'Ventana máxima. Magnetismo y confianza al tope.' },
-  luteal:       { en: 'Inward focus. Best for detail and completion.',            es: 'Enfoque interno. Mejor para detalles y cerrar ciclos.' },
-  late_luteal:  { en: 'Sensitivity window. Protect your energy.',                 es: 'Ventana de sensibilidad. Protege tu energía.' },
-  morning_peak: { en: 'Testosterone peaks 30min after waking. Use this window.',  es: 'La testosterona alcanza su pico 30min tras despertar.' },
-  afternoon_dip:{ en: 'Natural cortisol dip. Schedule around this.',              es: 'Descenso natural del cortisol. Planifica alrededor.' },
-  evening_balance: { en: 'Social window reopens. Connection energy returns.',    es: 'Se reabre la ventana social. La energía vuelve.' },
-  night_rest:   { en: 'Recovery phase. Tomorrow depends on tonight.',             es: 'Fase de recuperación. Mañana depende de esta noche.' },
-  midday_transition: { en: 'Sustained focus window.',                             es: 'Ventana de concentración sostenida.' },
-  perimenopause:{ en: 'Hormonal fluctuation. Jules tracks your unique rhythm.',   es: 'Fluctuación hormonal. Jules rastrea tu ritmo único.' },
-  andropause:   { en: 'Gradual shift. Consistency is your edge.',                 es: 'Cambio gradual. La consistencia es tu ventaja.' },
+  menstrual:         { en: 'Low-power mode. Rest today and thank yourself tomorrow.',    es: 'Modo de bajo consumo. Descansa hoy y agradécetelo mañana.' },
+  follicular:        { en: 'Fresh energy rising. Perfect time to start something new.',  es: 'La energía va subiendo. Momento perfecto para empezar algo nuevo.' },
+  ovulatory:         { en: "You're magnetic right now. The room notices you.",           es: 'Tienes magnetismo. Se nota cuando entras a un lugar.' },
+  luteal:            { en: 'Energy turns inward. Great for details and finishing.',       es: 'La energía mira hacia adentro. Buena para detalles y cierres.' },
+  late_luteal:       { en: 'Nerves run a little louder. Guard your calm like treasure.',  es: 'Los nervios andan más despiertos. Cuida tu calma como un tesoro.' },
+  morning_peak:      { en: 'Your sharpest hours. Spend them on what matters most.',       es: 'Tus horas más lúcidas. Úsalas en lo que más importa.' },
+  afternoon_dip:     { en: 'A natural slowdown. A short walk beats a third coffee.',      es: 'Un bajón natural. Una caminata corta le gana al tercer café.' },
+  evening_balance:   { en: 'Social energy comes back. A good time to connect.',           es: 'Vuelve la energía social. Buen momento para conectar.' },
+  night_rest:        { en: 'Tomorrow gets built tonight. Respect your sleep.',            es: 'El mañana se construye esta noche. Respeta tu sueño.' },
+  midday_transition: { en: 'Steady focus window. Ideal for deep work.',                   es: 'Ventana de enfoque sostenido. Ideal para trabajo profundo.' },
+  perimenopause:     { en: 'Your rhythm follows no chart but yours. Jules learns it.',    es: 'Tu ritmo no sigue ningún manual. Jules lo aprende contigo.' },
+  andropause:        { en: 'Consistency is your superpower. Steady beats flashy.',        es: 'La constancia es tu superpoder. Lo constante le gana a lo llamativo.' },
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
