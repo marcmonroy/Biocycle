@@ -238,13 +238,11 @@ function CompatibilityDetail({
   profile,
   tierLimits,
   idioma,
-  onClose,
 }: {
   conn: CompatibilityConnection;
   profile: Profile;
   tierLimits: TierLimits;
   idioma: 'EN' | 'ES';
-  onClose?: () => void;
 }) {
   const [result, setResult] = useState<CompatibilityResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -259,29 +257,11 @@ function CompatibilityDetail({
   }, [conn, profile, tierLimits.forecastDays]);
 
   const allowedTypes = getCompatibilityTierAccess(tierLimits);
-  const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === conn.type)!;
-  const typeLabel = ES ? typeConfig.labelES : typeConfig.label;
   const partnerDays = conn.partner_profile ? getDaysOfData(conn.partner_profile) : 0;
   const earlyEstimate = getDaysOfData(profile) < 30 || partnerDays < 30;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {onClose && (
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none', border: 'none', color: colors.boneFaint,
-              cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1,
-            }}
-          >
-            ←
-          </button>
-        )}
-        <span style={{ fontSize: 14, color: colors.bone, fontFamily: fonts.body, fontWeight: 600 }}>
-          {conn.invited_name} · {typeConfig.icon} {typeLabel}
-        </span>
-      </div>
 
       {loading && (
         <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
@@ -336,7 +316,7 @@ function CompatibilityDetail({
                 const peaks = hasAnyPeak(cal);
                 const inSync = result.weekAverage >= 55;
                 const caption = peaks
-                  ? (ES ? 'Estos son sus días en sintonía.' : 'These are your days in sync.')
+                  ? (ES ? `Tus mejores días con ${conn.invited_name}.` : `Your best days with ${conn.invited_name}.`)
                   : inSync
                     ? (ES ? 'Van muy sincronizados — sin días que sobresalgan en las próximas semanas.' : "You're steadily in sync — no standout days in the next couple of weeks.")
                     : (ES ? 'Llevan ritmos distintos — no hay días pico compartidos por ahora.' : "You run on different rhythms — no shared peak days for now.");
@@ -442,7 +422,7 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
             fontSize: 22, color: colors.bone,
             margin: 0, letterSpacing: '-0.02em',
           }}>
-            {ES ? 'Sincronía' : 'Sync'}
+            {ES ? 'Compatibilidad' : 'Compatibility'}
           </h2>
           <p style={{ fontSize: 12, color: colors.boneFaint, margin: '4px 0 0' }}>
             {ES ? 'Alineación biológica con tus contactos' : 'Biological alignment with your contacts'}
@@ -537,20 +517,42 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
         const current = accepted.find(c => c.id === selectedConn?.id) ?? accepted[0];
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* connection dropdown */}
-            <select
-              value={current.id}
-              onChange={e => setSelectedConn(accepted.find(c => c.id === e.target.value) ?? null)}
-              style={{
-                background: 'rgba(245,242,238,0.05)', color: colors.bone,
-                border: '1px solid rgba(245,242,238,0.14)', borderRadius: 10,
-                padding: '10px 12px', fontSize: 14, fontFamily: fonts.body, width: '100%',
-              }}
-            >
-              {accepted.map(c => (
-                <option key={c.id} value={c.id}>{c.invited_name}</option>
-              ))}
-            </select>
+            {/* connection selector */}
+            <div style={{ fontSize: 13, color: colors.boneFaint, fontFamily: fonts.body, marginBottom: 6 }}>
+              {ES ? 'Tus mejores días con:' : 'Your best days with:'}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <select
+                value={current.id}
+                onChange={e => setSelectedConn(accepted.find(c => c.id === e.target.value) ?? null)}
+                style={{
+                  flex: 1, background: 'rgba(245,242,238,0.05)', color: colors.bone,
+                  border: '1px solid rgba(245,242,238,0.14)', borderRadius: 10,
+                  padding: '11px 13px', fontSize: 14, fontFamily: fonts.body,
+                }}
+              >
+                {accepted.map(c => (
+                  <option key={c.id} value={c.id}>{c.invited_name}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => { if (confirm(ES ? `¿Desconectar a ${current.invited_name}?` : `Disconnect ${current.invited_name}?`)) handleCancel(current); }}
+                aria-label="options"
+                style={{
+                  width: 40, height: 40, borderRadius: 10, background: 'rgba(245,242,238,0.05)',
+                  border: '1px solid rgba(245,242,238,0.1)', color: colors.boneFaint,
+                  fontSize: 18, cursor: 'pointer', flexShrink: 0,
+                }}
+              >⋯</button>
+            </div>
+            {(() => {
+              const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
+              return tc ? (
+                <div style={{ fontSize: 15, fontWeight: 500, color: colors.bone, fontFamily: fonts.body, marginTop: 8 }}>
+                  {tc.icon} {ES ? tc.labelES : tc.label}
+                </div>
+              ) : null;
+            })()}
 
             <CompatibilityDetail
               conn={current}
@@ -558,17 +560,6 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               tierLimits={tierLimits}
               idioma={idioma}
             />
-
-            <button
-              onClick={() => handleCancel(current)}
-              style={{
-                alignSelf: 'center', background: 'none', border: 'none',
-                color: colors.boneFaint, fontSize: 12, fontFamily: fonts.body,
-                cursor: 'pointer', padding: '4px 8px',
-              }}
-            >
-              ✕ {ES ? 'Desconectar' : 'Disconnect'}
-            </button>
 
             {connections.filter(c => c.status === 'pending').length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>

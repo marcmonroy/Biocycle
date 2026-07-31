@@ -15,6 +15,7 @@ export interface CompatibilityTypeConfig {
   tier: 'free' | 'standard' | 'premium';
   compositeA: keyof DayComposites;
   compositeB: keyof DayComposites;
+  peakThreshold: number;
   sharedLabel: string;
   sharedLabelES: string;
 }
@@ -41,6 +42,7 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
     tier: 'free',
     compositeA: 'socialMagnetism',
     compositeB: 'emotionalResilience',
+    peakThreshold: 90,
     sharedLabel: 'Vibe Score',
     sharedLabelES: 'Índice de Vibra',
   },
@@ -54,6 +56,7 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
     tier: 'standard',
     compositeA: 'cognitiveEdge',
     compositeB: 'cognitiveEdge',
+    peakThreshold: 70,
     sharedLabel: 'Sync Score',
     sharedLabelES: 'Índice de Sincronía',
   },
@@ -67,6 +70,7 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
     tier: 'standard',
     compositeA: 'performance',
     compositeB: 'performance',
+    peakThreshold: 70,
     sharedLabel: 'Performance Score',
     sharedLabelES: 'Índice de Rendimiento',
   },
@@ -80,6 +84,7 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
     tier: 'premium',
     compositeA: 'intimacyReadiness',
     compositeB: 'intimacyReadiness',
+    peakThreshold: 70,
     sharedLabel: 'Connection Readiness',
     sharedLabelES: 'Preparación para Conectar',
   },
@@ -210,7 +215,7 @@ export async function computeCompatibility(
       scoreA: adjA,
       scoreB: adjB,
       sharedScore,
-      isSharedPeak: adjA >= 70 && adjB >= 70,
+      isSharedPeak: adjA >= config.peakThreshold && adjB >= config.peakThreshold,
       isSharedRisk: sharedScore < 35,
       insight:   dayInsight(type, sharedScore, adjA, adjB, false),
       insightES: dayInsight(type, sharedScore, adjA, adjB, true),
