@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserState } from '../lib/supabase';
-import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
+import { getDaysOfData } from '../lib/phaseEngine';
 import { getCardForUser, getArcStage } from '../lib/cardSystem';
-import { computePortfolioMetrics } from '../lib/portfolioValue';
+
 import { generateForecast, type ForecastDay } from '../lib/forecastEngine';
 import type { Tab } from '../components/BottomNav';
 import { colors, fonts } from '../lib/tokens';
@@ -19,45 +19,30 @@ interface Props {
   onNavigate: (tab: Tab) => void;
 }
 
-function useCountUp(target: number, duration = 1200): number {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (target === 0) { setValue(0); return; }
-    const start = performance.now();
-    let raf: number;
-    const tick = (now: number) => {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(parseFloat((eased * target).toFixed(2)));
-      if (progress < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, duration]);
-  return value;
-}
 
-function ForecastBar({ label, value, color, large = false }: { label: string; value: number; color: string; large?: boolean }) {
-  return (
-    <div style={{ marginBottom: large ? 14 : 9 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <span style={{ color: colors.boneDim, fontSize: large ? 13 : 11, fontFamily: fonts.body, fontWeight: large ? 600 : 400 }}>{label}</span>
-        <span style={{ color, fontSize: large ? 13 : 11, fontWeight: 700, fontFamily: fonts.mono }}>{value}%</span>
-      </div>
-      <div style={{ height: large ? 6 : 4, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${value}%`, background: color, borderRadius: 999, transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
-      </div>
-    </div>
-  );
+
+const METRIC_DEFS = [
+  { key: 'energy',    emoji: '⚡', labelEN: 'Energy',        labelES: 'Energía',       invert: false },
+  { key: 'cognitive', emoji: '🧠', labelEN: 'Mind',          labelES: 'Mente',         invert: false },
+  { key: 'stress',    emoji: '😰', labelEN: 'Stress',        labelES: 'Estrés',        invert: true  },
+  { key: 'anxiety',   emoji: '🌊', labelEN: 'Anxiety',       labelES: 'Ansiedad',      invert: true  },
+  { key: 'sleep',     emoji: '😴', labelEN: 'Sleep',         labelES: 'Sueño',         invert: false },
+  { key: 'emotional', emoji: '💗', labelEN: 'Mood',          labelES: 'Ánimo',         invert: false },
+  { key: 'social',    emoji: '🎉', labelEN: 'Social',        labelES: 'Social',        invert: false },
+  { key: 'sexual',    emoji: '🔥', labelEN: 'Sensual',       labelES: 'Sensual',       invert: false },
+] as const;
+
+function metricColor(value: number, invert: boolean): string {
+  const v = invert ? 100 - value : value;
+  if (v >= 70) return '#2c7a4d';   // good (green)
+  if (v >= 45) return '#a8791d';   // watch (amber)
+  return '#b3402f';                // low (red)
 }
 
 export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfile, onNavigate }: Props) {
   const [streak, setStreak] = useState(0);
-  const [qualityScore, setQualityScore] = useState(0);
-  const [consistencyScore, setConsistencyScore] = useState(0);
-  const [portfolioValue, setPortfolioValue] = useState(1.0);
+
   const [accuracyPct, setAccuracyPct] = useState<number | null>(null);
-  const [topRels, setTopRels] = useState<{ name: string; avgScore: number | null; category: string }[]>([]);
   const [todayForecast, setTodayForecast] = useState<ForecastDay | null>(null);
   const [sharing, setSharing] = useState(false);
   const [liveDays, setLiveDays] = useState<number>(getDaysOfData(profile));
@@ -70,9 +55,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
-  const animatedValue = useCountUp(portfolioValue, 1200);
   const daysOfData = getDaysOfData(profile);
-  const phase = getCurrentPhase(profile);
   const card = getCardForUser(profile);
   const idioma = profile.idioma ?? 'EN';
   const cardImgRef = useRef<HTMLImageElement>(null);
@@ -126,10 +109,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         setLiveDays(freshProfile.days_of_data);
       }
 
-      const metrics = await computePortfolioMetrics(profile);
-      setPortfolioValue(metrics.value);
-      setQualityScore(metrics.qualityScore);
-      setConsistencyScore(metrics.consistencyScore);
 
       // Forecast accuracy (30+ days only)
       if (daysOfData >= 30) {
@@ -145,33 +124,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
         }
       }
 
-      // Top 3 relationships
-      const { data: rels } = await supabase
-        .from('relationships')
-        .select('id, name, category')
-        .eq('user_id', profile.id)
-        .order('rank', { ascending: true })
-        .limit(3);
-      if (rels && rels.length > 0) {
-        const enriched = await Promise.all(rels.map(async (r: any) => {
-          const since = new Date();
-          since.setDate(since.getDate() - 30);
-          const { data: interactions } = await supabase
-            .from('relationship_interactions')
-            .select('connection_score')
-            .eq('relationship_id', r.id)
-            .gte('interaction_date', since.toLocaleDateString('en-CA'));
-          let avgScore: number | null = null;
-          if (interactions && interactions.length > 0) {
-            const scores = interactions.map((i: any) => i.connection_score).filter((s: number) => s != null);
-            if (scores.length > 0) {
-              avgScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length * 10) / 10;
-            }
-          }
-          return { name: r.name, avgScore, category: r.category };
-        }));
-        setTopRels(enriched);
-      }
     }
     loadStats();
   }, [profile.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -253,7 +205,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const greeting = idioma === 'ES' ? `Hola, ${nombre}.` : `Hey, ${nombre}.`;
   const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
   const cardCopy     = idioma === 'ES' ? card.copyTextES : card.copyText;
-  const phaseLabel   = idioma === 'ES' ? phase.displayNameES : phase.displayName;
+
 
   const gender = (profile.genero ?? 'nonbinary') as 'female' | 'male' | 'nonbinary';
   const picardiaMode = profile.picardia_mode ?? false;
@@ -364,10 +316,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const tierKey = ((profile as any).tier?.toUpperCase() ?? 'NEW') as TierKey;
   const tierStyle = tierColors[tierKey] ?? tierColors.NEW;
 
-  // Sexual energy forecast color
-  const sexualColor = todayForecast
-    ? todayForecast.sexual >= 70 ? colors.success : todayForecast.sexual >= 45 ? colors.amber : colors.danger
-    : colors.boneFaint;
 
   return (
     <div style={{ minHeight: '100vh', width: '100%', maxWidth: '100vw', background: colors.midnight, fontFamily: fonts.body, paddingBottom: 80, overflowX: 'hidden' }}>
@@ -396,10 +344,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
       {/* Greeting + phase + anxiety indicator */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
         <h2 style={{ fontFamily: fonts.mono, fontSize: '1.1rem', fontWeight: 700, color: colors.bone, margin: 0, lineHeight: 1.2 }}>{greeting}</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-          <span style={{ fontSize: 13 }}>{phase.emoji}</span>
-          <span style={{ color: colors.boneFaint, fontSize: 11, letterSpacing: '0.05em' }}>{phaseLabel}</span>
-        </div>
+
       </div>
 
       {!isPaused && hasAnySession && !waDismissed && (profile as any).whatsapp_enabled !== true && !waJustActivated && (
@@ -555,109 +500,33 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           </div>
         </div>
 
-        {/* TODAY'S BIOLOGICAL FORECAST — algorithm output, not reported values */}
         {todayForecast && (
-          <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
-            <div style={{ background: colors.surfaceLow, border: `1px solid ${colors.surfaceBorder}`, borderRadius: 14, padding: '16px 18px' }}>
-
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <span style={{ color: colors.boneFaint, fontSize: 10, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase' as const, fontFamily: fonts.mono }}>
-                  {idioma === 'ES' ? 'Pronóstico de hoy' : "Today's forecast"}
-                </span>
-                <button onClick={() => onNavigate('forecast')} style={{ background: 'none', border: 'none', color: colors.amber, fontSize: 11, cursor: 'pointer', fontFamily: fonts.body }}>
-                  {idioma === 'ES' ? 'Ver 7 días →' : 'See 7 days →'}
-                </button>
-              </div>
-
-              {/* SEXUAL ENERGY — primary, prominent */}
-              <div style={{
-                background: `${sexualColor}12`,
-                border: `1px solid ${sexualColor}33`,
-                borderRadius: 10,
-                padding: '12px 14px',
-                marginBottom: 14,
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ color: colors.bone, fontSize: 13, fontWeight: 700, fontFamily: fonts.body }}>
-                    {idioma === 'ES' ? 'Energía Sexual' : 'Sexual Energy'}
-                  </span>
-                  <span style={{ color: sexualColor, fontSize: 18, fontWeight: 800, fontFamily: fonts.mono }}>
-                    {todayForecast.sexual}%
-                  </span>
-                </div>
-                <div style={{ height: 6, background: colors.surfaceMid, borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${todayForecast.sexual}%`, background: sexualColor, borderRadius: 999, transition: 'width 0.8s cubic-bezier(0.16,1,0.3,1)' }} />
-                </div>
-                <div style={{ color: sexualColor, fontSize: 11, fontWeight: 600, marginTop: 8, fontFamily: fonts.body, lineHeight: 1.4 }}>
-                  {todayForecast.sexual >= 70
-                    ? (idioma === 'ES'
-                        ? `Ventana de alta energía sexual hoy — ${todayForecast.sexual}%. Aprovecha esta ventana.`
-                        : `High sexual energy window today — ${todayForecast.sexual}%. This window is open.`)
-                    : todayForecast.sexual >= 45
-                    ? (idioma === 'ES'
-                        ? `Energía sexual moderada hoy — ${todayForecast.sexual}%.`
-                        : `Moderate sexual energy today — ${todayForecast.sexual}%.`)
-                    : (idioma === 'ES'
-                        ? `Energía sexual baja hoy — ${todayForecast.sexual}%. Día de recuperación.`
-                        : `Low sexual energy today — ${todayForecast.sexual}%. Recovery day.`)}
-                </div>
-              </div>
-
-              {/* Secondary metrics */}
-              <ForecastBar
-                label={idioma === 'ES' ? 'Energía' : 'Energy'}
-                value={todayForecast.energy}
-                color={todayForecast.energy >= 70 ? colors.success : todayForecast.energy >= 45 ? colors.amber : colors.danger}
-              />
-              <ForecastBar
-                label={idioma === 'ES' ? 'Cognitivo' : 'Cognitive'}
-                value={todayForecast.cognitive}
-                color={todayForecast.cognitive >= 70 ? colors.tierElite : todayForecast.cognitive >= 45 ? colors.amber : colors.danger}
-              />
-              <ForecastBar
-                label={idioma === 'ES' ? 'Estrés' : 'Stress'}
-                value={100 - todayForecast.stress}
-                color={todayForecast.stress >= 60 ? colors.danger : todayForecast.stress >= 40 ? colors.amber : colors.success}
-              />
-              <ForecastBar
-                label={idioma === 'ES' ? 'Ansiedad' : 'Anxiety'}
-                value={100 - todayForecast.anxiety}
-                color={todayForecast.anxiety >= 60 ? colors.danger : todayForecast.anxiety >= 40 ? colors.amber : colors.success}
-              />
-              <ForecastBar
-                label={idioma === 'ES' ? 'Emocional' : 'Emotional'}
-                value={todayForecast.emotional}
-                color={todayForecast.emotional >= 70 ? colors.success : todayForecast.emotional >= 45 ? colors.amber : colors.danger}
-              />
-
-              {/* Phase insight */}
-              {(idioma === 'ES' ? todayForecast.insightES : todayForecast.insight) && (
-                <p style={{ color: colors.boneFaint, fontSize: 11, lineHeight: 1.55, margin: '12px 0 0', paddingTop: 12, borderTop: '1px solid rgba(245,242,238,0.06)', fontStyle: 'italic' }}>
-                  {idioma === 'ES' ? todayForecast.insightES : todayForecast.insight}
-                </p>
-              )}
-
-              {/* Mode indicator */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                <span style={{ fontSize: 9, color: colors.boneFaint, fontFamily: fonts.mono, letterSpacing: '0.08em' }}>
-                  {liveDays < 30
-                    ? (idioma === 'ES' ? `MODELO BASE · ${30 - liveDays} DÍAS PARA TU PRONÓSTICO` : `BASE MODEL · ${30 - liveDays} DAYS TO YOUR FORECAST`)
-                    : liveDays < 90
-                    ? (idioma === 'ES' ? `CALIBRANDO · DÍA ${liveDays}` : `CALIBRATING · DAY ${liveDays}`)
-                    : (idioma === 'ES' ? `PERSONALIZADO · DÍA ${liveDays}` : `PERSONALIZED · DAY ${liveDays}`)}
-                </span>
-              </div>
+          <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
+            <div style={{ fontSize: 11, letterSpacing: '0.05em', color: colors.boneFaint, fontFamily: fonts.body, marginBottom: 12 }}>
+              {idioma === 'ES' ? 'CÓMO ESTÁS HOY' : 'HOW YOU ARE TODAY'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {METRIC_DEFS.map(m => {
+                const value = Math.round((todayForecast as any)[m.key] ?? 0);
+                const color = metricColor(value, m.invert);
+                return (
+                  <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(245,242,238,0.04)', borderRadius: 12, padding: '10px 12px' }}>
+                    <span style={{ width: 34, height: 34, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>{m.emoji}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ fontSize: 12, color: colors.bone, fontFamily: fonts.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{idioma === 'ES' ? m.labelES : m.labelEN}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color, fontFamily: fonts.body }}>{value}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 14, fontSize: 11, color: colors.boneFaint, fontFamily: fonts.body }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#2c7a4d' }} />{idioma === 'ES' ? 'bien' : 'good'}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#a8791d' }} />{idioma === 'ES' ? 'atención' : 'watch'}</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: '#b3402f' }} />{idioma === 'ES' ? 'bajo' : 'low'}</span>
             </div>
           </div>
         )}
-
-        {/* Session CTA */}
-        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
-          <button onClick={onStartCoach} style={{ width: '100%', background: colors.amber, border: 'none', borderRadius: 14, padding: '16px 24px', color: colors.midnight, fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer', letterSpacing: '0.02em' }}>
-            {idioma === 'ES' ? 'Hablar con Jules →' : 'Talk to Jules →'}
-          </button>
-        </div>
 
         {/* Forecast accuracy */}
         {accuracyPct != null && (
@@ -678,53 +547,6 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
           </div>
         )}
 
-        {/* Relationships preview */}
-        {topRels.length > 0 && (
-          <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 14px' }}>
-            <button onClick={() => onNavigate('circle')} style={{ width: '100%', background: 'rgba(245,242,238,0.03)', border: '1px solid rgba(245,242,238,0.08)', borderRadius: 12, padding: '14px 16px', cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ color: colors.bone, fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
-                </div>
-                <div style={{ color: colors.boneFaint, fontSize: 11 }}>→</div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {topRels.map((r, i) => {
-                  const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : colors.amber;
-                  return (
-                    <div key={i} style={{ flex: 1, textAlign: 'center' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,217,61,0.2), rgba(123,97,255,0.2))', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.bone, fontWeight: 700, fontSize: 13 }}>
-                        {r.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div style={{ color: colors.bone, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
-                      <div style={{ color: scoreColor, fontSize: 10, fontFamily: fonts.mono, fontWeight: 700 }}>
-                        {r.avgScore != null ? r.avgScore.toFixed(1) : '—'}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </button>
-          </div>
-        )}
-
-        {/* Portfolio */}
-        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 20px' }}>
-          <button onClick={() => onNavigate('earnings')} style={{ width: '100%', background: `linear-gradient(180deg, ${colors.midnightDeep} 0%, ${colors.midnight} 55%, rgba(239,159,39,0.45) 100%)`, border: `1px solid ${colors.boneTrace}`, borderRadius: 14, padding: '14px 16px', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 2 }}>
-                {idioma === 'ES' ? 'Valor de tus Datos' : 'Data Value'}
-              </div>
-              <div style={{ fontFamily: fonts.mono, fontSize: '1.4rem', fontWeight: 700, color: colors.amber, lineHeight: 1 }}>
-                ${animatedValue.toFixed(2)}
-              </div>
-              <div style={{ color: colors.boneFaint, fontSize: 10, marginTop: 4 }}>
-                {daysOfData} {idioma === 'ES' ? 'días' : 'days'} · {idioma === 'ES' ? 'Calidad' : 'Quality'} {qualityScore}% · {idioma === 'ES' ? 'Consistencia' : 'Consistency'} {consistencyScore}%
-              </div>
-            </div>
-            <div style={{ color: colors.amber, fontSize: 18 }}>→</div>
-          </button>
-        </div>
 
       </>)}
     </div>
