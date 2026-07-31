@@ -20,8 +20,8 @@ export function CalendarGrid({ days, marksByDay, legend, caption, emptyLine, isE
   const offset = (first.getDay() + 6) % 7;
   const anyMarks = Object.values(marksByDay).some(m => m.length > 0);
 
-  const cellDark = 'rgba(245,242,238,0.03)';
-  const padDark  = 'rgba(0,0,0,0.25)';
+  const cellDark = '#161d30';
+  const padDark  = '#0e1424';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
