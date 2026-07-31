@@ -21,22 +21,6 @@ interface Props {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function StatusDot({ status }: { status: CompatibilityConnection['status'] }) {
-  const dotColor =
-    status === 'accepted' ? '#00c896' :
-    status === 'pending'  ? colors.amber :
-    status === 'declined' ? '#ef4444' : colors.boneFaint;
-  return (
-    <span style={{
-      display: 'inline-block',
-      width: 8, height: 8,
-      borderRadius: '50%',
-      background: dotColor,
-      flexShrink: 0,
-    }} />
-  );
-}
-
 
 function NewInviteForm({
   profile,
@@ -260,7 +244,7 @@ function CompatibilityDetail({
   profile: Profile;
   tierLimits: TierLimits;
   idioma: 'EN' | 'ES';
-  onClose: () => void;
+  onClose?: () => void;
 }) {
   const [result, setResult] = useState<CompatibilityResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -283,15 +267,17 @@ function CompatibilityDetail({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'none', border: 'none', color: colors.boneFaint,
-            cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1,
-          }}
-        >
-          ←
-        </button>
+        {onClose && (
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none', border: 'none', color: colors.boneFaint,
+              cursor: 'pointer', fontSize: 18, padding: 0, lineHeight: 1,
+            }}
+          >
+            ←
+          </button>
+        )}
         <span style={{ fontSize: 14, color: colors.bone, fontFamily: fonts.body, fontWeight: 600 }}>
           {conn.invited_name} · {typeConfig.icon} {typeLabel}
         </span>
@@ -372,153 +358,6 @@ function CompatibilityDetail({
   );
 }
 
-function ConnectionCard({ conn, profile, onSelect, onCancel, idioma }: {
-  conn: CompatibilityConnection;
-  profile: Profile;
-  onSelect: (conn: CompatibilityConnection) => void;
-  onCancel: (conn: CompatibilityConnection) => void;
-  idioma: 'EN' | 'ES';
-}) {
-  const [confirming, setConfirming] = useState(false);
-  const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === conn.type)!;
-  const isOwner = conn.user_a_id === profile.id;
-
-  const statusLabel = conn.status === 'accepted'
-    ? (idioma === 'ES' ? 'Aceptada' : 'Accepted')
-    : conn.status === 'pending'
-    ? (idioma === 'ES' ? 'Pendiente' : 'Pending')
-    : conn.status === 'declined'
-    ? (idioma === 'ES' ? 'Rechazada' : 'Declined')
-    : (idioma === 'ES' ? 'Expirada' : 'Expired');
-
-  return (
-    <div style={{
-      background: 'rgba(245,242,238,0.03)',
-      border: `1px solid ${conn.status === 'accepted' ? 'rgba(0,200,150,0.2)' : 'rgba(245,242,238,0.08)'}`,
-      borderRadius: 14, padding: '14px 16px', marginBottom: 10,
-    }}>
-      <div
-        onClick={() => conn.status === 'accepted' && onSelect(conn)}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: conn.status === 'accepted' ? 'pointer' : 'default' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>{typeConfig.icon}</span>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: colors.bone }}>
-              {conn.invited_name}
-            </div>
-            <div style={{ fontSize: 11, color: colors.boneFaint }}>
-              {idioma === 'ES' ? typeConfig.labelES : typeConfig.label}
-            </div>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <StatusDot status={conn.status} />
-          <span style={{ fontSize: 11, color: colors.boneFaint }}>{statusLabel}</span>
-          {conn.status === 'accepted' && (
-            <span style={{ color: colors.boneFaint, fontSize: 12 }}>›</span>
-          )}
-        </div>
-      </div>
-
-      {/* Cancel / remove button — only for owner on pending or declined */}
-      {isOwner && (conn.status === 'pending' || conn.status === 'declined') && (
-        <div style={{ marginTop: 12, borderTop: '1px solid rgba(245,242,238,0.06)', paddingTop: 10 }}>
-          {!confirming ? (
-            <button
-              onClick={() => setConfirming(true)}
-              style={{
-                background: 'none', border: 'none',
-                color: colors.boneFaint, fontSize: 11,
-                cursor: 'pointer', letterSpacing: '0.06em',
-                padding: 0,
-              }}
-            >
-              {idioma === 'ES'
-                ? (conn.status === 'pending' ? '✕ Cancelar solicitud' : '✕ Eliminar')
-                : (conn.status === 'pending' ? '✕ Cancel request' : '✕ Remove')}
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: colors.boneFaint }}>
-                {idioma === 'ES' ? '¿Confirmar?' : 'Confirm?'}
-              </span>
-              <button
-                onClick={() => onCancel(conn)}
-                style={{
-                  background: 'rgba(239,68,68,0.12)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: 6, padding: '4px 12px',
-                  color: colors.danger, fontSize: 11,
-                  cursor: 'pointer', fontWeight: 600,
-                }}
-              >
-                {idioma === 'ES' ? 'Sí, cancelar' : 'Yes, cancel'}
-              </button>
-              <button
-                onClick={() => setConfirming(false)}
-                style={{
-                  background: 'none', border: 'none',
-                  color: colors.boneFaint, fontSize: 11,
-                  cursor: 'pointer',
-                }}
-              >
-                {idioma === 'ES' ? 'No' : 'No'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Disconnect button — accepted connections */}
-      {isOwner && conn.status === 'accepted' && (
-        <div style={{ marginTop: 12, borderTop: '1px solid rgba(245,242,238,0.06)', paddingTop: 10 }}>
-          {!confirming ? (
-            <button
-              onClick={() => setConfirming(true)}
-              style={{
-                background: 'none', border: 'none',
-                color: colors.boneFaint, fontSize: 11,
-                cursor: 'pointer', letterSpacing: '0.06em',
-                padding: 0,
-              }}
-            >
-              {idioma === 'ES' ? '✕ Desconectar' : '✕ Disconnect'}
-            </button>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, color: colors.boneFaint }}>
-                {idioma === 'ES' ? '¿Confirmar?' : 'Confirm?'}
-              </span>
-              <button
-                onClick={() => onCancel(conn)}
-                style={{
-                  background: 'rgba(239,68,68,0.12)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: 6, padding: '4px 12px',
-                  color: colors.danger, fontSize: 11,
-                  cursor: 'pointer', fontWeight: 600,
-                }}
-              >
-                {idioma === 'ES' ? 'Sí, desconectar' : 'Yes, disconnect'}
-              </button>
-              <button
-                onClick={() => setConfirming(false)}
-                style={{
-                  background: 'none', border: 'none',
-                  color: colors.boneFaint, fontSize: 11,
-                  cursor: 'pointer',
-                }}
-              >
-                {idioma === 'ES' ? 'No' : 'No'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
@@ -587,23 +426,6 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
       .then(({ data }) => setIncoming((data as CompatibilityConnection[]) ?? []));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (selectedConn) {
-    return (
-      <div style={{
-        minHeight: '100vh', background: colors.midnight,
-        padding: '24px 16px 96px',
-        fontFamily: fonts.body,
-      }}>
-        <CompatibilityDetail
-          conn={selectedConn}
-          profile={profile}
-          tierLimits={tierLimits}
-          idioma={idioma}
-          onClose={() => setSelectedConn(null)}
-        />
-      </div>
-    );
-  }
 
   return (
     <div style={{
@@ -694,40 +516,83 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
         />
       )}
 
-      {/* Connection list */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13 }}>
-          {ES ? 'Cargando...' : 'Loading...'}
-        </div>
-      ) : connections.length === 0 && maxConnections > 0 ? (
-        <div style={{
-          textAlign: 'center', padding: 40,
-          color: colors.boneFaint, fontSize: 13,
-          display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center',
-        }}>
+      {/* Connection selector + calendar */}
+      {!loading && connections.length === 0 && maxConnections > 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: colors.boneFaint, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 28 }}>◈</span>
           <span>{ES ? 'Sin conexiones aún' : 'No connections yet'}</span>
-          <span style={{ fontSize: 11 }}>
-            {ES ? 'Invita a alguien para ver su sincronía biológica.' : 'Invite someone to see your biological sync.'}
-          </span>
+          <span style={{ fontSize: 11 }}>{ES ? 'Invita a alguien para ver su sincronía biológica.' : 'Invite someone to see your biological sync.'}</span>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {connections.map(conn => (
-            <ConnectionCard
-              key={conn.id} conn={conn} profile={profile}
-              onSelect={setSelectedConn} onCancel={handleCancel} idioma={idioma}
+      ) : loading ? (
+        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13 }}>{ES ? 'Cargando...' : 'Loading...'}</div>
+      ) : (() => {
+        const accepted = connections.filter(c => c.status === 'accepted');
+        if (accepted.length === 0) {
+          return (
+            <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 12 }}>
+              {ES ? 'Cuando acepten tu invitación, verás aquí sus mejores días juntos.' : 'Once they accept, your best days together show here.'}
+            </div>
+          );
+        }
+        const current = accepted.find(c => c.id === selectedConn?.id) ?? accepted[0];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* connection dropdown */}
+            <select
+              value={current.id}
+              onChange={e => setSelectedConn(accepted.find(c => c.id === e.target.value) ?? null)}
+              style={{
+                background: 'rgba(245,242,238,0.05)', color: colors.bone,
+                border: '1px solid rgba(245,242,238,0.14)', borderRadius: 10,
+                padding: '10px 12px', fontSize: 14, fontFamily: fonts.body, width: '100%',
+              }}
+            >
+              {accepted.map(c => (
+                <option key={c.id} value={c.id}>{c.invited_name}</option>
+              ))}
+            </select>
+
+            <CompatibilityDetail
+              conn={current}
+              profile={profile}
+              tierLimits={tierLimits}
+              idioma={idioma}
             />
-          ))}
-          {connections.length >= maxConnections && maxConnections > 0 && !showForm && (
-            <p style={{ fontSize: 11, color: colors.boneFaint, textAlign: 'center', margin: '4px 0 0' }}>
-              {ES
-                ? `Límite de ${maxConnections} conexiones en tu plan.`
-                : `${maxConnections}-connection limit on your plan.`}
-            </p>
-          )}
-        </div>
-      )}
+
+            <button
+              onClick={() => handleCancel(current)}
+              style={{
+                alignSelf: 'center', background: 'none', border: 'none',
+                color: colors.boneFaint, fontSize: 12, fontFamily: fonts.body,
+                cursor: 'pointer', padding: '4px 8px',
+              }}
+            >
+              ✕ {ES ? 'Desconectar' : 'Disconnect'}
+            </button>
+
+            {connections.filter(c => c.status === 'pending').length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: colors.boneFaint }}>{ES ? 'Pendientes' : 'Pending'}</span>
+                {connections.filter(c => c.status === 'pending').map(c => (
+                  <div key={c.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: 'rgba(245,242,238,0.03)', border: '1px solid rgba(245,242,238,0.08)',
+                    borderRadius: 10, padding: '10px 12px',
+                  }}>
+                    <span style={{ fontSize: 13, color: colors.bone }}>{c.invited_name}</span>
+                    <button
+                      onClick={() => handleCancel(c)}
+                      style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
+                    >
+                      ✕ {ES ? 'Cancelar' : 'Cancel'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
