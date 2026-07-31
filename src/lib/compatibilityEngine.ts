@@ -42,7 +42,7 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
     tier: 'free',
     compositeA: 'socialMagnetism',
     compositeB: 'emotionalResilience',
-    peakThreshold: 90,
+    peakThreshold: 80,
     sharedLabel: 'Vibe Score',
     sharedLabelES: 'Índice de Vibra',
   },
