@@ -316,7 +316,7 @@ function CompatibilityDetail({
                 const peaks = hasAnyPeak(cal);
                 const inSync = result.weekAverage >= 55;
                 const caption = peaks
-                  ? (ES ? `Tus mejores días con ${conn.invited_name}.` : `Your best days with ${conn.invited_name}.`)
+                  ? (ES ? `Tus mejores días con ${conn.partner_profile?.nombre ?? conn.invited_name}.` : `Your best days with ${conn.partner_profile?.nombre ?? conn.invited_name}.`)
                   : inSync
                     ? (ES ? 'Van muy sincronizados — sin días que sobresalgan en las próximas semanas.' : "You're steadily in sync — no standout days in the next couple of weeks.")
                     : (ES ? 'Llevan ritmos distintos — no hay días pico compartidos por ahora.' : "You run on different rhythms — no shared peak days for now.");
@@ -532,11 +532,11 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
                 }}
               >
                 {accepted.map(c => (
-                  <option key={c.id} value={c.id}>{c.invited_name}</option>
+                  <option key={c.id} value={c.id}>{c.partner_profile?.nombre ?? c.invited_name}</option>
                 ))}
               </select>
               <button
-                onClick={() => { if (confirm(ES ? `¿Desconectar a ${current.invited_name}?` : `Disconnect ${current.invited_name}?`)) handleCancel(current); }}
+                onClick={() => { if (confirm(ES ? `¿Desconectar a ${current.partner_profile?.nombre ?? current.invited_name}?` : `Disconnect ${current.partner_profile?.nombre ?? current.invited_name}?`)) handleCancel(current); }}
                 aria-label="options"
                 style={{
                   width: 40, height: 40, borderRadius: 10, background: 'rgba(245,242,238,0.05)',
@@ -570,7 +570,7 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
                     background: 'rgba(245,242,238,0.03)', border: '1px solid rgba(245,242,238,0.08)',
                     borderRadius: 10, padding: '10px 12px',
                   }}>
-                    <span style={{ fontSize: 13, color: colors.bone }}>{c.invited_name}</span>
+                    <span style={{ fontSize: 13, color: colors.bone }}>{c.partner_profile?.nombre ?? c.invited_name}</span>
                     <button
                       onClick={() => handleCancel(c)}
                       style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
