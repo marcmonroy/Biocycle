@@ -211,6 +211,10 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   const [notifForecast, setNotifForecast]   = useState(true);
   const [notifCompat, setNotifCompat]       = useState(true);
 
+  // Compatibility blocked list
+  interface BlockRow { id: string; blocked_phone: string; blocked_nombre?: string; }
+  const [blockedList, setBlockedList] = useState<BlockRow[]>([]);
+
   useEffect(() => {
     let active = true;
     supabase
@@ -227,6 +231,39 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       });
     return () => { active = false; };
   }, [profile.id]);
+
+  // Load blocked list keyed by own whatsapp_phone
+  const myPhone = (profile as any).whatsapp_phone as string | null;
+  useEffect(() => {
+    if (!myPhone) return;
+    supabase
+      .from('compatibility_blocks')
+      .select('id, blocked_phone')
+      .eq('blocker_phone', myPhone)
+      .then(async ({ data }) => {
+        if (!data) return;
+        // Enrich: look up nombre by blocked_phone
+        const enriched = await Promise.all(
+          data.map(async row => {
+            const { data: p } = await supabase
+              .from('profiles')
+              .select('nombre')
+              .eq('whatsapp_phone', row.blocked_phone)
+              .maybeSingle();
+            return { ...row, blocked_nombre: p?.nombre ?? row.blocked_phone };
+          })
+        );
+        setBlockedList(enriched);
+      });
+  }, [myPhone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleUnblock(row: BlockRow) {
+    await supabase
+      .from('compatibility_blocks')
+      .delete()
+      .eq('id', row.id);
+    setBlockedList(prev => prev.filter(b => b.id !== row.id));
+  }
 
   async function handlePushToggle() {
     if (pushEnabled) {
@@ -609,6 +646,36 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
           </>
         )}
       </Section>
+
+      {/* ── Compatibility blocks ─────────────────────────────────────────── */}
+      {blockedList.length > 0 && (
+        <Section label={L('Blocked for Compatibility', 'Bloqueados (Compatibilidad)')}>
+          {blockedList.map(row => (
+            <FieldRow key={row.id} label={row.blocked_nombre ?? row.blocked_phone}>
+              <button
+                onClick={() => handleUnblock(row)}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(245,242,238,0.2)',
+                  borderRadius: 8,
+                  color: colors.boneFaint,
+                  fontSize: 12,
+                  fontFamily: fonts.body,
+                  padding: '4px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                {isES ? 'Desbloquear' : 'Unblock'}
+              </button>
+            </FieldRow>
+          ))}
+          <p style={{ fontSize: 11, color: colors.boneFaint, margin: 0, lineHeight: 1.5 }}>
+            {isES
+              ? 'Al desbloquear, esta persona podrá enviarte nuevas invitaciones. Las conexiones existentes no se restauran.'
+              : 'Unblocking lets this person send you new invitations. Existing connections are not restored.'}
+          </p>
+        </Section>
+      )}
 
       {/* ── Check-in times — 3 slots for days 1-29, single slot for day 30+ */}
       <Section label={L('Check-in Times', 'Horarios de Check-in')}>

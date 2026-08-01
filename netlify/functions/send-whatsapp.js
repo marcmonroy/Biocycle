@@ -370,51 +370,66 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
   }
 
-  // ── compatibility_invite — plain text direct message ──────────────────────
+  // ── compatibility_invite — 3-button quick-reply template ─────────────────
+  // Buttons: Aceptar (ACCEPT) | Rechazar (REJECT) | Rechazar y bloquear (REJECT_BLOCK)
+  // Template variables: {{1}}=recipientName  {{2}}=senderName  {{3}}=typeLabel
+  // ContentSid must be set in WHATSAPP_INVITE_TEMPLATE_SID env var after
+  // the template is approved in the Twilio Content Template Builder.
   if (action === 'compatibility_invite') {
-    if (!to || !teaserText) {
+    const { recipientName, senderName, typeLabel } = parsed;
+    if (!to || !recipientName || !senderName || !typeLabel) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'to and teaserText are required for compatibility_invite' }),
+        body: JSON.stringify({ error: 'to, recipientName, senderName, typeLabel are required for compatibility_invite' }),
       };
     }
 
-    const msgPayload = new URLSearchParams({
-      From: from,
-      To:   toNumber,
-      Body: teaserText,
+    const inviteContentSid = process.env.WHATSAPP_INVITE_TEMPLATE_SID;
+    if (!inviteContentSid) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'WHATSAPP_INVITE_TEMPLATE_SID is not configured in Netlify env' }),
+      };
+    }
+
+    const invitePayload = new URLSearchParams({
+      From:             from,
+      To:               toNumber,
+      ContentSid:       inviteContentSid,
+      ContentVariables: JSON.stringify({ '1': recipientName, '2': senderName, '3': typeLabel }),
     });
 
-    console.log('[send-whatsapp] sending compatibility invite to:', toNumber);
+    console.log('[send-whatsapp] sending compatibility invite (template) to:', toNumber, 'sid:', inviteContentSid);
 
-    const msgRes = await fetch(
+    const inviteRes = await fetch(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       {
-        method: 'POST',
+        method:  'POST',
         headers: {
-          'Content-Type':  'application/x-www-form-urlencoded',
-          Authorization:   `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization:  `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString('base64')}`,
         },
-        body: msgPayload.toString(),
+        body: invitePayload.toString(),
       }
     );
 
-    const msgData = await msgRes.json();
-    console.log('[send-whatsapp] compatibility invite status:', msgRes.status, msgData.sid || msgData.message);
+    const inviteData = await inviteRes.json();
+    console.log('[send-whatsapp] compatibility invite status:', inviteRes.status, inviteData.sid || inviteData.message);
 
-    if (!msgRes.ok) {
+    if (!inviteRes.ok) {
       return {
-        statusCode: msgRes.status,
+        statusCode: inviteRes.status,
         headers: corsHeaders,
-        body: JSON.stringify({ error: msgData.message || 'Twilio error', code: msgData.code }),
+        body: JSON.stringify({ error: inviteData.message || 'Twilio error', code: inviteData.code }),
       };
     }
 
     return {
       statusCode: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sid: msgData.sid }),
+      body: JSON.stringify({ sid: inviteData.sid }),
     };
   }
 

@@ -56,30 +56,45 @@ function NewInviteForm({
 
     setSending(true); setError('');
     try {
+      // ── Block check: silently refuse if recipient has sender blocked ──────
+      const senderPhone = (profile as any).whatsapp_phone as string | null;
+      if (senderPhone && normalized) {
+        const { data: blockRow } = await supabase
+          .from('compatibility_blocks')
+          .select('id')
+          .eq('blocker_phone', normalized)
+          .eq('blocked_phone', senderPhone)
+          .maybeSingle();
+        if (blockRow) { onSent(); return; }
+      }
 
-      const { error: insErr } = await supabase.from('compatibility_connections').insert({
-        user_a_id: profile.id,
-        invited_phone: normalized,
-        invited_name: name.trim(),
-        type,
-        status: 'pending',
-      });
-      if (insErr) throw insErr;
-
-      // Lookup: is the invited number already a registered user (other than self)?
+      // ── Lookup: is the invited number already a registered user? ──────────
       let matchedId: string | null = null;
+      let matchedProfile: { id: string } | null = null;
       try {
-        const { data: matchedProfile } = await supabase
+        const { data: mp } = await supabase
           .from('profiles')
           .select('id')
           .eq('whatsapp_phone', normalized)
           .maybeSingle();
-        if (matchedProfile?.id && matchedProfile.id !== profile.id) {
-          matchedId = matchedProfile.id;
+        if (mp?.id && mp.id !== profile.id) {
+          matchedId = mp.id;
+          matchedProfile = mp;
         }
       } catch {
         // lookup failed — fall through to WhatsApp
       }
+
+      // ── Insert invite row (set user_b_id for registered recipients) ───────
+      const { error: insErr } = await supabase.from('compatibility_connections').insert({
+        user_a_id:     profile.id,
+        invited_phone: normalized,
+        invited_name:  name.trim(),
+        type,
+        status:        'pending',
+        ...(matchedProfile ? { user_b_id: matchedProfile.id } : {}),
+      });
+      if (insErr) throw insErr;
 
       if (matchedId) {
         // Registered user: send in-app push (skip WhatsApp)
@@ -102,16 +117,23 @@ function NewInviteForm({
           console.warn('[compat] push notification failed:', pushErr);
         }
       } else {
-        // Unregistered number: send WhatsApp invite
+        // Unregistered number: send WhatsApp quick-reply invite template
         const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === type)!;
-        const senderName = profile.nombre ?? (ES ? 'Tu contacto' : 'Your contact');
-        const msgEN = `${senderName} wants to measure your *${typeConfig.label}* compatibility on BioCycle.\n\nReply *YES* to accept or *NO* to decline.\n\nNot on BioCycle yet? Join free: https://biocycle.app`;
-        const msgES = `${senderName} quiere medir tu compatibilidad de *${typeConfig.labelES}* en BioCycle.\n\nResponde *SÍ* para aceptar o *NO* para rechazar.\n\n¿Aún no estás en BioCycle? Únete gratis: https://biocycle.app`;
+        const recipientName = name.trim();
+        const senderName    = profile.nombre ?? 'BioCycle';
+        // Template body is Spanish; use ES type label as variable {{3}}
+        const typeLabelForTemplate = typeConfig.labelES;
 
         await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'compatibility_invite', to: normalized, teaserText: ES ? msgES : msgEN }),
+          body: JSON.stringify({
+            action: 'compatibility_invite',
+            to:     normalized,
+            recipientName,
+            senderName,
+            typeLabel: typeLabelForTemplate,
+          }),
         });
       }
 
@@ -434,7 +456,21 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
       .select('*')
       .eq('user_b_id', profile.id)
       .eq('status', 'pending')
-      .then(({ data }) => setIncoming((data as CompatibilityConnection[]) ?? []));
+      .then(async ({ data }) => {
+        if (!data) { setIncoming([]); return; }
+        // Enrich each invite with the sender's real profile (for their nombre)
+        const enriched = await Promise.all(
+          (data as CompatibilityConnection[]).map(async conn => {
+            const { data: pData } = await supabase
+              .from('profiles')
+              .select('id,nombre')
+              .eq('id', conn.user_a_id)
+              .maybeSingle();
+            return { ...conn, partner_profile: pData as any ?? null };
+          })
+        );
+        setIncoming(enriched as CompatibilityConnection[]);
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
@@ -497,22 +533,98 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
         </div>
       )}
 
-      {/* Incoming pending requests */}
+      {/* Incoming pending requests — 3 action buttons each */}
       {incoming.length > 0 && (
-        <div style={{
-          background: 'rgba(239,159,39,0.08)',
-          border: `1px solid ${colors.amber}`,
-          borderRadius: 12, padding: '12px 14px',
-          fontSize: 12, color: colors.amber, fontFamily: fonts.body,
-        }}>
-          {incoming.length === 1
-            ? (ES
-                ? `${incoming[0].invited_name} te invitó a ver sincronía. Responde SÍ o NO por WhatsApp.`
-                : `${incoming[0].invited_name} invited you to view sync. Reply YES or NO on WhatsApp.`)
-            : (ES
-                ? `${incoming.length} invitaciones pendientes. Responde SÍ o NO por WhatsApp.`
-                : `${incoming.length} pending invitations. Reply YES or NO on WhatsApp.`)
-          }
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={{ fontSize: 11, color: colors.boneFaint, fontFamily: fonts.body, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            {ES ? 'Invitaciones recibidas' : 'Incoming invitations'}
+          </span>
+          {incoming.map(inv => {
+            const senderName = inv.partner_profile?.nombre ?? inv.invited_name;
+            const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === inv.type);
+            const typeLbl = typeConfig ? (ES ? typeConfig.labelES : typeConfig.label) : inv.type;
+
+            async function runAction(action: 'ACCEPT' | 'REJECT' | 'REJECT_BLOCK') {
+              if (action === 'REJECT_BLOCK') {
+                const ok = window.confirm(
+                  ES
+                    ? `¿Bloquear a ${senderName}? No podrá enviarte más invitaciones de compatibilidad.`
+                    : `Block ${senderName}? They won't be able to send you compatibility requests.`
+                );
+                if (!ok) return;
+              }
+              try {
+                await fetch(`${API_BASE}/.netlify/functions/compatibility-invite-action`, {
+                  method:  'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body:    JSON.stringify({ invite_id: inv.id, action }),
+                });
+              } catch (e) {
+                console.warn('[compat] action failed:', e);
+              }
+              // Reload both lists
+              setIncoming(prev => prev.filter(i => i.id !== inv.id));
+              loadConnections();
+            }
+
+            return (
+              <div key={inv.id} style={{
+                background: 'rgba(239,159,39,0.06)',
+                border: `1px solid ${colors.amber}`,
+                borderRadius: 12, padding: '12px 14px',
+                display: 'flex', flexDirection: 'column', gap: 10,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 14, color: colors.bone, fontFamily: fonts.body, fontWeight: 500 }}>
+                    {senderName}
+                  </span>
+                  <span style={{ fontSize: 11, color: colors.amber, fontFamily: fonts.body }}>
+                    {typeConfig?.icon ?? ''} {typeLbl}
+                  </span>
+                </div>
+                <p style={{ fontSize: 12, color: colors.boneFaint, margin: 0, fontFamily: fonts.body }}>
+                  {ES
+                    ? `${senderName} quiere sincronizar su calendario contigo.`
+                    : `${senderName} wants to sync their calendar with you.`}
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => runAction('ACCEPT')}
+                    style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8,
+                      background: 'rgba(239,159,39,0.18)',
+                      border: `1px solid ${colors.amber}`,
+                      color: colors.amber, fontSize: 12, fontFamily: fonts.body, cursor: 'pointer',
+                    }}
+                  >
+                    {ES ? 'Aceptar' : 'Accept'}
+                  </button>
+                  <button
+                    onClick={() => runAction('REJECT')}
+                    style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(245,242,238,0.15)',
+                      color: colors.boneFaint, fontSize: 12, fontFamily: fonts.body, cursor: 'pointer',
+                    }}
+                  >
+                    {ES ? 'Rechazar' : 'Decline'}
+                  </button>
+                  <button
+                    onClick={() => runAction('REJECT_BLOCK')}
+                    style={{
+                      padding: '8px 10px', borderRadius: 8,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,80,80,0.25)',
+                      color: 'rgba(255,100,100,0.7)', fontSize: 11, fontFamily: fonts.body, cursor: 'pointer',
+                    }}
+                  >
+                    {ES ? 'Bloquear' : 'Block'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

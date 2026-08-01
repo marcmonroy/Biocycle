@@ -40,13 +40,44 @@ exports.handler = async (event) => {
     const params  = new URLSearchParams(event.body || '');
     const from    = params.get('From') || '';
     const body    = (params.get('Body') || '').trim().toLowerCase();
+    const buttonPayload = (params.get('ButtonPayload') || '').trim().toUpperCase();
 
-    console.log(`[sms-inbound] from=${from} body=${body}`);
+    console.log(`[sms-inbound] from=${from} body=${body} buttonPayload=${buttonPayload}`);
 
     // Extract E.164 phone number from whatsapp:+1XXXXXXXXXX format
     const phone = from.replace('whatsapp:', '');
 
-    // ── Compatibility invite response (YES / NO) ──────────────────────────
+    // ── Quick-reply button tap (compatibility invite template) ─────────────
+    // ButtonPayload is set only for quick-reply button taps, never for typed text.
+    // Payloads: ACCEPT | REJECT | REJECT_BLOCK
+    // No typed-text fallback for quick-reply actions.
+    if (['ACCEPT', 'REJECT', 'REJECT_BLOCK'].includes(buttonPayload) && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+      const compatRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/compatibility_connections?invited_phone=eq.${encodeURIComponent(phone)}&status=eq.pending&order=initiated_at.desc&limit=1`,
+        { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } }
+      );
+      const compatRows = compatRes.ok ? await compatRes.json() : [];
+
+      if (compatRows.length > 0) {
+        const inviteId = compatRows[0].id;
+        const appUrl = process.env.URL || 'https://app.biocycle.app';
+        await fetch(`${appUrl}/.netlify/functions/compatibility-invite-action`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ invite_id: inviteId, action: buttonPayload }),
+        }).catch(err => console.warn('[sms-inbound] action handler error:', err.message));
+      } else {
+        console.log('[sms-inbound] quick-reply: no pending invite found for phone', phone);
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`,
+      };
+    }
+
+    // ── Compatibility invite response (YES / NO typed text — legacy) ──────
     // Check BEFORE the reminder opt-in handler since both use YES/NO
     const isCompatYes = ['yes', 'si', 'sí'].includes(body);
     const isCompatNo  = ['no', 'nope', 'cancel'].includes(body);
