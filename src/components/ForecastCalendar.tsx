@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CalendarGrid } from './CalendarGrid';
 import type { CalendarMark, LegendEntry } from './CalendarGrid';
-import { allSignalsForDay } from '../lib/forecastSignals';
+import { allSignalsForDay, type DaySignalBadge } from '../lib/forecastSignals';
 import type { ForecastResult } from '../lib/forecastEngine';
 import type { TierLimits } from '../lib/supabase';
 import { fonts } from '../lib/tokens';
@@ -115,7 +115,7 @@ export function ForecastCalendar({ forecast, tierLimits, idioma, partnerName }: 
               }}
             >×</button>
           </div>
-          {selectedBadges.map((b, i) => (
+          {selectedBadges.map((b: DaySignalBadge, i: number) => (
             <div
               key={i}
               style={{

@@ -154,7 +154,20 @@ export interface DaySignalBadge {
   tone: SignalTone;   // watch = caution, opportunity = peak, decision = act-now window
   label: string;      // localized chip label
   tip: string;        // one localized mitigation line
+  emoji: string;      // visual icon for this kind+direction
 }
+
+const KIND_EMOJI: Record<string, { low: string; high: string }> = {
+  energy:    { low: '🪫',  high: '⚡' },
+  cognitive: { low: '🌫️', high: '🎯' },
+  sleep:     { low: '😴',  high: '😴' },
+  emotional: { low: '💗',  high: '💗' },
+  social:    { low: '🔇',  high: '🎉' },
+  sexual:    { low: '🌙',  high: '🔥' },
+  stress:    { low: '😰',  high: '😰' },
+  anxiety:   { low: '🌊',  high: '🌊' },
+  decision:  { low: '🌫️', high: '🧠' },
+};
 
 const KIND_LABELS: Record<string, { low: [string, string]; high: [string, string] }> = {
   energy:    { low: ['low energy', 'energía baja'],              high: ['energy peak', 'pico de energía'] },
@@ -174,19 +187,19 @@ function toneFor(kind: SignalKind, direction: SignalDirection): SignalTone {
   return direction === 'high' ? 'opportunity' : 'watch';
 }
 
-/** The single most significant signal for one day, for row highlighting. Null = quiet day. */
-export function topSignalForDay(
+/** All qualifying signals for one day, ranked by tier desc then severity desc. Empty = quiet day. */
+export function allSignalsForDay(
   day: ForecastDay,
   opts: { isES: boolean; partnerName?: string },
-): DaySignalBadge | null {
+): DaySignalBadge[] {
   const isES = opts.isES;
   const cands: Array<{ kind: SignalKind; direction: SignalDirection; severity: number; tier: number }> = [];
 
   for (const dim of STD_DIMS) {
     const v = (day as unknown as Record<string, number>)[dim];
     if (v == null) continue;
-    if (v < FLOOR) cands.push({ kind: dim, direction: 'low', severity: FLOOR - v, tier: priorityTier(dim) });
-    else if (v > CEIL) cands.push({ kind: dim, direction: 'high', severity: v - CEIL, tier: priorityTier(dim) });
+    if (v < FLOOR) cands.push({ kind: dim, direction: 'low',  severity: FLOOR - v, tier: priorityTier(dim) });
+    else if (v > CEIL) cands.push({ kind: dim, direction: 'high', severity: v - CEIL,  tier: priorityTier(dim) });
   }
   for (const dim of ['stress', 'anxiety'] as SignalKind[]) {
     const v = (day as unknown as Record<string, number>)[dim];
@@ -198,17 +211,27 @@ export function topSignalForDay(
   } else if (day.cognitive < FLOOR || day.anxiety > SPIKE || day.stress > SPIKE) {
     const mag = Math.max(
       day.cognitive < FLOOR ? FLOOR - day.cognitive : 0,
-      day.anxiety > SPIKE ? day.anxiety - SPIKE : 0,
-      day.stress  > SPIKE ? day.stress  - SPIKE : 0,
+      day.anxiety > SPIKE   ? day.anxiety - SPIKE   : 0,
+      day.stress  > SPIKE   ? day.stress  - SPIKE   : 0,
     );
     cands.push({ kind: 'decision', direction: 'low', severity: mag, tier: priorityTier('decision') });
   }
 
-  if (cands.length === 0) return null;
   cands.sort((a, b) => b.tier - a.tier || b.severity - a.severity);
-  const top = cands[0];
-  const labels = KIND_LABELS[top.kind];
-  const label = (top.direction === 'high' ? labels.high : labels.low)[isES ? 1 : 0];
-  const tip = getTips(top.kind, top.direction, isES, opts.partnerName)[0] ?? '';
-  return { kind: top.kind, direction: top.direction, tone: toneFor(top.kind, top.direction), label, tip };
+
+  return cands.map(c => {
+    const labels = KIND_LABELS[c.kind];
+    const label  = (c.direction === 'high' ? labels.high : labels.low)[isES ? 1 : 0];
+    const tip    = getTips(c.kind, c.direction, isES, c.kind === 'sexual' ? opts.partnerName : undefined)[0] ?? '';
+    const emoji  = KIND_EMOJI[c.kind]?.[c.direction] ?? '';
+    return { kind: c.kind, direction: c.direction, tone: toneFor(c.kind, c.direction), label, tip, emoji };
+  });
+}
+
+/** The single most significant signal for one day, for row highlighting. Null = quiet day. */
+export function topSignalForDay(
+  day: ForecastDay,
+  opts: { isES: boolean; partnerName?: string },
+): DaySignalBadge | null {
+  return allSignalsForDay(day, opts)[0] ?? null;
 }
