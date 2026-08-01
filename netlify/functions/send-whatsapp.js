@@ -11,7 +11,21 @@
 //      NOT VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
 //   → attempts plain text Body; on error 21656/63016 falls back to approved template
 //
+// action: 'compatibility_invite'
+//   → selects the approved twilio/card template by compatibility type
+//   → ContentVariables: {"1": recipientName, "2": senderName}
+//   → 3 QUICK_REPLY buttons: Aceptar (ACCEPT) / Rechazar (REJECT) / Rechazar y bloquear (REJECT_BLOCK)
+//
 // Default (no action) — sends template message. Requires: to, teaserText.
+
+// Approved WhatsApp card template SIDs — one per compatibility type.
+// Fill these in after Twilio approves the templates.
+const COMPAT_TEMPLATE_SIDS = {
+  intimacy:    'HX88ca55af45bdc7f010f2d408ae9be3cd',  // biocycle_compat_invite_intimidad
+  cognitive:   'HX581d60932409e8a18bb183aacfa8e85c',  // biocycle_compat_invite_intelectual
+  performance: 'HXe4402901e495f6e62974f1d0c394a968',  // biocycle_compat_invite_rendimiento
+  vibe:        'HXd70012d550491473c8b5c9c0b7b251c9',  // biocycle_compat_invite_buenavibra
+};
 
 const { randomInt } = require('crypto');
 
@@ -370,27 +384,28 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
   }
 
-  // ── compatibility_invite — 3-button quick-reply template ─────────────────
-  // Buttons: Aceptar (ACCEPT) | Rechazar (REJECT) | Rechazar y bloquear (REJECT_BLOCK)
-  // Template variables: {{1}}=recipientName  {{2}}=senderName  {{3}}=typeLabel
-  // ContentSid must be set in WHATSAPP_INVITE_TEMPLATE_SID env var after
-  // the template is approved in the Twilio Content Template Builder.
+  // ── compatibility_invite — per-type card template ────────────────────────
+  // Selects the approved twilio/card template by compatibility type.
+  // Template body: "Hola {{1}}, {{2}} quiere sincronizar tu calendario..."
+  // ContentVariables: { "1": recipientName, "2": senderName }
+  // 3 QUICK_REPLY buttons: Aceptar/Rechazar/Rechazar y bloquear
   if (action === 'compatibility_invite') {
-    const { recipientName, senderName, typeLabel } = parsed;
-    if (!to || !recipientName || !senderName || !typeLabel) {
+    const { recipientName, senderName, type: inviteType } = parsed;
+    if (!to || !recipientName || !senderName || !inviteType) {
       return {
         statusCode: 400,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'to, recipientName, senderName, typeLabel are required for compatibility_invite' }),
+        body: JSON.stringify({ error: 'to, recipientName, senderName, type are required for compatibility_invite' }),
       };
     }
 
-    const inviteContentSid = process.env.WHATSAPP_INVITE_TEMPLATE_SID;
-    if (!inviteContentSid) {
+    const key = String(inviteType).toLowerCase();
+    const inviteContentSid = COMPAT_TEMPLATE_SIDS[key];
+    if (!inviteContentSid || inviteContentSid === 'HX____') {
       return {
         statusCode: 500,
         headers: corsHeaders,
-        body: JSON.stringify({ error: 'WHATSAPP_INVITE_TEMPLATE_SID is not configured in Netlify env' }),
+        body: JSON.stringify({ error: `No approved WhatsApp template for compatibility type: ${inviteType}` }),
       };
     }
 
@@ -398,7 +413,7 @@ exports.handler = async (event) => {
       From:             from,
       To:               toNumber,
       ContentSid:       inviteContentSid,
-      ContentVariables: JSON.stringify({ '1': recipientName, '2': senderName, '3': typeLabel }),
+      ContentVariables: JSON.stringify({ '1': recipientName, '2': senderName }),
     });
 
     console.log('[send-whatsapp] sending compatibility invite (template) to:', toNumber, 'sid:', inviteContentSid);

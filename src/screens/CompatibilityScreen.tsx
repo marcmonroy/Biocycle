@@ -11,6 +11,7 @@ import {
 import type { CompatibilityType, CompatibilityResult } from '../lib/compatibilityEngine';
 import { buildTypeCalendar, hasAnyPeak, TYPE_VISUAL } from '../lib/compatibilityCalendar';
 import { sendSystemPush } from '../services/pushNotifications';
+import { sendWhatsAppInvite } from '../services/whatsapp';
 import { CalendarGrid, type CalendarMark, type LegendEntry } from '../components/CalendarGrid';
 import { getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
@@ -117,23 +118,12 @@ function NewInviteForm({
           console.warn('[compat] push notification failed:', pushErr);
         }
       } else {
-        // Unregistered number: send WhatsApp quick-reply invite template
-        const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === type)!;
-        const recipientName = name.trim();
-        const senderName    = profile.nombre ?? 'BioCycle';
-        // Template body is Spanish; use ES type label as variable {{3}}
-        const typeLabelForTemplate = typeConfig.labelES;
-
-        await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'compatibility_invite',
-            to:     normalized,
-            recipientName,
-            senderName,
-            typeLabel: typeLabelForTemplate,
-          }),
+        // Unregistered number: send WhatsApp quick-reply invite card template
+        await sendWhatsAppInvite({
+          recipientPhone: normalized,
+          recipientName:  name.trim(),
+          senderName:     profile.nombre ?? 'BioCycle',
+          type,
         });
       }
 
