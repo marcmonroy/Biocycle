@@ -29,46 +29,31 @@ export function ForecastCalendar({ forecast, tierLimits, idioma, partnerName }: 
   const forecastDays = forecast.days.slice(1, tierLimits.forecastDays + 1);
   const days = forecastDays.map(d => new Date(d.date));
 
+  // Build one mark per day: primary emoji + warn flag for stress/anxiety spikes + more flag
   const marksByDay: Record<string, CalendarMark[]> = {};
   for (const day of forecastDays) {
-    const signals = allSignalsForDay(day, { isES, partnerName });
-    if (signals.length > 0) {
-      marksByDay[dayKey(new Date(day.date))] = signals.map(s => ({
-        icon: s.emoji,
-        color: toneColor(s.tone),
-      }));
+    const sigs = allSignalsForDay(day, { isES, partnerName });
+    if (sigs.length > 0) {
+      const top = sigs[0];
+      marksByDay[dayKey(new Date(day.date))] = [{
+        icon: top.emoji,
+        color: toneColor(top.tone),
+        warn: top.tone === 'watch' && (top.kind === 'stress' || top.kind === 'anxiety'),
+        more: sigs.length > 1,
+      }];
     }
   }
 
-  const legend: LegendEntry[] = [
-    {
-      icon: '✦',
-      color: '#2c7a4d',
-      label: isES ? 'Oportunidad' : 'Opportunity',
-      active: true,
-      desc: isES ? 'Pico de energía o estado anímico' : 'Energy or mood peak',
-    },
-    {
-      icon: '◆',
-      color: '#7fb0f0',
-      label: isES ? 'Día para decidir' : 'Decision window',
-      active: true,
-      desc: isES ? 'Ventana cognitiva favorable' : 'Favorable cognitive window',
-    },
-    {
-      icon: '▲',
-      color: '#a8791d',
-      label: isES ? 'Cuidado' : 'Watch-out',
-      active: true,
-      desc: isES ? 'Estrés, ansiedad u otro alerta' : 'Stress, anxiety, or other alert',
-    },
-  ];
+  const caption = isES
+    ? 'Toca un día para ver todo lo que trae.'
+    : 'Tap a day to see everything it holds.';
 
   const emptyLine = isES
     ? 'Una racha tranquila y estable — sin días que sobresalgan.'
     : 'A calm, steady stretch ahead — no standout days.';
 
-  const caption = isES ? 'Toca un día para ver detalles.' : 'Tap a day for details.';
+  // No abstract symbols — tap-detail explains specifics
+  const legend: LegendEntry[] = [];
 
   const selectedForecastDay = selectedDate
     ? forecastDays.find(d => dayKey(new Date(d.date)) === dayKey(selectedDate))
@@ -87,6 +72,7 @@ export function ForecastCalendar({ forecast, tierLimits, idioma, partnerName }: 
         emptyLine={emptyLine}
         isES={isES}
         onDayTap={setSelectedDate}
+        singleMark={true}
       />
 
       {selectedForecastDay && selectedBadges.length > 0 && (
