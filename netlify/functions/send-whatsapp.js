@@ -12,19 +12,18 @@
 //   → attempts plain text Body; on error 21656/63016 falls back to approved template
 //
 // action: 'compatibility_invite'
-//   → selects the approved twilio/card template by compatibility type
+//   → notification-only: sends the per-type approved template to the recipient
 //   → ContentVariables: {"1": recipientName, "2": senderName}
-//   → 3 QUICK_REPLY buttons: Aceptar (ACCEPT) / Rechazar (REJECT) / Rechazar y bloquear (REJECT_BLOCK)
+//   → acceptance/rejection handled entirely in-app (no WhatsApp buttons)
 //
 // Default (no action) — sends template message. Requires: to, teaserText.
 
-// Approved WhatsApp card template SIDs — one per compatibility type.
-// Fill these in after Twilio approves the templates.
+// Approved WhatsApp notification template SIDs — one per compatibility type.
 const COMPAT_TEMPLATE_SIDS = {
-  intimacy:    'HX88ca55af45bdc7f010f2d408ae9be3cd',  // biocycle_compat_invite_intimidad
-  cognitive:   'HX581d60932409e8a18bb183aacfa8e85c',  // biocycle_compat_invite_intelectual
-  performance: 'HXe4402901e495f6e62974f1d0c394a968',  // biocycle_compat_invite_rendimiento
-  vibe:        'HXd70012d550491473c8b5c9c0b7b251c9',  // biocycle_compat_invite_buenavibra
+  intimacy:    'HX88ca55af45bdc7f010f2d408ae9be3cd',
+  cognitive:   'HX581d60932409e8a18bb183aacfa8e85c',
+  performance: 'HXe4402901e495f6e62974f1d0c394a968',
+  vibe:        'HXd70012d550491473c8b5c9c0b7b251c9',
 };
 
 const { randomInt } = require('crypto');
@@ -384,11 +383,11 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }, body: JSON.stringify({ ok: true }) };
   }
 
-  // ── compatibility_invite — per-type card template ────────────────────────
-  // Selects the approved twilio/card template by compatibility type.
+  // ── compatibility_invite — notification-only per-type template ───────────
+  // Sends an approved WhatsApp notification to the invited phone.
+  // Acceptance/rejection is handled entirely in-app; no buttons on the message.
   // Template body: "Hola {{1}}, {{2}} quiere sincronizar tu calendario..."
   // ContentVariables: { "1": recipientName, "2": senderName }
-  // 3 QUICK_REPLY buttons: Aceptar/Rechazar/Rechazar y bloquear
   if (action === 'compatibility_invite') {
     const { recipientName, senderName, type: inviteType } = parsed;
     if (!to || !recipientName || !senderName || !inviteType) {
