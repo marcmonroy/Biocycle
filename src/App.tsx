@@ -4,7 +4,7 @@ import type { Profile, UserState } from './lib/supabase';
 import { getTierLimits } from './lib/supabase';
 import type { Session } from '@supabase/supabase-js';
 
-import { registerPushNotifications } from './services/pushNotifications';
+import { registerPushToken } from './services/pushNotifications';
 import { initIAP, getActiveTierFromEntitlements } from './lib/iap';
 import { Capacitor } from '@capacitor/core';
 import { RegisterScreen } from './screens/RegisterScreen';
@@ -151,7 +151,7 @@ export default function App() {
     }
 
     setVerifyResume(null);
-    void registerPushNotifications(userId);
+    void registerPushToken(userId);
 
     // Init RevenueCat and reconcile tier from entitlements
     if (Capacitor.isNativePlatform()) {

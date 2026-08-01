@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { normalizePhone } from '../lib/phone';
 import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiBase';
 import type { Profile, UserState, TierLimits, CompatibilityConnection } from '../lib/supabase';
@@ -9,6 +10,7 @@ import {
 } from '../lib/compatibilityEngine';
 import type { CompatibilityType, CompatibilityResult } from '../lib/compatibilityEngine';
 import { buildTypeCalendar, hasAnyPeak, TYPE_VISUAL } from '../lib/compatibilityCalendar';
+import { sendSystemPush } from '../services/pushNotifications';
 import { CalendarGrid, type CalendarMark, type LegendEntry } from '../components/CalendarGrid';
 import { getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
@@ -46,22 +48,14 @@ function NewInviteForm({
   async function handleSend() {
     if (!name.trim()) { setError(idioma === 'ES' ? 'Ingresa un nombre' : 'Enter a name'); return; }
 
-    // Strip everything except digits
-    const digits = phone.replace(/\D/g, '');
-
-    // Handle international formats — strip leading 1 if 11 digits starting with 1
-    const coreDigits = digits.startsWith('1') && digits.length === 11
-      ? digits.slice(1) : digits;
-
-    if (coreDigits.length < 10) {
+    const normalized = normalizePhone(phone);
+    if (normalized.replace(/\D/g, '').length < 11) {
       setError(idioma === 'ES' ? 'Número inválido (mínimo 10 dígitos)' : 'Invalid number (minimum 10 digits)');
       return;
     }
 
     setSending(true); setError('');
     try {
-      // Always normalize to E.164 with +1 prefix for consistency with stored profiles
-      const normalized = `+1${coreDigits}`;
 
       const { error: insErr } = await supabase.from('compatibility_connections').insert({
         user_a_id: profile.id,
@@ -72,17 +66,54 @@ function NewInviteForm({
       });
       if (insErr) throw insErr;
 
-      // Send WhatsApp invite
-      const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === type)!;
-      const senderName = profile.nombre ?? (ES ? 'Tu contacto' : 'Your contact');
-      const msgEN = `${senderName} wants to measure your *${typeConfig.label}* compatibility on BioCycle.\n\nReply *YES* to accept or *NO* to decline.\n\nNot on BioCycle yet? Join free: https://biocycle.app`;
-      const msgES = `${senderName} quiere medir tu compatibilidad de *${typeConfig.labelES}* en BioCycle.\n\nResponde *SÍ* para aceptar o *NO* para rechazar.\n\n¿Aún no estás en BioCycle? Únete gratis: https://biocycle.app`;
+      // Lookup: is the invited number already a registered user (other than self)?
+      let matchedId: string | null = null;
+      try {
+        const { data: matchedProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('whatsapp_phone', normalized)
+          .maybeSingle();
+        if (matchedProfile?.id && matchedProfile.id !== profile.id) {
+          matchedId = matchedProfile.id;
+        }
+      } catch {
+        // lookup failed — fall through to WhatsApp
+      }
 
-      await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'compatibility_invite', to: normalized, teaserText: ES ? msgES : msgEN }),
-      });
+      if (matchedId) {
+        // Registered user: send in-app push (skip WhatsApp)
+        try {
+          const { data: prefs } = await supabase
+            .from('notification_prefs')
+            .select('compatibility_invites')
+            .eq('user_id', matchedId)
+            .maybeSingle();
+          const enabled = prefs == null || prefs.compatibility_invites !== false;
+          if (enabled) {
+            const vis = TYPE_VISUAL[type];
+            const senderDisplayName = profile.nombre ?? (ES ? 'Alguien' : 'Someone');
+            const pushBody = ES
+              ? `${senderDisplayName} quiere ver tu compatibilidad ${vis.icon} ${vis.labelES}`
+              : `${senderDisplayName} wants to check your ${vis.icon} ${vis.labelEN} compatibility`;
+            await sendSystemPush(matchedId, 'BioCycle', pushBody, { screen: 'compatibility' });
+          }
+        } catch (pushErr) {
+          console.warn('[compat] push notification failed:', pushErr);
+        }
+      } else {
+        // Unregistered number: send WhatsApp invite
+        const typeConfig = COMPATIBILITY_TYPES.find(t => t.id === type)!;
+        const senderName = profile.nombre ?? (ES ? 'Tu contacto' : 'Your contact');
+        const msgEN = `${senderName} wants to measure your *${typeConfig.label}* compatibility on BioCycle.\n\nReply *YES* to accept or *NO* to decline.\n\nNot on BioCycle yet? Join free: https://biocycle.app`;
+        const msgES = `${senderName} quiere medir tu compatibilidad de *${typeConfig.labelES}* en BioCycle.\n\nResponde *SÍ* para aceptar o *NO* para rechazar.\n\n¿Aún no estás en BioCycle? Únete gratis: https://biocycle.app`;
+
+        await fetch(`${API_BASE}/.netlify/functions/send-whatsapp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'compatibility_invite', to: normalized, teaserText: ES ? msgES : msgEN }),
+        });
+      }
 
       onSent();
     } catch (e: any) {

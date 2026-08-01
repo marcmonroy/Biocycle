@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { API_BASE } from '../lib/apiBase';
 import { getLang } from '../lib/lang';
+import { normalizePhone } from '../lib/phone';
+import { requestPushPermission, registerPushToken } from '../services/pushNotifications';
 import { colors, fonts } from '../lib/tokens';
 
-type Step = 1 | 2 | 3 | 4 | 5;
+type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface Props {
   onComplete: () => void;
@@ -74,7 +76,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [error, setError] = useState('');
 
   const isES = language === 'ES';
-  const progress = (step / 5) * 100;
+  const progress = (Math.min(step, 5) / 5) * 100;
 
   // ── Auto-send code when resuming at step 5 after login ────────────────────
   const autoSentRef = useRef(false);
@@ -253,7 +255,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       setError(isES ? 'Número inválido.' : 'Invalid phone number.');
       return;
     }
-    const fullPhone = `${countryCode}${digits}`;
+    const fullPhone = normalizePhone(`${countryCode}${phone}`);
     setError('');
     setLoading(true);
 
@@ -354,7 +356,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
       setError(isES ? 'Número inválido.' : 'Invalid phone number.');
       return;
     }
-    const fullPhone = `${countryCode}${digits}`;
+    const fullPhone = normalizePhone(`${countryCode}${phone}`);
     setError('');
     setLoading(true);
 
@@ -618,7 +620,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }).eq('id', userIdRef.current);
 
     setLoading(false);
-    onComplete();
+    setStep(6 as Step);
   };
 
   const handleResend = async () => {
@@ -697,9 +699,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
             transition: 'width 0.3s',
           }} />
         </div>
-        <p style={{ color: colors.boneFaint, fontSize: 12, margin: '8px 0 0', letterSpacing: '0.08em' }}>
-          {isES ? `Paso ${step} de 5` : `Step ${step} of 5`}
-        </p>
+        {step <= 5 && (
+          <p style={{ color: colors.boneFaint, fontSize: 12, margin: '8px 0 0', letterSpacing: '0.08em' }}>
+            {isES ? `Paso ${step} de 5` : `Step ${step} of 5`}
+          </p>
+        )}
       </div>
 
       <div style={cardStyle}>
@@ -1089,6 +1093,63 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
             </button>
           )}
         </>)}
+
+        {/* STEP 6 — notification priming */}
+        {step === 6 && (() => {
+          const handleEnable = async () => {
+            const granted = await requestPushPermission();
+            if (granted && userIdRef.current) await registerPushToken(userIdRef.current);
+            onComplete();
+          };
+          const handleNotNow = () => {
+            const change = window.confirm(
+              isES
+                ? '¿Seguro? Las notificaciones te avisan cuándo es tu mejor momento del día.'
+                : 'Are you sure? Notifications tell you when your best moments are arriving.'
+            );
+            if (change) {
+              void handleEnable();
+            } else {
+              onComplete();
+            }
+          };
+          return (
+            <>
+              <div style={{ fontSize: 40, textAlign: 'center' }}>🔔</div>
+              <h2 style={headingStyle}>
+                {isES ? 'Activa las notificaciones' : 'Turn on notifications'}
+              </h2>
+              <p style={{ color: colors.bone, fontSize: 15, margin: 0, lineHeight: 1.55 }}>
+                {isES
+                  ? 'BioCycle te avisa en tus picos — para que aproveches cada momento clave del día.'
+                  : 'BioCycle alerts you at your peaks — so you never miss a key window in your day.'}
+              </p>
+              <ul style={{ color: colors.boneFaint, fontSize: 14, lineHeight: 1.6, margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <li>{isES ? '⚡ Energía alta → momento para actuar' : '⚡ Energy peak → time to take action'}</li>
+                <li>{isES ? '🧠 Foco máximo → ideal para trabajar' : '🧠 Peak focus → ideal for deep work'}</li>
+                <li>{isES ? '💗 Mejor ánimo → conexiones más ricas' : '💗 Best mood → richer connections'}</li>
+                <li>{isES ? '😴 Hora de bajar → protege tu sueño' : '😴 Wind-down time → protect your sleep'}</li>
+              </ul>
+              <button style={btnStyle} onClick={handleEnable} disabled={loading}>
+                {isES ? 'Activar notificaciones' : 'Enable notifications'}
+              </button>
+              <button
+                onClick={handleNotNow}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: colors.boneFaint,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  textAlign: 'center',
+                }}
+              >
+                {isES ? 'Ahora no' : 'Not now'}
+              </button>
+            </>
+          );
+        })()}
 
       </div>
     </div>

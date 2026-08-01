@@ -6,7 +6,7 @@ import { getTierLimits } from '../lib/supabase';
 import { getCurrentPhase, getDaysOfData } from '../lib/phaseEngine';
 import { colors, fonts } from '../lib/tokens';
 import { UpgradeSheet } from '../components/UpgradeSheet';
-import { registerPushNotifications } from '../services/pushNotifications';
+import { requestPushPermission, registerPushToken } from '../services/pushNotifications';
 
 interface Props {
   profile: Profile;
@@ -233,7 +233,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       setPushEnabled(false);
     } else {
       setPushEnabled(true);
-      try { await registerPushNotifications(profile.id); } catch { /* permission denied is fine */ }
+      try { const ok = await requestPushPermission(); if (ok) await registerPushToken(profile.id); } catch { /* permission denied is fine */ }
     }
   }
 

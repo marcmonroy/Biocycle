@@ -7,15 +7,26 @@ const SEND_PUSH_URL = '/.netlify/functions/send-push';
 
 let listenersAttached = false;
 
-export async function registerPushNotifications(userId: string): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return;
-
+// Shows the OS permission dialog if needed. Returns true if granted.
+export async function requestPushPermission(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
   try {
-    // Check first to avoid showing the system dialog when already granted
     let perm = await PushNotifications.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
       perm = await PushNotifications.requestPermissions();
     }
+    return perm.receive === 'granted';
+  } catch (err) {
+    console.error('[push] requestPushPermission failed:', err);
+    return false;
+  }
+}
+
+// Registers the token if permission is already granted — never triggers the OS prompt.
+export async function registerPushToken(userId: string): Promise<void> {
+  if (!Capacitor.isNativePlatform()) return;
+  try {
+    const perm = await PushNotifications.checkPermissions();
     if (perm.receive !== 'granted') return;
 
     await PushNotifications.register();
@@ -45,8 +56,14 @@ export async function registerPushNotifications(userId: string): Promise<void> {
     });
 
   } catch (err) {
-    console.error('[push] registration failed:', err);
+    console.error('[push] registerPushToken failed:', err);
   }
+}
+
+// Backward-compatible: request permission then register. Existing callers unchanged.
+export async function registerPushNotifications(userId: string): Promise<void> {
+  const granted = await requestPushPermission();
+  if (granted) await registerPushToken(userId);
 }
 
 // Call this to send the daily card push to a user
