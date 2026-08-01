@@ -4,6 +4,7 @@ import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { generateForecast, type ForecastResult, type ForecastDay } from '../lib/forecastEngine';
 import { getDaysOfData } from '../lib/phaseEngine';
 import { topSignalForDay } from '../lib/forecastSignals';
+import { ForecastCalendar } from '../components/ForecastCalendar';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
@@ -534,6 +535,11 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
           </div>
         );
       })()}
+
+      {/* Forecast calendar */}
+      <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px 16px' }}>
+        <ForecastCalendar forecast={forecast} tierLimits={tierLimits} idioma={idioma} partnerName={partnerName} />
+      </div>
 
       {/* Day cards */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 24px' }}>

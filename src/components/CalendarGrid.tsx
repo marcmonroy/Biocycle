@@ -10,11 +10,12 @@ interface Props {
   caption?: string;
   emptyLine?: string;
   isES: boolean;
+  onDayTap?: (date: Date) => void;
 }
 
 const dayKey = (d: Date) => d.toLocaleDateString('en-CA');
 
-export function CalendarGrid({ days, marksByDay, legend, caption, emptyLine, isES }: Props) {
+export function CalendarGrid({ days, marksByDay, legend, caption, emptyLine, isES, onDayTap }: Props) {
   const weekdays = isES ? ['L','M','M','J','V','S','D'] : ['M','T','W','T','F','S','S'];
   const first = days[0] ?? new Date();
   const offset = (first.getDay() + 6) % 7;
@@ -52,12 +53,15 @@ export function CalendarGrid({ days, marksByDay, legend, caption, emptyLine, isE
           const marks = marksByDay[dayKey(d)] ?? [];
           const has = marks.length > 0;
           return (
-            <div key={i} style={{
-              background: has ? 'rgba(224,178,58,0.14)' : cellDark,
-              minHeight: 90, display: 'flex', flexDirection: 'column',
-              alignItems: 'flex-start', justifyContent: 'flex-start',
-              padding: '7px 8px', gap: 4,
-            }}>
+            <div key={i}
+              onClick={onDayTap ? () => onDayTap(d) : undefined}
+              style={{
+                background: has ? 'rgba(224,178,58,0.14)' : cellDark,
+                minHeight: 90, display: 'flex', flexDirection: 'column',
+                alignItems: 'flex-start', justifyContent: 'flex-start',
+                padding: '7px 8px', gap: 4,
+                cursor: onDayTap ? 'pointer' : undefined,
+              }}>
               <div style={{ fontSize: 13, color: has ? colors.amber : colors.boneFaint, fontFamily: fonts.body, fontWeight: has ? 600 : 400 }}>
                 {d.getDate()}
               </div>
