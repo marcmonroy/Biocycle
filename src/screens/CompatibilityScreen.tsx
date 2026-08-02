@@ -99,7 +99,7 @@ function NewInviteForm({
       if (insErr) throw insErr;
 
       if (matchedId) {
-        // Registered user: send in-app push (skip WhatsApp)
+        // Registered user: push first; fall back to WhatsApp if no push token.
         try {
           const { data: prefs } = await supabase
             .from('notification_prefs')
@@ -113,8 +113,18 @@ function NewInviteForm({
             const pushBody = ES
               ? `${senderDisplayName} quiere ver tu compatibilidad ${vis.icon} ${vis.labelES}`
               : `${senderDisplayName} wants to check your ${vis.icon} ${vis.labelEN} compatibility`;
-            await sendSystemPush(matchedId, 'BioCycle', pushBody, { screen: 'compatibility' });
+            const pushed = await sendSystemPush(matchedId, 'BioCycle', pushBody, { screen: 'compatibility' });
+            if (!pushed) {
+              // No deliverable push token — fall back to WhatsApp
+              await sendWhatsAppInvite({
+                recipientPhone: normalized,
+                recipientName:  name.trim(),
+                senderName:     profile.nombre ?? 'BioCycle',
+                type,
+              });
+            }
           }
+          // If notifications are disabled (enabled === false): do nothing — respect opt-out.
         } catch (pushErr) {
           console.warn('[compat] push notification failed:', pushErr);
         }

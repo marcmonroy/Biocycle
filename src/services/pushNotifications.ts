@@ -95,20 +95,21 @@ export async function sendDailyCardPush(userId: string): Promise<void> {
   }
 }
 
-// For milestone, re-engagement, compatibility pushes — pass title + body directly
+// For milestone, re-engagement, compatibility pushes — pass title + body directly.
+// Returns true if a push was dispatched to at least one token, false otherwise.
 export async function sendSystemPush(
   userId: string,
   title:  string,
   body:   string,
   data?:  Record<string, string>
-): Promise<void> {
+): Promise<boolean> {
   try {
     const { data: tokens, error } = await supabase
       .from('push_tokens')
       .select('token, platform')
       .eq('user_id', userId);
 
-    if (error || !tokens?.length) return;
+    if (error || !tokens?.length) return false;
 
     await Promise.allSettled(
       tokens.map(({ token, platform }) =>
@@ -119,7 +120,9 @@ export async function sendSystemPush(
         })
       )
     );
+    return true;
   } catch (err) {
     console.error('[push] sendSystemPush failed:', err);
+    return false;
   }
 }
