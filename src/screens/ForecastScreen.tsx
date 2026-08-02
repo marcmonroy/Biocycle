@@ -4,6 +4,7 @@ import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { generateForecast, type ForecastResult } from '../lib/forecastEngine';
 import { getDaysOfData } from '../lib/phaseEngine';
 import { ForecastCalendar } from '../components/ForecastCalendar';
+import { bestAndWorstDay } from '../lib/forecastSignals';
 import { colors, fonts } from '../lib/tokens';
 
 interface Props {
@@ -49,11 +50,14 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
     );
   }
 
-  const modeLabel = forecast.mode === 'learning'
-    ? (idioma === 'ES' ? 'Aprendiendo' : 'Learning')
-    : forecast.mode === 'calibration'
-      ? (idioma === 'ES' ? 'Calibrando a ti' : 'Calibrating to you')
-      : (idioma === 'ES' ? 'Personalizado' : 'Personalized');
+  const isES = idioma === 'ES';
+  const forecastWindow = forecast.days.slice(1, forecastDays + 1);
+  const { bestDate, worstDate } = bestAndWorstDay(forecastWindow, { isES, partnerName });
+
+  const pillDate = (d: Date) => {
+    const wday = d.toLocaleDateString(isES ? 'es-ES' : 'en-US', { weekday: isES ? 'long' : 'short' });
+    return `${wday} ${d.getDate()}`;
+  };
 
   return (
     <div style={{ minHeight: '100vh', background: colors.midnight, paddingBottom: 80 }}>
@@ -67,19 +71,29 @@ export function ForecastScreen({ profile, userState: _userState, tierLimits }: P
         <h1 style={{ fontFamily: fonts.display, fontSize: '1.3rem', fontWeight: 300, color: colors.bone, margin: 0 }}>
           {idioma === 'ES' ? 'Pronóstico' : 'Forecast'}
         </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-          <div style={{
-            background: forecast.mode === 'companion' ? 'rgba(0,200,150,0.12)' : forecast.mode === 'calibration' ? 'rgba(239,159,39,0.12)' : 'rgba(123,97,255,0.12)',
-            border: `1px solid ${forecast.mode === 'companion' ? 'rgba(0,200,150,0.3)' : forecast.mode === 'calibration' ? 'rgba(239,159,39,0.3)' : 'rgba(123,97,255,0.3)'}`,
-            borderRadius: 6, padding: '3px 10px', fontSize: 10,
-            color: forecast.mode === 'companion' ? colors.success : forecast.mode === 'calibration' ? colors.amber : colors.tierElite,
-            fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const,
-          }}>
-            {modeLabel}
-          </div>
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+          {bestDate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(44,122,77,0.12)', border: '1px solid rgba(44,122,77,0.4)', borderRadius: 20, padding: '4px 10px' }}>
+              <span style={{ fontSize: 12 }}>⭐</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: '#7fbf95' }}>{isES ? 'MEJOR' : 'BEST'}</span>
+              <span style={{ fontSize: 11, color: '#7fbf95' }}>{pillDate(bestDate)}</span>
+            </div>
+          )}
+          {worstDate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'rgba(179,64,47,0.12)', border: '1px solid rgba(179,64,47,0.4)', borderRadius: 20, padding: '4px 10px' }}>
+              <span style={{ fontSize: 12 }}>⚠️</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const, color: '#d98a7c' }}>{isES ? 'CUIDADO' : 'CAREFUL'}</span>
+              <span style={{ fontSize: 11, color: '#d98a7c' }}>{pillDate(worstDate)}</span>
+            </div>
+          )}
+          {!bestDate && !worstDate && (
+            <div style={{ fontSize: 12, color: colors.boneFaint }}>
+              {isES ? 'Una racha tranquila por delante.' : 'A calm stretch ahead.'}
+            </div>
+          )}
           {accuracyDisplay && forecast.accuracyPct != null && (
             <div style={{ fontSize: 11, color: colors.boneFaint }}>
-              {idioma === 'ES' ? `Precisión: ${forecast.accuracyPct}%` : `Accuracy: ${forecast.accuracyPct}%`}
+              {isES ? `Precisión: ${forecast.accuracyPct}%` : `Accuracy: ${forecast.accuracyPct}%`}
             </div>
           )}
         </div>

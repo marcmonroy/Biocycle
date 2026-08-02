@@ -235,3 +235,89 @@ export function topSignalForDay(
 ): DaySignalBadge | null {
   return allSignalsForDay(day, opts)[0] ?? null;
 }
+
+export interface DayPick {
+  date: Date;
+  dayLabel: string;
+  signal: DaySignalBadge;
+}
+
+/**
+ * Across the tier window (days 1..forecastDays), find:
+ *   best    = day whose top signal is opportunity or decision, ranked by underlying severity
+ *   hardest = day whose top signal is stress or anxiety, ranked by underlying severity
+ */
+export function pickBestAndHardest(
+  forecast: ForecastResult,
+  forecastDays: number,
+  opts: { isES: boolean; partnerName?: string },
+): { best: DayPick | null; hardest: DayPick | null } {
+  const lastDay = Math.min(forecastDays, forecast.days.length - 1);
+  let best:    (DayPick & { score: number }) | null = null;
+  let hardest: (DayPick & { score: number }) | null = null;
+
+  for (let i = 1; i <= lastDay; i++) {
+    const d = forecast.days[i];
+    if (!d) continue;
+    const sigs = allSignalsForDay(d, opts);
+    if (sigs.length === 0) continue;
+    const top = sigs[0];
+    const lbl = dayLabel(new Date(d.date), i, opts.isES);
+
+    if (top.tone === 'opportunity' || top.tone === 'decision') {
+      const score = top.kind === 'decision' && top.direction === 'high'
+        ? d.composite.cognitiveEdge - DECISION_GOOD
+        : ((d as unknown as Record<string, number>)[top.kind] ?? 0) - CEIL;
+      if (!best || score > best.score) {
+        best = { date: new Date(d.date), dayLabel: lbl, signal: top, score };
+      }
+    }
+
+    if ((top.kind === 'stress' || top.kind === 'anxiety') && top.tone === 'watch') {
+      const score = ((d as unknown as Record<string, number>)[top.kind] ?? 0) - SPIKE;
+      if (!hardest || score > hardest.score) {
+        hardest = { date: new Date(d.date), dayLabel: lbl, signal: top, score };
+      }
+    }
+  }
+
+  return {
+    best:    best    ? { date: best.date,    dayLabel: best.dayLabel,    signal: best.signal    } : null,
+    hardest: hardest ? { date: hardest.date, dayLabel: hardest.dayLabel, signal: hardest.signal } : null,
+  };
+}
+
+/**
+ * From a pre-sliced window of ForecastDay[], return the best and worst dates.
+ *   bestDate  = day whose top signal is tone 'opportunity'|'decision', highest severity
+ *   worstDate = day whose top signal is tone 'watch' AND kind 'stress'|'anxiety', highest severity
+ */
+export function bestAndWorstDay(
+  days: ForecastDay[],
+  opts: { isES: boolean; partnerName?: string },
+): { bestDate: Date | null; worstDate: Date | null } {
+  let bestDate:  Date | null = null;
+  let bestScore  = -Infinity;
+  let worstDate: Date | null = null;
+  let worstScore = -Infinity;
+
+  for (const d of days) {
+    const sigs = allSignalsForDay(d, opts);
+    if (sigs.length === 0) continue;
+    const top = sigs[0];
+
+    if (top.tone === 'opportunity' || top.tone === 'decision') {
+      const score = top.kind === 'decision' && top.direction === 'high'
+        ? d.composite.cognitiveEdge - DECISION_GOOD
+        : ((d as unknown as Record<string, number>)[top.kind] ?? 0) - CEIL;
+      if (score > bestScore) { bestScore = score; bestDate = new Date(d.date); }
+    }
+
+    if ((top.kind === 'stress' || top.kind === 'anxiety') && top.tone === 'watch') {
+      const score = ((d as unknown as Record<string, number>)[top.kind] ?? 0) - SPIKE;
+      if (score > worstScore) { worstScore = score; worstDate = new Date(d.date); }
+    }
+  }
+
+  return { bestDate, worstDate };
+}
