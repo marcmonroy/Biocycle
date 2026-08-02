@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import type { Profile, UserState, TierLimits } from '../lib/supabase';
 import { colors, fonts } from '../lib/tokens';
+import { BalloonField } from '../components/BalloonField';
 
 interface Props {
   profile: Profile;
@@ -313,123 +314,57 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
             </div>
           </div>
         ) : (
-          rels.map(r => {
-            const cat = CATEGORY_LABELS[r.category] ?? CATEGORY_LABELS.other;
-            const scoreColor = r.avgScore == null ? colors.boneFaint : r.avgScore >= 7 ? colors.success : r.avgScore >= 5 ? colors.amber : colors.danger;
-            const trendArrow = r.trend === 'up' ? '↑' : r.trend === 'down' ? '↓' : r.trend === 'flat' ? '→' : '';
-            const isEditing = editId === r.id;
+          <BalloonField
+            rels={rels}
+            idioma={idioma}
+            onEditRequest={(rel) => {
+              const fullRel = rels.find(r => r.id === rel.id);
+              if (fullRel) openEdit(fullRel);
+            }}
+          />
+        )}
 
-            return (
-              <div key={r.id} style={{ marginBottom: 8 }}>
-                {/* Card row */}
-                <div style={{
-                  background: isEditing ? 'rgba(239,159,39,0.05)' : 'rgba(245,242,238,0.03)',
-                  border: `1px solid ${isEditing ? 'rgba(239,159,39,0.25)' : 'rgba(245,242,238,0.06)'}`,
-                  borderRadius: isEditing ? '12px 12px 0 0' : 12,
-                  padding: '14px 16px',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  cursor: 'pointer', transition: 'border-color 0.2s',
-                }} onClick={() => isEditing ? closeEdit() : openEdit(r)}>
-
-                  {/* Avatar */}
-                  <div style={{
-                    width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                    background: ['linear-gradient(135deg,rgba(239,159,39,.35),rgba(239,159,39,.1))','linear-gradient(135deg,rgba(93,202,165,.35),rgba(93,202,165,.1))','linear-gradient(135deg,rgba(133,183,235,.35),rgba(133,183,235,.1))','linear-gradient(135deg,rgba(224,122,95,.35),rgba(224,122,95,.1))','linear-gradient(135deg,rgba(239,159,39,.35),rgba(133,183,235,.1))','linear-gradient(135deg,rgba(93,202,165,.35),rgba(239,159,39,.1))','linear-gradient(135deg,rgba(133,183,235,.35),rgba(93,202,165,.1))'][r.rank-1] ?? 'linear-gradient(135deg,rgba(239,159,39,.2),rgba(133,183,235,.1))',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-                  }}>{cat.emoji}</div>
-
-                  {/* Name + label + stress */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 2 }}>
-                      {r.name} {r.intimacy && <span style={{ fontSize: 12 }}>💞</span>}
-                    </div>
-                    <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.body }}>
-                      {idioma === 'ES' ? cat.es : cat.en} · #{r.rank}
-                    </div>
-                    {r._avgStress != null && (
-                      <div style={{ fontSize: 10, color: r._avgStress >= 7 ? colors.danger : r._avgStress >= 4 ? colors.amber : colors.success, fontFamily: fonts.mono, marginTop: 2 }}>
-                        {r._avgStress >= 7
-                          ? (idioma === 'ES' ? `↑ estrés ${r._avgStress}/10` : `↑ stress ${r._avgStress}/10`)
-                          : r._avgStress >= 4
-                          ? (idioma === 'ES' ? `estrés moderado ${r._avgStress}/10` : `moderate stress ${r._avgStress}/10`)
-                          : (idioma === 'ES' ? `↓ estrés bajo ${r._avgStress}/10` : `↓ low stress ${r._avgStress}/10`)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Score bar */}
-                  <div style={{ textAlign: 'right' as const, marginRight: 8, minWidth: 80 }}>
-                    {r.avgScore != null ? (
-                      <>
-                        <div style={{ color: scoreColor, fontWeight: 600, fontSize: 13, fontFamily: fonts.mono, marginBottom: 3 }}>
-                          {r.avgScore.toFixed(1)} {trendArrow}
-                        </div>
-                        <div style={{ height: 3, background: colors.surfaceBorder, borderRadius: 999, overflow: 'hidden', marginBottom: 3, width: 72 }}>
-                          <div style={{ height: '100%', width: `${(r.avgScore/10)*100}%`, background: scoreColor, borderRadius: 999 }} />
-                        </div>
-                        <div style={{ color: colors.boneFaint, fontSize: 9, letterSpacing: '0.06em', textTransform: 'uppercase' as const, fontFamily: fonts.mono }}>
-                          {r.avgScore >= 7 ? (idioma === 'ES' ? 'Te potencia' : 'Energizes') : r.avgScore >= 5 ? 'Neutral' : (idioma === 'ES' ? 'Te drena' : 'Drains')}
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ color: colors.boneFaint, fontSize: 11, fontFamily: fonts.mono }}>
-                        {idioma === 'ES' ? 'Sin datos' : 'No data'}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Edit + Delete buttons */}
-                  <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 4, flexShrink: 0 }}>
-                    <button onClick={e => { e.stopPropagation(); isEditing ? closeEdit() : openEdit(r); }}
-                      style={{ background: isEditing ? 'rgba(239,159,39,.25)' : 'rgba(245,242,238,.06)', border: `1px solid ${isEditing ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 6, width: 28, height: 28, color: isEditing ? colors.amber : colors.boneFaint, fontSize: 13, cursor: 'pointer' }}
-                      aria-label="Edit">✎</button>
-                    <button onClick={e => { e.stopPropagation(); removeRelationship(r.id); }}
-                      style={{ background: 'rgba(239,159,39,.1)', border: '1px solid rgba(239,159,39,.2)', borderRadius: 6, width: 28, height: 28, color: colors.amber, fontSize: 14, cursor: 'pointer' }}
-                      aria-label="Remove">×</button>
-                  </div>
-                </div>
-
-                {/* Edit panel — slides in below card when open */}
-                {isEditing && (
-                  <div style={{ background: 'rgba(239,159,39,0.04)', border: '1px solid rgba(239,159,39,0.2)', borderTop: 'none', borderRadius: '0 0 12px 12px', padding: '14px 16px' }}>
-                    <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && saveEdit()}
-                      placeholder={idioma === 'ES' ? 'Nombre' : 'Name'} autoFocus
-                      style={{ width: '100%', background: 'rgba(245,242,238,.05)', border: '1px solid rgba(245,242,238,.12)', borderRadius: 8, padding: '9px 12px', color: colors.bone, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' as const, outline: 'none' }}
-                    />
-                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
-                      {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
-                        <button key={key} onClick={() => setEditCategory(key)}
-                          style={{ background: editCategory===key ? 'rgba(239,159,39,.2)' : 'rgba(245,242,238,.04)', border: `1px solid ${editCategory===key ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 20, padding: '4px 10px', color: editCategory===key ? colors.amber : colors.boneFaint, fontSize: 11, cursor: 'pointer' }}>
-                          {val.emoji} {idioma === 'ES' ? val.es : val.en}
-                        </button>
-                      ))}
-                    </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
-                      <div onClick={() => setEditIntimacy(v => !v)}
-                        style={{ width: 36, height: 20, borderRadius: 10, background: editIntimacy ? colors.amber : 'rgba(245,242,238,.1)', position: 'relative' as const, cursor: 'pointer', transition: 'background 0.2s' }}>
-                        <div style={{ position: 'absolute' as const, top: 2, left: editIntimacy ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
-                      </div>
-                      <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
-                    </label>
-                    <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={editCloseness} setValue={setEditCloseness} min={1} max={7} />
-                    <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={editImportance} setValue={setEditImportance} min={1} max={7} />
-                    <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={editLove} setValue={setEditLove} min={0} max={7} />
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                      <button onClick={closeEdit}
-                        style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
-                        {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
-                      </button>
-                      <button onClick={saveEdit} disabled={!editName.trim()}
-                        style={{ flex: 1, padding: '9px', background: editName.trim() ? colors.amber : 'rgba(239,159,39,.2)', border: 'none', borderRadius: 8, color: colors.midnight, fontSize: 13, fontWeight: 600, cursor: editName.trim() ? 'pointer' : 'default' }}>
-                        {idioma === 'ES' ? 'Guardar' : 'Save'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+        {/* Edit panel — opens below balloon field when a balloon's Edit is tapped */}
+        {editId !== null && (
+          <div style={{ marginTop: 12, background: 'rgba(239,159,39,0.04)', border: '1px solid rgba(239,159,39,0.2)', borderRadius: 12, padding: '14px 16px' }}>
+            <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveEdit()}
+              placeholder={idioma === 'ES' ? 'Nombre' : 'Name'} autoFocus
+              style={{ width: '100%', background: 'rgba(245,242,238,.05)', border: '1px solid rgba(245,242,238,.12)', borderRadius: 8, padding: '9px 12px', color: colors.bone, fontSize: 14, marginBottom: 12, boxSizing: 'border-box' as const, outline: 'none' }}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 6, marginBottom: 12 }}>
+              {Object.entries(CATEGORY_LABELS).map(([key, val]) => (
+                <button key={key} onClick={() => setEditCategory(key)}
+                  style={{ background: editCategory===key ? 'rgba(239,159,39,.2)' : 'rgba(245,242,238,.04)', border: `1px solid ${editCategory===key ? colors.amber : 'rgba(245,242,238,.1)'}`, borderRadius: 20, padding: '4px 10px', color: editCategory===key ? colors.amber : colors.boneFaint, fontSize: 11, cursor: 'pointer' }}>
+                  {val.emoji} {idioma === 'ES' ? val.es : val.en}
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+              <div onClick={() => setEditIntimacy(v => !v)}
+                style={{ width: 36, height: 20, borderRadius: 10, background: editIntimacy ? colors.amber : 'rgba(245,242,238,.1)', position: 'relative' as const, cursor: 'pointer', transition: 'background 0.2s' }}>
+                <div style={{ position: 'absolute' as const, top: 2, left: editIntimacy ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
               </div>
-            );
-          })
+              <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
+            </label>
+            <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={editCloseness} setValue={setEditCloseness} min={1} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={editImportance} setValue={setEditImportance} min={1} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={editLove} setValue={setEditLove} min={0} max={7} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={closeEdit}
+                style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
+                {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button onClick={saveEdit} disabled={!editName.trim()}
+                style={{ flex: 1, padding: '9px', background: editName.trim() ? colors.amber : 'rgba(239,159,39,.2)', border: 'none', borderRadius: 8, color: colors.midnight, fontSize: 13, fontWeight: 600, cursor: editName.trim() ? 'pointer' : 'default' }}>
+                {idioma === 'ES' ? 'Guardar' : 'Save'}
+              </button>
+            </div>
+            <button onClick={() => removeRelationship(editId)}
+              style={{ width: '100%', marginTop: 8, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.08)', borderRadius: 8, color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}>
+              {idioma === 'ES' ? 'Eliminar' : 'Remove'}
+            </button>
+          </div>
         )}
 
         {/* Add person */}
