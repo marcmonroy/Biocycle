@@ -61,10 +61,20 @@ export function BalloonField({ rels, idioma, onEditRequest }: Props) {
   const availW = SVG_W - 60;   // 30px padding each side
   const spacing = availW / n;
 
+// Positions of each heart (dx, dy from balloon center) for love 0–5
+const HEART_OFFSETS: [number, number][][] = [
+  [],                                                             // 0
+  [[0, 0]],                                                       // 1
+  [[-4, 0], [4, 0]],                                             // 2
+  [[-4, -4], [4, -4], [0, 4]],                                   // 3
+  [[-4, -4], [4, -4], [-4, 4], [4, 4]],                         // 4
+  [[-6, -4], [0, -4], [6, -4], [-3, 4], [3, 4]],                // 5
+];
+
   const balloons = rels.map((r, i) => {
     const closeness  = r.closeness  ?? 4;
     const importance = r.importance ?? 4;
-    const love       = r.love       ?? 0;
+    const love       = Math.min(r.love ?? 0, 5);
 
     // Radius ← importance
     const radius = minR + (importance - 1) / 6 * (maxR - minR);
@@ -78,11 +88,10 @@ export function BalloonField({ rels, idioma, onEditRequest }: Props) {
     // X: evenly spaced
     const x = 30 + (i + 0.5) * spacing;
 
-    const col           = stressCol(r._avgStress);
-    const heartFontSize = love === 0 ? 0 : 5 + love * 1.6;
-    const isSelected    = selectedId === r.id;
+    const col        = stressCol(r._avgStress);
+    const isSelected = selectedId === r.id;
 
-    return { r, x, y, radius, col, love, heartFontSize, isSelected };
+    return { r, x, y, radius, col, love, isSelected };
   });
 
   const selRel = selectedId ? rels.find(r => r.id === selectedId) ?? null : null;
@@ -122,7 +131,7 @@ export function BalloonField({ rels, idioma, onEditRequest }: Props) {
         </text>
 
         {/* Balloons */}
-        {balloons.map(({ r, x, y, radius, col, love, heartFontSize, isSelected }) => (
+        {balloons.map(({ r, x, y, radius, col, love, isSelected }) => (
           <g key={`b-${r.id}`}
             onClick={() => setSelectedId(isSelected ? null : r.id)}
             style={{ cursor: 'pointer' }}
@@ -137,17 +146,18 @@ export function BalloonField({ rels, idioma, onEditRequest }: Props) {
             />
             {/* knot */}
             <ellipse cx={x} cy={y + radius * 1.15 + 1.5} rx={2.5} ry={3} fill={col.stroke} />
-            {/* heart — centered in balloon, sized by love */}
-            {love > 0 && (
+            {/* heart cluster — one glyph per love point, arranged by count */}
+            {love > 0 && HEART_OFFSETS[love].map(([dx, dy], hi) => (
               <text
-                x={x} y={y}
+                key={hi}
+                x={x + dx} y={y + dy}
                 textAnchor="middle"
                 dominantBaseline="central"
-                fontSize={heartFontSize}
-                fill="rgba(255,255,255,0.82)"
+                fontSize={7}
+                fill="rgba(255,150,150,0.92)"
                 style={{ userSelect: 'none' as const, pointerEvents: 'none' as const }}
               >♥</text>
-            )}
+            ))}
             {/* name label above balloon */}
             <text
               x={x} y={y - radius * 1.15 - 5}

@@ -254,7 +254,7 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
           {idioma === 'ES' ? 'Tu Círculo' : 'Your Circle'}
         </h1>
         <p style={{ color: colors.boneFaint, fontSize: 12, margin: '6px 0 0' }}>
-          {rels.length} / {tierLimits.circleMax} {idioma === 'ES' ? 'personas' : 'people'}
+          {rels.length} / {tierLimits.circleMax} {idioma === 'ES' ? 'globos' : 'balloons'}
         </p>
       </div>
 
@@ -349,7 +349,7 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
             </label>
             <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={editCloseness} setValue={setEditCloseness} min={1} max={7} />
             <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={editImportance} setValue={setEditImportance} min={1} max={7} />
-            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={editLove} setValue={setEditLove} min={0} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={editLove} setValue={setEditLove} min={0} max={5} />
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={closeEdit}
                 style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
@@ -371,12 +371,12 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
         {!showAdd ? (
           <button onClick={() => { setShowAdd(true); closeEdit(); }} disabled={atCap}
             style={{ width: '100%', marginTop: 12, background: atCap ? 'rgba(245,242,238,.02)' : 'rgba(239,159,39,.08)', border: `1px dashed ${atCap ? 'rgba(245,242,238,.08)' : 'rgba(239,159,39,.3)'}`, borderRadius: 12, padding: '14px', color: atCap ? colors.boneFaint : colors.amber, fontSize: 13, fontWeight: 600, cursor: atCap ? 'default' : 'pointer' }}>
-            {atCap ? (idioma === 'ES' ? 'Máximo 7 personas alcanzado' : 'Maximum 7 people reached') : (idioma === 'ES' ? '+ Agregar persona' : '+ Add person')}
+            {atCap ? (idioma === 'ES' ? 'Máximo de globos alcanzado' : 'Maximum balloons reached') : (idioma === 'ES' ? '+ Nuevo globo' : '+ New balloon')}
           </button>
         ) : (
           <div style={{ marginTop: 12, background: 'rgba(245,242,238,.03)', border: '1px solid rgba(245,242,238,.1)', borderRadius: 14, padding: '20px' }}>
             <div style={{ color: colors.bone, fontWeight: 600, fontSize: 14, marginBottom: 14 }}>
-              {idioma === 'ES' ? 'Nueva persona' : 'New person'}
+              {idioma === 'ES' ? 'Nuevo globo' : 'New balloon'}
             </div>
             <input type="text" placeholder={idioma === 'ES' ? 'Nombre' : 'Name'} value={newName}
               onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRelationship()} autoFocus
@@ -399,7 +399,7 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
             </label>
             <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={newCloseness} setValue={setNewCloseness} min={1} max={7} />
             <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={newImportance} setValue={setNewImportance} min={1} max={7} />
-            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={newLove} setValue={setNewLove} min={0} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={newLove} setValue={setNewLove} min={0} max={5} />
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button onClick={() => { setShowAdd(false); setNewName(''); setNewCategory('friend'); setNewIntimacy(false); setNewCloseness(4); setNewImportance(4); setNewLove(4); }}
                 style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
