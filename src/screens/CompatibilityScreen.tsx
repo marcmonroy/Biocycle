@@ -426,7 +426,8 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
   const [connections, setConnections] = useState<CompatibilityConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [selectedConn, setSelectedConn] = useState<CompatibilityConnection | null>(null);
+  const [selectedPersonKey, setSelectedPersonKey] = useState<string | null>(null);
+  const [selectedConnId, setSelectedConnId]       = useState<string | null>(null);
 
   const idioma = profile.idioma ?? 'EN';
   const ES = idioma === 'ES';
@@ -685,29 +686,57 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
             </div>
           );
         }
-        const current = accepted.find(c => c.id === selectedConn?.id) ?? accepted[0];
+
+        // Group accepted rows by invited_phone — one person may have multiple types
+        const peopleMap = new Map<string, { key: string; displayName: string; conns: CompatibilityConnection[] }>();
+        for (const c of accepted) {
+          const key = c.invited_phone;
+          if (!peopleMap.has(key)) {
+            peopleMap.set(key, { key, displayName: c.partner_profile?.nombre ?? c.invited_name, conns: [] });
+          }
+          peopleMap.get(key)!.conns.push(c);
+        }
+        const people = Array.from(peopleMap.values());
+
+        // Resolve selected person (fall back to first)
+        const currentPerson = people.find(p => p.key === selectedPersonKey) ?? people[0];
+        // Resolve selected type row within that person (fall back to first)
+        const current = currentPerson.conns.find(c => c.id === selectedConnId) ?? currentPerson.conns[0];
+
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* connection selector */}
+
+            {/* Person selector */}
             <div style={{ fontSize: 13, color: colors.boneFaint, fontFamily: fonts.body, marginBottom: 6 }}>
               {ES ? 'Tus mejores días con:' : 'Your best days with:'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <select
-                value={current.id}
-                onChange={e => setSelectedConn(accepted.find(c => c.id === e.target.value) ?? null)}
+                value={currentPerson.key}
+                onChange={e => {
+                  const nextPerson = people.find(p => p.key === e.target.value);
+                  setSelectedPersonKey(e.target.value);
+                  setSelectedConnId(nextPerson?.conns[0]?.id ?? null);
+                }}
                 style={{
                   flex: 1, background: 'rgba(245,242,238,0.05)', color: colors.bone,
                   border: '1px solid rgba(245,242,238,0.14)', borderRadius: 10,
                   padding: '11px 13px', fontSize: 14, fontFamily: fonts.body,
                 }}
               >
-                {accepted.map(c => (
-                  <option key={c.id} value={c.id}>{c.partner_profile?.nombre ?? c.invited_name}</option>
+                {people.map(p => (
+                  <option key={p.key} value={p.key}>{p.displayName}</option>
                 ))}
               </select>
               <button
-                onClick={() => { if (confirm(ES ? `¿Desconectar a ${current.partner_profile?.nombre ?? current.invited_name}?` : `Disconnect ${current.partner_profile?.nombre ?? current.invited_name}?`)) handleCancel(current); }}
+                onClick={() => {
+                  const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
+                  const typeLbl = tc ? (ES ? tc.labelES : tc.label) : current.type;
+                  if (confirm(ES
+                    ? `¿Desconectar "${typeLbl}" con ${currentPerson.displayName}?`
+                    : `Disconnect "${typeLbl}" with ${currentPerson.displayName}?`
+                  )) handleCancel(current);
+                }}
                 aria-label="options"
                 style={{
                   width: 40, height: 40, borderRadius: 10, background: 'rgba(245,242,238,0.05)',
@@ -716,14 +745,40 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
                 }}
               >⋯</button>
             </div>
-            {(() => {
-              const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
-              return tc ? (
-                <div style={{ fontSize: 15, fontWeight: 500, color: colors.bone, fontFamily: fonts.body, marginTop: 8 }}>
-                  {tc.icon} {ES ? tc.labelES : tc.label}
-                </div>
-              ) : null;
-            })()}
+
+            {/* Type selector — pill row when multiple types, static label when only one */}
+            {currentPerson.conns.length > 1 ? (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {currentPerson.conns.map(c => {
+                  const tc = COMPATIBILITY_TYPES.find(t => t.id === c.type);
+                  const isActive = c.id === current.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedConnId(c.id)}
+                      style={{
+                        padding: '5px 12px', borderRadius: 20,
+                        border: `1px solid ${isActive ? colors.amber : 'rgba(255,255,255,0.15)'}`,
+                        background: isActive ? 'rgba(239,159,39,0.15)' : 'none',
+                        color: isActive ? colors.amber : colors.bone,
+                        fontSize: 12, fontFamily: fonts.body, cursor: 'pointer',
+                      }}
+                    >
+                      {tc?.icon ?? ''} {tc ? (ES ? tc.labelES : tc.label) : c.type}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              (() => {
+                const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
+                return tc ? (
+                  <div style={{ fontSize: 15, fontWeight: 500, color: colors.bone, fontFamily: fonts.body, marginTop: 8 }}>
+                    {tc.icon} {ES ? tc.labelES : tc.label}
+                  </div>
+                ) : null;
+              })()
+            )}
 
             <CompatibilityDetail
               conn={current}

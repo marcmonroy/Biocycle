@@ -728,15 +728,56 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     const isEnergyLow  = qState === 'ENERGY_Q' && val <= 3;
     const isEnergyHigh = qState === 'ENERGY_Q' && val >= 8;
 
+    // Gender-aware hint framing — matches how the forecast engine reads genero
+    const genero = profile.genero;
+    const ackIsFemale = genero === 'female';
+    const ackIsMale   = genero === 'male';
+
+    // EN hints
+    const hintSleepPoorEN   = ackIsMale
+      ? 'Poor sleep — name the specific impact on cognition, testosterone, or energy today.'
+      : 'Poor sleep — name the specific impact on cognition, hormonal balance, or energy today.';
+    const hintSexualHighEN  = ackIsFemale
+      ? 'High sexual energy — acknowledge it directly and connect to her cycle phase (ovulatory peak or follicular rise).'
+      : ackIsMale
+        ? 'High sexual energy — acknowledge it directly and connect to their andropause testosterone window.'
+        : 'High sexual energy — acknowledge it directly as a biological peak signal.';
+    const hintSexualLowEN   = ackIsFemale
+      ? 'Low sexual energy — acknowledge without alarm; connect to menstrual or luteal phase recovery if relevant.'
+      : 'Low sexual energy — acknowledge without alarm, connect to recovery or stress context.';
+    const hintEnergyLowEN   = ackIsFemale
+      ? 'Low energy — connect to her cycle phase or sleep quality if relevant.'
+      : ackIsMale
+        ? 'Low energy — connect to andropause rhythm or sleep quality if relevant.'
+        : 'Low energy — connect to sleep quality or stress context if relevant.';
+
+    // ES hints
+    const hintSleepPoorES   = ackIsMale
+      ? 'Sueño deficiente — nombra el impacto específico en cognición, testosterona o energía hoy.'
+      : 'Sueño deficiente — nombra el impacto específico en cognición, equilibrio hormonal o energía hoy.';
+    const hintSexualHighES  = ackIsFemale
+      ? 'Energía sexual alta — reconócela directamente y conecta con su fase del ciclo (pico ovulatorio o subida folicular).'
+      : ackIsMale
+        ? 'Energía sexual alta — reconócela directamente y conecta con la ventana de testosterona de la andropausia.'
+        : 'Energía sexual alta — reconócela directamente como señal de pico biológico.';
+    const hintSexualLowES   = ackIsFemale
+      ? 'Energía sexual baja — reconoce sin alarma; conecta con la recuperación de la fase menstrual o lútea si es relevante.'
+      : 'Energía sexual baja — reconoce sin alarma, conecta con el contexto de recuperación o estrés.';
+    const hintEnergyLowES   = ackIsFemale
+      ? 'Energía baja — conecta con su fase del ciclo o la calidad del sueño si es relevante.'
+      : ackIsMale
+        ? 'Energía baja — conecta con el ritmo de la andropausia o la calidad del sueño si es relevante.'
+        : 'Energía baja — conecta con la calidad del sueño o el contexto de estrés si es relevante.';
+
     const sys = isES
       ? `${noIntro}RESPUESTA BREVE. Una sola oración de reconocimiento.
 Fase del usuario: ${phaseLabel}. El usuario reportó ${dimLabel}: ${userValue}.
 ${isHighImpact ? 'Valor alto — conecta brevemente con su estado hormonal o lo que le cuesta.' : ''}
 ${isLowImpact ? 'Notablemente bajo — reconocimiento cálido y específico de lo que significa biológicamente.' : ''}
-${isSleepPoor ? 'Sueño deficiente — nombra el impacto específico en cognición, testosterona o energía hoy.' : ''}
-${isSexualHigh ? 'Energía sexual alta — reconócela directamente y conecta con la ventana de testosterona de la andropausia.' : ''}
-${isSexualLow ? 'Energía sexual baja — reconoce sin alarma, conecta con el contexto de recuperación o estrés.' : ''}
-${isEnergyLow ? 'Energía baja — conecta con el ritmo de la andropausia o la calidad del sueño si es relevante.' : ''}
+${isSleepPoor ? hintSleepPoorES : ''}
+${isSexualHigh ? hintSexualHighES : ''}
+${isSexualLow ? hintSexualLowES : ''}
+${isEnergyLow ? hintEnergyLowES : ''}
 ${isEnergyHigh ? 'Energía alta — reconoce directamente la ventana pico.' : ''}
 ${picardiaMode ? 'Voz: Sienna — directa, ligeramente provocadora, nunca genérica. No Jules.' : 'Voz: Jules — mentor biológico cálido.'}
 PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración directa.${ctx}`
@@ -744,10 +785,10 @@ PROHIBIDO: preguntas, consejos, decir tu nombre. Solo una oración directa.${ctx
 User's phase: ${phaseLabel}. User reported ${dimLabel}: ${userValue}.
 ${isHighImpact ? 'High value — connect briefly to their hormonal state or what it costs them.' : ''}
 ${isLowImpact ? 'Notably low — warm specific acknowledgment of what that means biologically.' : ''}
-${isSleepPoor ? 'Poor sleep — name the specific impact on cognition, testosterone, or energy today.' : ''}
-${isSexualHigh ? 'High sexual energy — acknowledge it directly and connect to their andropause testosterone window.' : ''}
-${isSexualLow ? 'Low sexual energy — acknowledge without alarm, connect to recovery or stress context.' : ''}
-${isEnergyLow ? 'Low energy — connect to andropause rhythm or sleep quality if relevant.' : ''}
+${isSleepPoor ? hintSleepPoorEN : ''}
+${isSexualHigh ? hintSexualHighEN : ''}
+${isSexualLow ? hintSexualLowEN : ''}
+${isEnergyLow ? hintEnergyLowEN : ''}
 ${isEnergyHigh ? 'High energy — acknowledge the peak window directly.' : ''}
 ${picardiaMode ? 'Voice: Sienna — direct, slightly provocative, never generic. Not Jules.' : 'Voice: Jules — warm biological mentor.'}
 FORBIDDEN: questions, advice, saying your name. One direct sentence only.${ctx}`;

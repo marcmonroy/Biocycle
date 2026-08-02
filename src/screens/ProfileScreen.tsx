@@ -347,7 +347,8 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
     };
 
     if (isFemale) {
-      updates.last_period_date = lastPeriodDate || null;
+      updates.last_period_date  = lastPeriodDate || null;
+      updates.cycle_start_date  = lastPeriodDate || null; // engines read cycle_start_date
       updates.cycle_length = cycleLength ? parseInt(cycleLength, 10) : 28;
     }
 
@@ -1031,7 +1032,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       {isFemale && (
         <Section label={L('Cycle', 'Ciclo')}>
           <div>
-            <FieldLabel>{L('Last period date', 'Fecha del último período')}</FieldLabel>
+            <FieldLabel>{L('First day of last period', 'Primer día del último período')}</FieldLabel>
             <input
               type="date"
               value={lastPeriodDate}
