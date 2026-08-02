@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { CalendarGrid } from './CalendarGrid';
 import type { CalendarMark, LegendEntry } from './CalendarGrid';
 import { allSignalsForDay, type DaySignalBadge } from '../lib/forecastSignals';
+import { exportToCalendar } from '../lib/icsExport';
 import type { ForecastResult } from '../lib/forecastEngine';
 import type { TierLimits } from '../lib/supabase';
-import { fonts } from '../lib/tokens';
+import { colors, fonts } from '../lib/tokens';
 
 interface Props {
   forecast: ForecastResult;
@@ -61,6 +62,22 @@ export function ForecastCalendar({ forecast, tierLimits, idioma, partnerName }: 
   const selectedBadges = selectedForecastDay
     ? allSignalsForDay(selectedForecastDay, { isES, partnerName })
     : [];
+
+  async function handleExport() {
+    const events = forecastDays
+      .map(day => {
+        const sigs = allSignalsForDay(day, { isES, partnerName });
+        if (sigs.length === 0) return null;
+        const top = sigs[0];
+        return {
+          date: new Date(day.date),
+          title: top.label,
+          notes: sigs.map(s => s.label).join(', '),
+        };
+      })
+      .filter((e): e is { date: Date; title: string; notes: string } => e !== null);
+    await exportToCalendar(events, 'biocycle-pronostico.ics');
+  }
 
   return (
     <div style={{ fontFamily: fonts.body }}>
@@ -151,6 +168,21 @@ export function ForecastCalendar({ forecast, tierLimits, idioma, partnerName }: 
           >×</button>
         </div>
       )}
+
+      <button
+        onClick={handleExport}
+        style={{
+          marginTop: 16, width: '100%',
+          background: 'rgba(245,242,238,0.06)',
+          border: '1px solid rgba(245,242,238,0.14)',
+          borderRadius: 10, padding: '10px 0',
+          color: colors.boneFaint, fontSize: 12,
+          fontFamily: fonts.body, cursor: 'pointer',
+          letterSpacing: '0.02em',
+        }}
+      >
+        {isES ? 'Añadir a mi calendario' : 'Add to my calendar'}
+      </button>
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from '../lib/compatibilityEngine';
 import type { CompatibilityType, CompatibilityResult } from '../lib/compatibilityEngine';
 import { buildTypeCalendar, hasAnyPeak, TYPE_VISUAL } from '../lib/compatibilityCalendar';
+import { exportToCalendar } from '../lib/icsExport';
 import { sendSystemPush } from '../services/pushNotifications';
 import { sendWhatsAppInvite } from '../services/whatsapp';
 import { CalendarGrid, type CalendarMark, type LegendEntry } from '../components/CalendarGrid';
@@ -364,15 +365,42 @@ function CompatibilityDetail({
                     ? (ES ? 'Van muy sincronizados — sin días que sobresalgan en las próximas semanas.' : "You're steadily in sync — no standout days in the next couple of weeks.")
                     : (ES ? 'Llevan ritmos distintos — no hay días pico compartidos por ahora.' : "You run on different rhythms — no shared peak days for now.");
                 const emptyLine = peaks ? undefined : caption;
+                const partnerName = conn.partner_profile?.nombre ?? conn.invited_name;
+                const typeLabel = ES ? vis.labelES : vis.labelEN;
                 return (
-                  <CalendarGrid
-                    days={days}
-                    marksByDay={marksByDay}
-                    legend={legend}
-                    caption={peaks ? caption : undefined}
-                    emptyLine={emptyLine}
-                    isES={ES}
-                  />
+                  <>
+                    <CalendarGrid
+                      days={days}
+                      marksByDay={marksByDay}
+                      legend={legend}
+                      caption={peaks ? caption : undefined}
+                      emptyLine={emptyLine}
+                      isES={ES}
+                    />
+                    {peaks && (
+                      <button
+                        onClick={() => {
+                          const events = cal.filter(c => c.isPeak).map(c => ({
+                            date: c.date,
+                            title: `${partnerName} · ${typeLabel}`,
+                            notes: ES ? 'Día pico compartido' : 'Shared peak day',
+                          }));
+                          exportToCalendar(events, 'biocycle-compatibilidad.ics');
+                        }}
+                        style={{
+                          marginTop: 12, width: '100%',
+                          background: 'rgba(245,242,238,0.06)',
+                          border: '1px solid rgba(245,242,238,0.14)',
+                          borderRadius: 10, padding: '10px 0',
+                          color: 'rgba(245,242,238,0.45)', fontSize: 12,
+                          fontFamily: fonts.body, cursor: 'pointer',
+                          letterSpacing: '0.02em',
+                        }}
+                      >
+                        {ES ? 'Añadir a mi calendario' : 'Add to my calendar'}
+                      </button>
+                    )}
+                  </>
                 );
               })()}
         </>
