@@ -15,6 +15,9 @@ interface Relationship {
   rank: number;
   category: string;
   intimacy: boolean;
+  closeness: number | null;
+  importance: number | null;
+  love: number | null;
   avgScore: number | null;
   trend: 'up' | 'down' | 'flat' | null;
   _avgStress?: number | null;
@@ -27,10 +30,41 @@ const CATEGORY_LABELS: Record<string, { en: string; es: string; emoji: string }>
   family:    { en: 'Family',    es: 'Familia',  emoji: '👨‍👩‍👧' },
   friend:    { en: 'Friend',    es: 'Amigo',    emoji: '🤝' },
   work:      { en: 'Work',      es: 'Trabajo',  emoji: '💼' },
+  pet:       { en: 'Pet',       es: 'Mascota',  emoji: '🐾' },
   ex:        { en: 'Ex',        es: 'Ex',       emoji: '🫥' },
   interest:  { en: 'Interest',  es: 'Interés',  emoji: '💫' },
   other:     { en: 'Other',     es: 'Otro',     emoji: '👤' },
 };
+
+function RatingRow({ label, value, setValue, min, max }: {
+  label: string; value: number; setValue: (n: number) => void; min: number; max: number;
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: colors.boneFaint, marginBottom: 5, fontFamily: fonts.body }}>
+        {label}
+      </div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {Array.from({ length: max - min + 1 }, (_, i) => min + i).map(n => (
+          <button
+            key={n}
+            onClick={() => setValue(n)}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: value === n ? 'rgba(239,159,39,0.25)' : 'rgba(245,242,238,0.04)',
+              border: `1px solid ${value === n ? colors.amber : 'rgba(245,242,238,0.1)'}`,
+              color: value === n ? colors.amber : colors.boneFaint,
+              fontSize: 11, fontWeight: value === n ? 600 : 400,
+              cursor: 'pointer', fontFamily: fonts.mono,
+            }}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function CircleScreen({ profile, userState: _userState, tierLimits }: Props) {
   const [rels, setRels] = useState<Relationship[]>([]);
@@ -41,19 +75,25 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
   const [newName, setNewName] = useState('');
   const [newCategory, setNewCategory] = useState('friend');
   const [newIntimacy, setNewIntimacy] = useState(false);
+  const [newCloseness, setNewCloseness] = useState(4);
+  const [newImportance, setNewImportance] = useState(4);
+  const [newLove, setNewLove] = useState(4);
 
   // Edit state
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('friend');
   const [editIntimacy, setEditIntimacy] = useState(false);
+  const [editCloseness, setEditCloseness] = useState(4);
+  const [editImportance, setEditImportance] = useState(4);
+  const [editLove, setEditLove] = useState(4);
 
   const idioma = profile.idioma ?? 'EN';
 
   async function loadRelationships() {
     const { data: rows } = await supabase
       .from('relationships')
-      .select('id, name, rank, category, intimacy')
+      .select('id, name, rank, category, intimacy, closeness, importance, love')
       .eq('user_id', profile.id)
       .order('rank', { ascending: true });
 
@@ -118,6 +158,9 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
       return {
         id: r.id, name: r.name, rank: r.rank,
         category: r.category, intimacy: r.intimacy,
+        closeness: r.closeness ?? null,
+        importance: r.importance ?? null,
+        love: r.love ?? null,
         avgScore, trend,
         _avgStress: (r as any)._avgStress ?? null,
         _avgAnxiety: (r as any)._avgAnxiety ?? null,
@@ -140,8 +183,13 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
       rank: nextRank,
       category: newCategory,
       intimacy: newIntimacy,
+      closeness: newCloseness,
+      importance: newImportance,
+      love: newLove,
     });
-    setNewName(''); setNewCategory('friend'); setNewIntimacy(false); setShowAdd(false);
+    setNewName(''); setNewCategory('friend'); setNewIntimacy(false);
+    setNewCloseness(4); setNewImportance(4); setNewLove(4);
+    setShowAdd(false);
     loadRelationships();
   }
 
@@ -150,6 +198,9 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
     setEditName(r.name);
     setEditCategory(r.category);
     setEditIntimacy(r.intimacy);
+    setEditCloseness(r.closeness ?? 4);
+    setEditImportance(r.importance ?? 4);
+    setEditLove(r.love ?? 4);
     setShowAdd(false);
   }
 
@@ -158,12 +209,22 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
     setEditName('');
     setEditCategory('friend');
     setEditIntimacy(false);
+    setEditCloseness(4);
+    setEditImportance(4);
+    setEditLove(4);
   }
 
   async function saveEdit() {
     if (!editId || !editName.trim()) return;
     await supabase.from('relationships')
-      .update({ name: editName.trim(), category: editCategory, intimacy: editIntimacy })
+      .update({
+        name: editName.trim(),
+        category: editCategory,
+        intimacy: editIntimacy,
+        closeness: editCloseness,
+        importance: editImportance,
+        love: editLove,
+      })
       .eq('id', editId);
     closeEdit();
     loadRelationships();
@@ -351,7 +412,10 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
                       </div>
                       <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
                     </label>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={editCloseness} setValue={setEditCloseness} min={1} max={7} />
+                    <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={editImportance} setValue={setEditImportance} min={1} max={7} />
+                    <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={editLove} setValue={setEditLove} min={0} max={7} />
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                       <button onClick={closeEdit}
                         style={{ flex: 1, padding: '9px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
                         {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
@@ -391,15 +455,18 @@ export function CircleScreen({ profile, userState: _userState, tierLimits }: Pro
                 </button>
               ))}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, cursor: 'pointer' }}>
               <div onClick={() => setNewIntimacy(v => !v)}
                 style={{ width: 36, height: 20, borderRadius: 10, background: newIntimacy ? colors.amber : 'rgba(245,242,238,.1)', position: 'relative' as const, cursor: 'pointer', transition: 'background 0.2s' }}>
                 <div style={{ position: 'absolute' as const, top: 2, left: newIntimacy ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
               </div>
               <span style={{ color: colors.boneFaint, fontSize: 12 }}>{idioma === 'ES' ? 'Vínculo íntimo' : 'Intimate bond'}</span>
             </label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setShowAdd(false); setNewName(''); setNewCategory('friend'); setNewIntimacy(false); }}
+            <RatingRow label={idioma === 'ES' ? 'Cercanía' : 'Closeness'} value={newCloseness} setValue={setNewCloseness} min={1} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Importancia' : 'Importance'} value={newImportance} setValue={setNewImportance} min={1} max={7} />
+            <RatingRow label={idioma === 'ES' ? 'Amor' : 'Love'} value={newLove} setValue={setNewLove} min={0} max={7} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button onClick={() => { setShowAdd(false); setNewName(''); setNewCategory('friend'); setNewIntimacy(false); setNewCloseness(4); setNewImportance(4); setNewLove(4); }}
                 style={{ flex: 1, padding: '10px', background: 'transparent', border: '1px solid rgba(245,242,238,.1)', borderRadius: 8, color: colors.boneFaint, fontSize: 13, cursor: 'pointer' }}>
                 {idioma === 'ES' ? 'Cancelar' : 'Cancel'}
               </button>
