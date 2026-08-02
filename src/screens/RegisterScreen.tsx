@@ -6,7 +6,7 @@ import { normalizePhone } from '../lib/phone';
 import { requestPushPermission, registerPushToken } from '../services/pushNotifications';
 import { colors, fonts } from '../lib/tokens';
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6;
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 interface Props {
   onComplete: () => void;
@@ -71,6 +71,11 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
   const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
   const [codeExpired, setCodeExpired] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Step 6 — cycle capture (females only)
+  const [periodDate, setPeriodDate] = useState('');
+  const [cycleLen, setCycleLen]     = useState('28');
+  const [cycleLoading, setCycleLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -519,6 +524,43 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     setStep(5);
   };
 
+  // ── Step 6 — cycle capture ────────────────────────────────────────────────
+  const handleCycleContinue = async () => {
+    if (!periodDate) return;
+    setCycleLoading(true);
+    try {
+      const { error: writeErr } = await supabase
+        .from('profiles')
+        .update({
+          cycle_start_date: periodDate,
+          last_period_date: periodDate,
+          cycle_length:     parseInt(cycleLen, 10) || 28,
+          cycle_status:     'tracking',
+        })
+        .eq('id', userIdRef.current);
+      if (writeErr) console.warn('[RegisterScreen] cycle write failed:', writeErr.message);
+    } catch (err) {
+      console.warn('[RegisterScreen] cycle write exception:', err);
+    }
+    setCycleLoading(false);
+    setStep(7);
+  };
+
+  const handleNoCycle = async () => {
+    setCycleLoading(true);
+    try {
+      const { error: writeErr } = await supabase
+        .from('profiles')
+        .update({ cycle_status: 'no_cycle' })
+        .eq('id', userIdRef.current);
+      if (writeErr) console.warn('[RegisterScreen] no-cycle write failed:', writeErr.message);
+    } catch (err) {
+      console.warn('[RegisterScreen] no-cycle write exception:', err);
+    }
+    setCycleLoading(false);
+    setStep(7);
+  };
+
   const startResendCooldown = () => {
     setResendCooldown(30);
     const interval = setInterval(() => {
@@ -620,7 +662,8 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
     }).eq('id', userIdRef.current);
 
     setLoading(false);
-    setStep(6 as Step);
+    const isFemale = gender === 'female';
+    setStep(isFemale ? 6 : 7);
   };
 
   const handleResend = async () => {
@@ -1094,8 +1137,86 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
           )}
         </>)}
 
-        {/* STEP 6 — notification priming */}
+        {/* STEP 6 — cycle capture (females only) */}
         {step === 6 && (() => {
+          const age = (() => {
+            if (!dobYear || !dobMonth || !dobDay) return 0;
+            const birth = new Date(`${dobYear}-${dobMonth}-${dobDay}`);
+            const now = new Date();
+            let a = now.getFullYear() - birth.getFullYear();
+            const m = now.getMonth() - birth.getMonth();
+            if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) a--;
+            return a;
+          })();
+          const framing = age >= 50
+            ? (isES
+                ? 'Si todavía tienes un ciclo mensual, esto nos ayuda a personalizar tu pronóstico — si no, está perfectamente bien.'
+                : "If you still have a monthly cycle, this helps us personalize your forecast — if not, that's completely fine.")
+            : (isES
+                ? '¿Cuándo comenzó tu último período? Esto nos ayuda a predecir tu ritmo con precisión.'
+                : 'When did your last period start? This helps us forecast your rhythm accurately.');
+          return (
+            <>
+              <h2 style={headingStyle}>{isES ? 'Tu ciclo' : 'Your cycle'}</h2>
+              <p style={bodyStyle}>{framing}</p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ ...bodyStyle, fontSize: 13 }}>
+                  {isES ? 'Primer día del último período' : 'First day of last period'}
+                </label>
+                <input
+                  type="date"
+                  value={periodDate}
+                  onChange={e => setPeriodDate(e.target.value)}
+                  max={new Date().toLocaleDateString('en-CA')}
+                  style={{ ...inputStyle, colorScheme: 'dark' as const }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label style={{ ...bodyStyle, fontSize: 13 }}>
+                  {isES ? 'Duración del ciclo (días)' : 'Cycle length (days)'}
+                </label>
+                <input
+                  type="number"
+                  min={21}
+                  max={35}
+                  value={cycleLen}
+                  onChange={e => setCycleLen(e.target.value)}
+                  style={{ ...inputStyle, width: 100 }}
+                />
+              </div>
+
+              <button
+                style={btnStyle}
+                onClick={handleCycleContinue}
+                disabled={cycleLoading || !periodDate}
+              >
+                {cycleLoading ? '...' : (isES ? 'Continuar →' : 'Continue →')}
+              </button>
+
+              <button
+                onClick={handleNoCycle}
+                disabled={cycleLoading}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: colors.boneFaint,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                  textAlign: 'center' as const,
+                  textDecoration: 'underline',
+                }}
+              >
+                {isES ? 'No tengo un ciclo regular' : "I don't have a regular cycle"}
+              </button>
+            </>
+          );
+        })()}
+
+        {/* STEP 7 — notification priming */}
+        {step === 7 && (() => {
           const handleEnable = async () => {
             const granted = await requestPushPermission();
             if (granted && userIdRef.current) await registerPushToken(userIdRef.current);
