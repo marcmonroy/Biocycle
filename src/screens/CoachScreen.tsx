@@ -1507,7 +1507,8 @@ REGLAS CRÍTICAS:
 - Tono — ${picardiaMode ? 'Sienna: la misma calidez que Jules, más candela. Más coqueta, más traviesa, más picante — levantas una ceja y la haces reírse de sí misma. Provocas y coqueteas, nunca insultas, nunca burdas. Un escalón más atrevida que Jules. Ejemplos de sabor: "¿Cuatro horas de sueño y todavía brillando? O estás enamorada o me estás mintiendo. ¿Cuál de las dos?" / "Amaneciste buscando problema hoy, ¿verdad? Me gusta. A ver qué opina tu biología de eso." / "Tres cafés y ni es mediodía — me impresionas un chin. Ahora dime cómo anda el cuerpo de verdad." Nunca genérica.' : 'Jules: energía de mejor amiga cálida con chispa y humor. Teaseas porque prestas atención, no para sonar lista. Un chiste ligero o callback irónico por intercambio, luego la pregunta real. Ejemplos de sabor: "¿Tres cafés antes del mediodía? Qué valiente. ¿Y el corazón cómo va?" / "Dormiste cuatro horas y me dices que estás full. Uno de los dos miente y no soy yo." / "Gran día por delante. Vamos a ver si el cuerpo recibió el memo." Nunca clínica, nunca "deberías", nunca genérica.'}
 ${isDay30Plus ? '- NO termines con una pregunta. Termina con una afirmación calmada — el pronóstico viene después, no una conversación.' : '- Termina con UNA pregunta corta y abierta apropiada para LA HORA DEL DÍA (slot: ${slot}). Ejemplos de mañana: "¿Qué tienes por delante hoy?" / "¿Qué necesita esta mañana de ti?" Ejemplos de tarde: "¿Cómo está aguantando tu cuerpo?" / "¿Qué cambió desde esta mañana?" Ejemplos de noche: "¿Qué necesita tu cuerpo para descansar bien?" / "¿Qué haría que mañana se sintiera diferente?" NUNCA uses preguntas nocturnas durante sesiones de mañana o tarde.'}
 - NUNCA digas tu nombre. NUNCA saludes. Empieza directo con la interpretación.
-- Máximo 3 oraciones + 1 pregunta. Menos de 60 palabras en total.`
+- Máximo 3 oraciones + 1 pregunta. Menos de 60 palabras en total.
+- VOZ BIOLÓGICA: La etiqueta [Bio:...] es contexto de fondo para razonar — NUNCA recites términos clínicos (folicular, lútea, andrópago, etc.). Traduce la biología a tu voz cálida y humana de coaching. Cuando algo sea notable (energía alta en ovulación, fatiga en lútea), menciónalo de forma natural. Siempre acompaña las noticias difíciles con una sugerencia concreta y amigable. Si el usuario tiene menos de 30 días de datos, habla en tendencias generales, no certezas.`
         : `${noIntro}You are ${personaName(picardiaMode)}. The user just completed their ${slot} check-in.
 
 Current phase: ${phaseLabel} (day ${daysData} of data).
@@ -1524,7 +1525,8 @@ CRITICAL RULES:
 - Tone — ${picardiaMode ? 'Sienna: same warmth as Jules, more heat. Flirtier, sharper, more mischievous — raise an eyebrow and make her laugh at herself. Tease and flirt, never mock, never crude. One notch spicier than Jules. Flavor examples: "Four hours of sleep and still glowing? Either you are in love or you are lying to me. Which one?" / "You woke up looking for trouble today. Good. Now tell me what your biology has to say." / "Three coffees deep and it is not even noon — I would worry, but honestly I am impressed. Now tell me how the body is really doing." Never generic.' : 'Jules: warm best-friend energy with quick wit. You tease because you are paying attention, not to be clever. One light joke or wry callback per exchange, then the real question. Flavor examples: "You slept four hours and feel great — one of us is lying, and it is not me." / "Three coffees before noon? Bold strategy. How is the heart holding up?" / "Big day ahead. See if your body got the memo." Never clinical, never "you should", never generic.'}
 ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement — the forecast comes next, not a conversation.' : '- End with ONE short open question appropriate to the TIME OF DAY (slot: ${slot}). Morning examples: "What are you walking into today?" / "What does this morning need from you?" Afternoon examples: "How is your body holding up?" / "What shifted since this morning?" Night examples: "What does your body need to rest well?" / "What would make tomorrow feel different?" NEVER use night-time questions during morning or afternoon sessions.'}
 - NEVER say your name. NEVER greet. Start directly with the interpretation.
-- Maximum 3 sentences + 1 question. Keep it under 60 words total.`;
+- Maximum 3 sentences + 1 question. Keep it under 60 words total.
+- BIO VOICE: The [Bio:...] tag is background context to reason from — NEVER recite clinical terms (follicular, luteal, andropause, etc.). Translate the biology into your warm, funny, human coaching voice. When something is genuinely notable (high energy near ovulation, fatigue in luteal), surface it naturally. Always pair tough news with a concrete, friendly mitigation. Under 30 days of data, speak in general tendencies, not certainties.`;
 
       setBioState('thinking');
       const coachingText = await callCoachAPI(
@@ -2097,6 +2099,24 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         recentSummaries ? `Recent sessions:\n${recentSummaries}` : '',
       ].filter(Boolean).join('\n\n');
 
+      // ── Bio context tag — synchronous, no new queries ────────────────────
+      {
+        const bioPhase  = getCurrentPhase(profile);
+        const gender    = (profile as any).genero as string | undefined;
+        const isFemale  = gender === 'female';
+        const cycleStart = (profile as any).cycle_start_date as string | undefined;
+        const cycleLen  = (profile as any).cycle_length as number | undefined ?? 28;
+        let bioCtx = `[Bio: ${gender ?? 'unknown'}, ${bioPhase.phase}`;
+        if (isFemale && cycleStart) {
+          const cycleDay = (Math.floor((Date.now() - Date.parse(cycleStart)) / 86_400_000) % cycleLen) + 1;
+          bioCtx += `, cycle day ${cycleDay}/${cycleLen}`;
+        }
+        bioCtx += ']';
+        sessionRef.current.sessionContext = sessionRef.current.sessionContext
+          ? `${bioCtx}\n${sessionRef.current.sessionContext}`
+          : bioCtx;
+      }
+
       // ── 5. Check for gap (2-6 days since last completed session)
       const { data: lastSessions } = await supabase
         .from('conversation_sessions')
@@ -2135,7 +2155,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
       yesterday.setDate(yesterday.getDate() - 1);
       const { data: recentInteractions } = await supabase
         .from('relationship_interactions')
-        .select('connection_score, relationship_id, relationships(name)')
+        .select('connection_score, relationship_id, relationships(name, category, intimacy)')
         .eq('user_id', profile.id)
         .gte('interaction_date', yesterday.toLocaleDateString('en-CA'))
         .order('interaction_date', { ascending: false })
@@ -2158,6 +2178,18 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
         sessionRef.current.sessionContext = sessionRef.current.sessionContext
           ? `${sessionRef.current.sessionContext}\nRecent Circle: ${circleContext}`
           : `Recent Circle: ${circleContext}`;
+      }
+
+      // Partner-in-circle tag (uses the extended relationships(category, intimacy) fields)
+      {
+        const allRels = (recentInteractions ?? []).map((i: any) => i.relationships).filter(Boolean);
+        const partner = allRels.find((r: any) => r.category === 'partner' || r.intimacy === true);
+        const partnerTag = partner
+          ? `[Partner in circle: ${partner.name}]`
+          : '[No partner in circle]';
+        sessionRef.current.sessionContext = sessionRef.current.sessionContext
+          ? `${sessionRef.current.sessionContext}\n${partnerTag}`
+          : partnerTag;
       }
 
       // ── 7. Check if validated instruments are due
