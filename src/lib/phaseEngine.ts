@@ -33,13 +33,13 @@ function getAge(dob: string): number {
   return age;
 }
 
-function getDayOfCycle(cycleStartDate: string): number {
+function getDayOfCycle(cycleStartDate: string, cycleLength: number): number {
   const start = new Date(cycleStartDate);
   const now = new Date();
   const diffMs = now.getTime() - start.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const cycleLength = 28;
-  return (diffDays % cycleLength) + 1;
+  const len = cycleLength || 28;
+  return (diffDays % len) + 1;
 }
 
 function getFemalePhase(cycleDay: number): PhaseResult {
@@ -191,7 +191,7 @@ export function getCurrentPhase(profile: Profile): PhaseResult {
 
   // Female cycle-based
   if (gender === 'female' && profile.cycle_start_date) {
-    const cycleDay = getDayOfCycle(profile.cycle_start_date);
+    const cycleDay = getDayOfCycle(profile.cycle_start_date, profile.cycle_length ?? 28);
     return getFemalePhase(cycleDay);
   }
 
