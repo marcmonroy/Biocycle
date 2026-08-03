@@ -50,6 +50,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   const [waActivating, setWaActivating] = useState(false);
   const [waJustActivated, setWaJustActivated] = useState(false);
   const [waDismissed, setWaDismissed] = useState(false);
+  const [cycleNudgeDismissed, setCycleNudgeDismissed] = useState(false);
   const waPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [installPromptEvent, setInstallPromptEvent] = useState<any>(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -387,6 +388,35 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
             <p style={{ color: '#25D366', fontSize: 13, fontWeight: 700, margin: 0 }}>
               {idioma === 'ES' ? '✓ Recordatorios activados' : '✓ Reminders activated'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {!cycleNudgeDismissed && (profile as any).cycle_status == null && profile.genero === 'female' && (
+        <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '0 20px 16px' }}>
+          <div style={{ background: 'rgba(239,159,39,0.08)', border: `1px solid rgba(239,159,39,0.3)`, borderRadius: 14, padding: '16px 18px' }}>
+            <p style={{ color: colors.bone, fontSize: 13, lineHeight: 1.5, margin: '0 0 4px', fontWeight: 600 }}>
+              {idioma === 'ES' ? '🌙 Activa tu ciclo para pronósticos precisos' : '🌙 Set your cycle for accurate forecasts'}
+            </p>
+            <p style={{ color: colors.boneFaint, fontSize: 12, lineHeight: 1.5, margin: '0 0 12px' }}>
+              {idioma === 'ES'
+                ? 'Cuéntanos el primer día de tu último período y BioCycle podrá anticipar tus días de energía, ánimo y más.'
+                : 'Tell us the first day of your last period and BioCycle can anticipate your energy, mood, and more.'}
+            </p>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button
+                onClick={onOpenProfile}
+                style={{ background: colors.amber, border: 'none', borderRadius: 10, padding: '10px 18px', color: colors.midnight, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                {idioma === 'ES' ? 'Configurar ahora' : 'Set up now'}
+              </button>
+              <button
+                onClick={() => setCycleNudgeDismissed(true)}
+                style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
+              >
+                {idioma === 'ES' ? 'Más tarde' : 'Later'}
+              </button>
+            </div>
           </div>
         </div>
       )}
