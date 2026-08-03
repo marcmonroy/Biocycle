@@ -3,10 +3,10 @@ import type { CompatibilityResult, CompatibilityType } from './compatibilityEngi
 // Tabler icon name + brand color per compatibility type (used on the calendar).
 // Icons are rendered by the app's Tabler icon component / font.
 export const TYPE_VISUAL: Record<CompatibilityType, { icon: string; color: string; labelEN: string; labelES: string }> = {
-  vibe:        { icon: '✨', color: '#5dcaa5', labelEN: 'Good vibe',         labelES: 'Buena vibra' },
-  cognitive:   { icon: '🧠', color: '#7f77dd', labelEN: 'Intellectual sync', labelES: 'Sincronía intelectual' },
-  performance: { icon: '⚡', color: '#ef9f27', labelEN: 'Performance',        labelES: 'Rendimiento' },
-  intimacy:    { icon: '💞', color: '#d4537e', labelEN: 'Intimacy',          labelES: 'Intimidad' },
+  vibe:        { icon: '✨', color: '#5dcaa5', labelEN: 'Good Vibe', labelES: 'Buena Vibra' },
+  cognitive:   { icon: '🧠', color: '#7f77dd', labelEN: 'Intellect',  labelES: 'Intelecto'   },
+  performance: { icon: '⚡', color: '#ef9f27', labelEN: 'Energy',     labelES: 'Energía'     },
+  intimacy:    { icon: '💞', color: '#d4537e', labelEN: 'Intimacy',   labelES: 'Intimidad'   },
 };
 
 export interface CalendarDay {

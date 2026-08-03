@@ -34,7 +34,7 @@ interface DayComposites {
 export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
   {
     id: 'vibe',
-    label: 'Vibe Check',
+    label: 'Good Vibe',
     labelES: 'Buena Vibra',
     description: 'Shared social energy and emotional alignment. Best for friends and anyone.',
     descriptionES: 'Energía social compartida y alineación emocional. Para amigos y cualquier persona.',
@@ -48,8 +48,8 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
   },
   {
     id: 'cognitive',
-    label: 'Cognitive Sync',
-    labelES: 'Sincronía Intelectual',
+    label: 'Intellect',
+    labelES: 'Intelecto',
     description: 'Shared mental clarity and focus windows. Best for work teams and collaborators.',
     descriptionES: 'Claridad mental y ventanas de enfoque compartidas. Para equipos de trabajo.',
     icon: '🧠',
@@ -62,8 +62,8 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
   },
   {
     id: 'performance',
-    label: 'Performance Sync',
-    labelES: 'Sincronía de Rendimiento',
+    label: 'Energy',
+    labelES: 'Energía',
     description: 'Shared execution capacity. Best for project partners and team leads.',
     descriptionES: 'Capacidad de ejecución compartida. Para socios de proyecto y líderes.',
     icon: '⚡',
@@ -76,8 +76,8 @@ export const COMPATIBILITY_TYPES: CompatibilityTypeConfig[] = [
   },
   {
     id: 'intimacy',
-    label: 'Intimacy & Connection',
-    labelES: 'Intimidad y Conexión',
+    label: 'Intimacy',
+    labelES: 'Intimidad',
     description: 'Emotional and sexual energy alignment for couples and close partners.',
     descriptionES: 'Alineación de energía emocional y sexual para parejas.',
     icon: '💞',

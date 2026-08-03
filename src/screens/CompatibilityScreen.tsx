@@ -70,6 +70,29 @@ function NewInviteForm({
         if (blockRow) { onSent(); return; }
       }
 
+      // ── Per-person type limits: max 3 distinct types, no duplicates ─────────
+      {
+        const { data: existingRows } = await supabase
+          .from('compatibility_connections')
+          .select('type, status')
+          .eq('user_a_id', profile.id)
+          .eq('invited_phone', normalized)
+          .in('status', ['accepted', 'pending']);
+        if (existingRows) {
+          const existingTypes = [...new Set(existingRows.map((r: any) => r.type as string))];
+          if (existingTypes.includes(type)) {
+            setError(ES ? 'Ya tienes esta compatibilidad con esta persona.' : 'You already have this compatibility with this person.');
+            setSending(false);
+            return;
+          }
+          if (existingTypes.length >= 3) {
+            setError(ES ? 'Máximo 3 compatibilidades por persona.' : 'Maximum 3 compatibilities per person.');
+            setSending(false);
+            return;
+          }
+        }
+      }
+
       // ── Lookup: is the invited number already a registered user? ──────────
       let matchedId: string | null = null;
       let matchedProfile: { id: string } | null = null;
@@ -750,9 +773,9 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               >⋯</button>
             </div>
 
-            {/* Type toggle row — one pill per accepted type, multi-select */}
+            {/* Type toggle row — one pill per DISTINCT accepted type, multi-select */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {currentPerson.conns.map(c => {
+              {Array.from(new Map(currentPerson.conns.map(c => [c.type, c])).values()).map(c => {
                 const vis = TYPE_VISUAL[c.type];
                 const isLit = activeLitTypes.has(c.type);
                 return (
