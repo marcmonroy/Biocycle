@@ -9,7 +9,7 @@ import {
   COMPATIBILITY_TYPES,
 } from '../lib/compatibilityEngine';
 import type { CompatibilityType, CompatibilityResult } from '../lib/compatibilityEngine';
-import { buildTypeCalendar, hasAnyPeak, TYPE_VISUAL } from '../lib/compatibilityCalendar';
+import { buildTypeCalendar, TYPE_VISUAL } from '../lib/compatibilityCalendar';
 import { exportToCalendar } from '../lib/icsExport';
 import { sendSystemPush } from '../services/pushNotifications';
 import { sendWhatsAppInvite } from '../services/whatsapp';
@@ -287,138 +287,140 @@ function NewInviteForm({
   );
 }
 
-function CompatibilityDetail({
-  conn,
-  profile,
-  tierLimits,
-  idioma,
+
+// ── Multi-type merged calendar ─────────────────────────────────────────────
+
+function MultiTypeCalendar({
+  conns, litTypes, profile, tierLimits, idioma,
 }: {
-  conn: CompatibilityConnection;
-  profile: Profile;
+  conns:      CompatibilityConnection[];
+  litTypes:   Set<string>;
+  profile:    Profile;
   tierLimits: TierLimits;
-  idioma: 'EN' | 'ES';
+  idioma:     'EN' | 'ES';
 }) {
-  const [result, setResult] = useState<CompatibilityResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [computeError, setComputeError] = useState(false);
+  const [results, setResults] = useState<Map<string, CompatibilityResult | null>>(new Map());
+  const [computing, setComputing] = useState(true);
   const ES = idioma === 'ES';
-
-  useEffect(() => {
-    if (!conn.partner_profile) { setLoading(false); return; }
-    computeCompatibility(profile, conn.partner_profile, conn.type, tierLimits.forecastDays)
-      .then(r => { setResult(r); setLoading(false); })
-      .catch((err) => { console.error('[compat] compute failed:', err); setComputeError(true); setLoading(false); });
-  }, [conn, profile, tierLimits.forecastDays]);
-
   const allowedTypes = getCompatibilityTierAccess(tierLimits);
-  const partnerDays = conn.partner_profile ? getDaysOfData(conn.partner_profile) : 0;
-  const earlyEstimate = getDaysOfData(profile) < 30 || partnerDays < 30;
+
+  const connKey = conns.map(c => c.id).join(',');
+  useEffect(() => {
+    setComputing(true);
+    const map = new Map<string, CompatibilityResult | null>();
+    Promise.all(
+      conns.map(async conn => {
+        if (!conn.partner_profile) { map.set(conn.id, null); return; }
+        try {
+          const r = await computeCompatibility(profile, conn.partner_profile, conn.type, tierLimits.forecastDays);
+          map.set(conn.id, r);
+        } catch { map.set(conn.id, null); }
+      })
+    ).then(() => { setResults(new Map(map)); setComputing(false); });
+  }, [connKey, profile.id, tierLimits.forecastDays]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (computing) return (
+    <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
+      {ES ? 'Calculando sincronía...' : 'Computing sync...'}
+    </div>
+  );
+
+  // Build merged marksByDay from all lit types
+  const marksByDay: Record<string, CalendarMark[]> = {};
+  let days: Date[] = [];
+  let hasPeaks = false;
+
+  for (const conn of conns) {
+    if (!litTypes.has(conn.type)) continue;
+    const result = results.get(conn.id);
+    if (!result) continue;
+    const cal = buildTypeCalendar(result);
+    if (days.length === 0) days = cal.map(c => c.date);
+    const vis = TYPE_VISUAL[conn.type];
+    for (const c of cal) {
+      if (c.isPeak) {
+        hasPeaks = true;
+        const key = c.date.toLocaleDateString('en-CA');
+        if (!marksByDay[key]) marksByDay[key] = [];
+        marksByDay[key].push({ icon: vis.icon, color: vis.color });
+      }
+    }
+  }
+
+  if (days.length === 0) return (
+    <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 12, fontFamily: fonts.body }}>
+      {ES ? 'No hay datos suficientes aún.' : 'Not enough data yet.'}
+    </div>
+  );
+
+  const partnerName = conns[0]?.partner_profile?.nombre ?? conns[0]?.invited_name ?? '';
+  const earlyEstimate = getDaysOfData(profile) < 30 ||
+    conns.some(c => c.partner_profile && getDaysOfData(c.partner_profile as Profile) < 30);
+
+  const caption = hasPeaks
+    ? (ES ? `Tus mejores días con ${partnerName}.` : `Your best days with ${partnerName}.`)
+    : (ES ? 'Sin días pico compartidos por ahora.' : 'No shared peak days right now.');
+  const emptyLine = hasPeaks ? undefined : caption;
+
+  const legend: LegendEntry[] = COMPATIBILITY_TYPES.map(t => {
+    const v = TYPE_VISUAL[t.id];
+    return { icon: v.icon, color: v.color, label: ES ? v.labelES : v.labelEN, active: allowedTypes.includes(t.id) };
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-      {loading && (
-        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
-          {ES ? 'Calculando sincronía...' : 'Computing sync...'}
+      {earlyEstimate && (
+        <div style={{
+          padding: '10px 14px', background: 'rgba(255,217,61,0.08)',
+          border: '1px solid rgba(255,217,61,0.25)', borderRadius: 10,
+          fontSize: 11.5, color: colors.amber, fontFamily: fonts.body, lineHeight: 1.5,
+        }}>
+          {ES
+            ? 'Estimación temprana — la sincronía se afina cuando ambos alcanzan 30 días de datos.'
+            : 'Early estimate — your sync sharpens once you both reach 30 days of data.'}
         </div>
       )}
-
-      {!loading && !result && computeError && (
-        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
-          {ES ? 'No se pudo calcular la sincronía. Intenta de nuevo.' : 'Could not compute sync. Try again.'}
-        </div>
-      )}
-
-      {!loading && !result && !computeError && (
-        <div style={{ textAlign: 'center', padding: 32, color: colors.boneFaint, fontSize: 13, fontFamily: fonts.body }}>
-          {ES ? 'No hay datos suficientes aún.' : 'Not enough data yet.'}
-        </div>
-      )}
-
-      {!loading && result && (
-        <>
-          {earlyEstimate && (
-            <div style={{
-              padding: '10px 14px',
-              background: 'rgba(255,217,61,0.08)',
-              border: '1px solid rgba(255,217,61,0.25)',
-              borderRadius: 10,
-              fontSize: 11.5,
-              color: colors.amber,
-              fontFamily: fonts.body,
-              lineHeight: 1.5,
-            }}>
-              {ES
-                ? 'Estimación temprana — la sincronía se afina cuando ambos alcanzan 30 días de datos.'
-                : 'Early estimate — your sync sharpens once you both reach 30 days of data.'}
-            </div>
-          )}
-          {(() => {
-                const cal = buildTypeCalendar(result);
-                const vis = TYPE_VISUAL[conn.type];
-                const days = cal.map(c => c.date);
-                const marksByDay: Record<string, CalendarMark[]> = {};
-                for (const c of cal) {
-                  if (c.isPeak) {
-                    marksByDay[c.date.toLocaleDateString('en-CA')] = [{ icon: vis.icon, color: vis.color }];
-                  }
-                }
-                const legend: LegendEntry[] = COMPATIBILITY_TYPES.map(t => {
-                  const v = TYPE_VISUAL[t.id];
-                  return { icon: v.icon, color: v.color, label: ES ? v.labelES : v.labelEN, active: allowedTypes.includes(t.id) };
-                });
-                const peaks = hasAnyPeak(cal);
-                const inSync = result.weekAverage >= 55;
-                const caption = peaks
-                  ? (ES ? `Tus mejores días con ${conn.partner_profile?.nombre ?? conn.invited_name}.` : `Your best days with ${conn.partner_profile?.nombre ?? conn.invited_name}.`)
-                  : inSync
-                    ? (ES ? 'Van muy sincronizados — sin días que sobresalgan en las próximas semanas.' : "You're steadily in sync — no standout days in the next couple of weeks.")
-                    : (ES ? 'Llevan ritmos distintos — no hay días pico compartidos por ahora.' : "You run on different rhythms — no shared peak days for now.");
-                const emptyLine = peaks ? undefined : caption;
-                const partnerName = conn.partner_profile?.nombre ?? conn.invited_name;
-                const typeLabel = ES ? vis.labelES : vis.labelEN;
-                return (
-                  <>
-                    <CalendarGrid
-                      days={days}
-                      marksByDay={marksByDay}
-                      legend={legend}
-                      caption={peaks ? caption : undefined}
-                      emptyLine={emptyLine}
-                      isES={ES}
-                    />
-                    {peaks && (
-                      <button
-                        onClick={() => {
-                          const events = cal.filter(c => c.isPeak).map(c => ({
-                            date: c.date,
-                            title: `${partnerName} · ${typeLabel}`,
-                            notes: ES ? 'Día pico compartido' : 'Shared peak day',
-                          }));
-                          exportToCalendar(events, 'biocycle-compatibilidad.ics');
-                        }}
-                        style={{
-                          marginTop: 12, width: '100%',
-                          background: 'rgba(245,242,238,0.06)',
-                          border: '1px solid rgba(245,242,238,0.14)',
-                          borderRadius: 10, padding: '10px 0',
-                          color: 'rgba(245,242,238,0.45)', fontSize: 12,
-                          fontFamily: fonts.body, cursor: 'pointer',
-                          letterSpacing: '0.02em',
-                        }}
-                      >
-                        {ES ? 'Añadir a mi calendario' : 'Add to my calendar'}
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
-        </>
+      <CalendarGrid
+        days={days}
+        marksByDay={marksByDay}
+        legend={legend}
+        caption={hasPeaks ? caption : undefined}
+        emptyLine={emptyLine}
+        isES={ES}
+      />
+      {hasPeaks && (
+        <button
+          onClick={() => {
+            const events = conns
+              .filter(c => litTypes.has(c.type))
+              .flatMap(c => {
+                const result = results.get(c.id);
+                if (!result) return [];
+                const vis = TYPE_VISUAL[c.type];
+                return buildTypeCalendar(result)
+                  .filter(e => e.isPeak)
+                  .map(e => ({
+                    date:  e.date,
+                    title: `${partnerName} · ${ES ? vis.labelES : vis.labelEN}`,
+                    notes: ES ? 'Día pico compartido' : 'Shared peak day',
+                  }));
+              });
+            exportToCalendar(events, 'biocycle-compatibilidad.ics');
+          }}
+          style={{
+            marginTop: 4, width: '100%',
+            background: 'rgba(245,242,238,0.06)', border: '1px solid rgba(245,242,238,0.14)',
+            borderRadius: 10, padding: '10px 0',
+            color: 'rgba(245,242,238,0.45)', fontSize: 12,
+            fontFamily: fonts.body, cursor: 'pointer', letterSpacing: '0.02em',
+          }}
+        >
+          {ES ? 'Añadir a mi calendario' : 'Add to my calendar'}
+        </button>
       )}
     </div>
   );
 }
-
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
@@ -427,7 +429,7 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedPersonKey, setSelectedPersonKey] = useState<string | null>(null);
-  const [selectedConnId, setSelectedConnId]       = useState<string | null>(null);
+  const [litTypes, setLitTypes]                   = useState<Set<string>>(new Set());
 
   const idioma = profile.idioma ?? 'EN';
   const ES = idioma === 'ES';
@@ -699,9 +701,12 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
         const people = Array.from(peopleMap.values());
 
         // Resolve selected person (fall back to first)
-        const currentPerson = people.find(p => p.key === selectedPersonKey) ?? people[0];
-        // Resolve selected type row within that person (fall back to first)
-        const current = currentPerson.conns.find(c => c.id === selectedConnId) ?? currentPerson.conns[0];
+        const currentPerson  = people.find(p => p.key === selectedPersonKey) ?? people[0];
+        const primaryConn    = currentPerson.conns[0];
+        // litTypes: default to first accepted type when empty (e.g. initial state or person reset)
+        const activeLitTypes: Set<string> = litTypes.size > 0
+          ? litTypes
+          : new Set([primaryConn?.type].filter(Boolean) as string[]);
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -714,9 +719,8 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               <select
                 value={currentPerson.key}
                 onChange={e => {
-                  const nextPerson = people.find(p => p.key === e.target.value);
                   setSelectedPersonKey(e.target.value);
-                  setSelectedConnId(nextPerson?.conns[0]?.id ?? null);
+                  setLitTypes(new Set()); // reset → defaults to new person's first type
                 }}
                 style={{
                   flex: 1, background: 'rgba(245,242,238,0.05)', color: colors.bone,
@@ -730,12 +734,12 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               </select>
               <button
                 onClick={() => {
-                  const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
-                  const typeLbl = tc ? (ES ? tc.labelES : tc.label) : current.type;
+                  const tc = COMPATIBILITY_TYPES.find(t => t.id === primaryConn.type);
+                  const typeLbl = tc ? (ES ? tc.labelES : tc.label) : primaryConn.type;
                   if (confirm(ES
                     ? `¿Desconectar "${typeLbl}" con ${currentPerson.displayName}?`
                     : `Disconnect "${typeLbl}" with ${currentPerson.displayName}?`
-                  )) handleCancel(current);
+                  )) handleCancel(primaryConn);
                 }}
                 aria-label="options"
                 style={{
@@ -746,42 +750,39 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               >⋯</button>
             </div>
 
-            {/* Type selector — pill row when multiple types, static label when only one */}
-            {currentPerson.conns.length > 1 ? (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {currentPerson.conns.map(c => {
-                  const tc = COMPATIBILITY_TYPES.find(t => t.id === c.type);
-                  const isActive = c.id === current.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => setSelectedConnId(c.id)}
-                      style={{
-                        padding: '5px 12px', borderRadius: 20,
-                        border: `1px solid ${isActive ? colors.amber : 'rgba(255,255,255,0.15)'}`,
-                        background: isActive ? 'rgba(239,159,39,0.15)' : 'none',
-                        color: isActive ? colors.amber : colors.bone,
-                        fontSize: 12, fontFamily: fonts.body, cursor: 'pointer',
-                      }}
-                    >
-                      {tc?.icon ?? ''} {tc ? (ES ? tc.labelES : tc.label) : c.type}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              (() => {
-                const tc = COMPATIBILITY_TYPES.find(t => t.id === current.type);
-                return tc ? (
-                  <div style={{ fontSize: 15, fontWeight: 500, color: colors.bone, fontFamily: fonts.body, marginTop: 8 }}>
-                    {tc.icon} {ES ? tc.labelES : tc.label}
-                  </div>
-                ) : null;
-              })()
-            )}
+            {/* Type toggle row — one pill per accepted type, multi-select */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {currentPerson.conns.map(c => {
+                const vis = TYPE_VISUAL[c.type];
+                const isLit = activeLitTypes.has(c.type);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setLitTypes(prev => {
+                        const base = prev.size > 0 ? new Set(prev) : new Set(activeLitTypes);
+                        if (base.has(c.type) && base.size > 1) base.delete(c.type);
+                        else base.add(c.type);
+                        return new Set(base);
+                      });
+                    }}
+                    style={{
+                      padding: '5px 12px', borderRadius: 20,
+                      border: `1px solid ${isLit ? vis.color : 'rgba(255,255,255,0.15)'}`,
+                      background: isLit ? `${vis.color}22` : 'none',
+                      color: isLit ? vis.color : colors.boneFaint,
+                      fontSize: 12, fontFamily: fonts.body, cursor: 'pointer',
+                    }}
+                  >
+                    {vis.icon} {ES ? vis.labelES : vis.labelEN}
+                  </button>
+                );
+              })}
+            </div>
 
-            <CompatibilityDetail
-              conn={current}
+            <MultiTypeCalendar
+              conns={currentPerson.conns}
+              litTypes={activeLitTypes}
               profile={profile}
               tierLimits={tierLimits}
               idioma={idioma}
