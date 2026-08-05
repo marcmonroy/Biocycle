@@ -564,10 +564,13 @@ interface Props {
 }
 
 export function CoachScreen({ profile, userState: _userState, tierLimits, onBack, onNavigate }: Props) {
-  // Stable constants — derived from props once, never stale
-  const idioma       = profile.idioma ?? 'EN';
-  const isES         = idioma === 'ES';
-  const picardiaMode = profile.picardia_mode ?? false;
+  // Frozen at mount — never updated, so every closure in every render sees the same value.
+  // Prevents Supabase token-refresh re-renders from changing voice/language mid-session.
+  const idiomaRef   = useRef(profile.idioma ?? 'EN');
+  const picardiaRef = useRef(profile.picardia_mode ?? false);
+  // Stable constants — read from frozen refs so ALL closures see the mount-time value
+  const isES         = idiomaRef.current === 'ES';
+  const picardiaMode = picardiaRef.current;
   // Prepended to every system prompt so Jules never re-introduces herself
   const noIntro      = (isES
     ? 'CRÍTICO: Ya te presentaste. NUNCA digas tu nombre. NUNCA digas "Soy Jules". NUNCA saludes. Empieza directamente con el contenido.\n\n'
@@ -639,7 +642,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
     if (convState !== 'ADHOC') return;
     if (liveDaysRef.current >= 30) return; // day 30+ sessions close via forecast callback, not timer
     const slot = sessionRef.current.slot;
-    const isES = profile.idioma === 'ES';
+    const isES = idiomaRef.current === 'ES';
     const timer = setTimeout(() => {
       if (sessionRef.current.state === 'SESSION_COMPLETE') return;
       const farewell = isES
@@ -680,7 +683,7 @@ export function CoachScreen({ profile, userState: _userState, tierLimits, onBack
       return;
     }
     setBioState('speaking');
-    speakWithElevenLabs(text, idioma, picardiaMode, {
+    speakWithElevenLabs(text, idiomaRef.current, picardiaRef.current, {
       onStart: () => setBioState('speaking'),
       onEnd:   () => { setBioState('idle'); onEnd?.(); },
     });
