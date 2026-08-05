@@ -498,123 +498,24 @@ export function DataHubScreen({ profile }: Props) {
 
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', height: 1, background: 'rgba(245,242,238,0.05)' }} />
 
-      {/* Research Studies */}
+      {/* More features coming soon */}
       <div style={{ width: '100%', maxWidth: 430, margin: '0 auto', padding: '24px 24px 20px' }}>
         <p style={{ color: colors.boneFaint, fontSize: 10, letterSpacing: '0.12em',
           textTransform: 'uppercase', margin: '0 0 14px' }}>
-          {L('Research Studies', 'Estudios de Investigación')}
+          {L('Coming Soon', 'Próximamente')}
         </p>
-
-        {daysOfData < 30 ? (
-          <div style={{
-            background: 'rgba(245,242,238,0.02)',
-            border: '1px solid rgba(245,242,238,0.06)',
-            borderRadius: 14, padding: '24px 20px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%',
-                background: 'rgba(245,242,238,0.06)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
-              }}>🔬</div>
-              <div>
-                <p style={{ color: colors.boneFaint, fontSize: 13, fontWeight: 600, margin: 0 }}>
-                  {L('Research Pool', 'Banco de Investigación')}
-                </p>
-                <p style={{ color: colors.boneFaint, fontSize: 11, margin: '2px 0 0' }}>
-                  {L(`${30 - daysOfData} days until eligible`, `${30 - daysOfData} días para ser elegible`)}
-                </p>
-              </div>
-            </div>
-            <div style={{ height: 4, background: 'rgba(245,242,238,0.06)', borderRadius: 2, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${Math.min(100, (daysOfData / 30) * 100)}%`,
-                background: colors.boneFaint,
-                borderRadius: 2,
-                transition: 'width 0.3s',
-              }} />
-            </div>
-            <p style={{ color: colors.boneFaint, fontSize: 11, margin: '8px 0 0' }}>
-              {L(
-                'Complete 30 days of check-ins to unlock research participation and start earning.',
-                'Completa 30 días de check-ins para desbloquear la participación en investigación.'
-              )}
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Eligibility badge */}
-            <div style={{
-              background: 'rgba(93,202,165,0.06)',
-              border: '1px solid rgba(93,202,165,0.2)',
-              borderRadius: 14, padding: '16px 20px',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%',
-                background: 'rgba(93,202,165,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 18,
-              }}>✓</div>
-              <div>
-                <p style={{ color: colors.success, fontSize: 13, fontWeight: 600, margin: 0 }}>
-                  {L('Research Eligible', 'Elegible para Investigación')}
-                </p>
-                <p style={{ color: colors.boneFaint, fontSize: 11, margin: '2px 0 0' }}>
-                  {L('Your data is in the research pool.', 'Tus datos están en el banco de investigación.')}
-                </p>
-              </div>
-            </div>
-
-            {/* Trading Floor activation status */}
-            <div style={{
-              background: 'rgba(239,159,39,0.04)',
-              border: '1px solid rgba(239,159,39,0.12)',
-              borderRadius: 14, padding: '16px 20px',
-            }}>
-              <p style={{ color: colors.amber, fontSize: 12, fontWeight: 600, margin: '0 0 4px' }}>
-                {L('Trading Floor', 'Piso de Negociación')}
-              </p>
-              <p style={{ color: colors.boneFaint, fontSize: 12, margin: '0 0 10px' }}>
-                {L(
-                  'Activates at 500 active traders. Studies will appear here when researchers post opportunities matching your profile.',
-                  'Se activa en 500 traders activos. Los estudios aparecerán aquí cuando los investigadores publiquen oportunidades que coincidan con tu perfil.'
-                )}
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ color: colors.boneFaint, fontSize: 11 }}>
-                  {L('Active traders', 'Traders activos')}
-                </span>
-                <span style={{ color: colors.amber, fontSize: 11, fontFamily: fonts.mono }}>
-                  — / 500
-                </span>
-              </div>
-              <div style={{ height: 3, background: 'rgba(245,242,238,0.06)', borderRadius: 2 }}>
-                <div style={{ height: '100%', width: '0%', background: colors.amber, borderRadius: 2 }} />
-              </div>
-            </div>
-
-            {/* No active studies placeholder */}
-            <div style={{
-              background: 'rgba(245,242,238,0.02)',
-              border: '1px solid rgba(245,242,238,0.06)',
-              borderRadius: 14, padding: '20px',
-              textAlign: 'center',
-            }}>
-              <p style={{ color: colors.boneFaint, fontSize: 13, margin: '0 0 4px' }}>
-                {L('No active studies', 'Sin estudios activos')}
-              </p>
-              <p style={{ color: colors.boneFaint, fontSize: 11, margin: 0 }}>
-                {L(
-                  'You will receive a WhatsApp notification when a study matches your profile.',
-                  'Recibirás una notificación de WhatsApp cuando un estudio coincida con tu perfil.'
-                )}
-              </p>
-            </div>
-          </div>
-        )}
+        <div style={{
+          background: 'rgba(245,242,238,0.02)',
+          border: '1px solid rgba(245,242,238,0.06)',
+          borderRadius: 14, padding: '20px',
+        }}>
+          <p style={{ color: colors.boneFaint, fontSize: 13, margin: 0, lineHeight: 1.5 }}>
+            {L(
+              'More features are on the way. Your data is private and never shared without your explicit consent.',
+              'Más funciones están en camino. Tus datos son privados y nunca se comparten sin tu consentimiento explícito.'
+            )}
+          </p>
+        </div>
       </div>
     </div>
   );

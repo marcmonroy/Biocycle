@@ -350,6 +350,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
       updates.last_period_date  = lastPeriodDate || null;
       updates.cycle_start_date  = lastPeriodDate || null; // engines read cycle_start_date
       updates.cycle_length = cycleLength ? parseInt(cycleLength, 10) : 28;
+      if (lastPeriodDate) updates.cycle_status = 'tracking'; // clears the cycle-nudge banner
     }
 
     const { data, error } = await supabase

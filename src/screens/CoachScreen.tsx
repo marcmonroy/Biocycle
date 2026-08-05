@@ -23,7 +23,7 @@ import { colors, fonts } from '../lib/tokens';
 
 type ConversationState =
   | 'OPENING'
-  | 'EXPLAIN_OFFER' | 'EXPLAINING' | 'MONEY_OFFER' | 'MONEY_EXPLAINING'
+  | 'EXPLAIN_OFFER' | 'EXPLAINING'
   | 'ENERGY_Q' | 'ENERGY_ACK'
   | 'COGNITIVE_Q' | 'COGNITIVE_ACK'
   | 'STRESS_Q' | 'STRESS_ACK'
@@ -122,7 +122,6 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
   if (isES) {
     switch (state) {
       case 'EXPLAIN_OFFER':  return '¿Te gustaría una explicación rápida de cómo funciona BioCycle antes de empezar?';
-      case 'MONEY_OFFER':    return '¿Quieres saber cómo tus datos pueden generarte dinero?';
       case 'ENERGY_Q':       return '¿Cómo calificarías tu energía ahora mismo — del 1 al 10?';
       case 'COGNITIVE_Q':    return '¿Y tu claridad mental — qué tan enfocado/a te sientes? Del 1 al 10.';
       case 'STRESS_Q':       return 'Nivel de estrés — del 1 al 10.';
@@ -141,7 +140,6 @@ function getQuestionText(state: ConversationState, _name: string, _slot: Session
   }
   switch (state) {
     case 'EXPLAIN_OFFER':  return 'Would you like a quick explanation of how BioCycle works before we start?';
-    case 'MONEY_OFFER':    return 'Want to know about how your data can earn you money?';
     case 'ENERGY_Q':       return 'How would you rate your energy right now — on a scale of 1 to 10?';
     case 'COGNITIVE_Q':    return 'And your mental clarity — how sharp are you feeling? 1 to 10.';
     case 'STRESS_Q':       return 'Stress level — 1 to 10.';
@@ -194,7 +192,7 @@ function getInputUI(state: ConversationState): InputUI {
   if (state === 'RELATIONSHIP_NAME_Q') { setDebug('inputUI', 'text'); return 'text'; }
   if (state === 'RELATIONSHIP_CATEGORY') { setDebug('inputUI', 'relationship_category'); return 'relationship_category'; }
   if (state === 'INSTRUMENT_Q') { setDebug('inputUI', 'instrument_pad'); return 'instrument_pad'; }
-  const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER','MONEY_OFFER'];
+  const choices: ConversationState[] = ['SLEEP_Q','CAFFEINE_Q','HYDRATION_Q','ALCOHOL_Q','EXPLAIN_OFFER'];
   const result: InputUI = choices.includes(state) ? 'choices' : 'none';
   // ADHOC and all ACK/transition states → 'none' (shows mic + text fallback)
   console.log('[getInputUI] state:', state, 'result:', result);
@@ -209,7 +207,6 @@ function getChoiceOptions(state: ConversationState, isES: boolean): string[] {
     case 'HYDRATION_Q':   return isES ? ['Bien', 'Regular', 'Mal'] : ['Good', 'Average', 'Poor'];
     case 'ALCOHOL_Q':     return isES ? ['Sí', 'No'] : ['Yes', 'No'];
     case 'EXPLAIN_OFFER': return isES ? ['Sí', 'No'] : ['Yes', 'No'];
-    case 'MONEY_OFFER':   return isES ? ['Sí', 'No'] : ['Yes', 'No'];
     default: return [];
   }
 }
@@ -1763,7 +1760,7 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
     // "How does BioCycle work?" — works in any state
     const lc = text.toLowerCase();
     if (
-      state !== 'EXPLAIN_OFFER' && state !== 'MONEY_OFFER' &&
+      state !== 'EXPLAIN_OFFER' &&
       (lc.includes('how does biocycle work') || lc.includes('cómo funciona biocycle') || lc.includes('como funciona biocycle'))
     ) {
       if (isProcessingRef.current) return;
@@ -1791,30 +1788,13 @@ ${isDay30Plus ? '- Do NOT end with a question. End with a calm settled statement
             : 'BioCycle learns your biological patterns through daily conversations. Over time I predict how you will feel before it happens.';
           addJulesMsg(explainText);
           isProcessingRef.current = false;
-          speak(explainText, () => {
-            showQuestion('MONEY_OFFER');
-          });
-        } else {
-          // NO — skip explanation, go to money offer
-          showQuestion('MONEY_OFFER');
-        }
-        break;
-
-      case 'MONEY_OFFER':
-        if (text === 'Yes' || text === 'Sí' || text === 'yes' || text === 'si') {
-          const moneyText = isES
-            ? 'Tus registros diarios construyen un perfil biológico que los investigadores pagan por acceder. Cuanto más constante seas, más vale tu información.'
-            : 'Your daily check-ins build a biological dataset that researchers pay to access. The more consistent you are, the more your data is worth.';
-          addJulesMsg(moneyText);
-          isProcessingRef.current = false;
-          // Mark onboarding complete in Supabase
           void supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
           sessionRef.current.onboardingComplete = true;
-          speak(moneyText, () => {
+          speak(explainText, () => {
             enterFirstDimension();
           });
         } else {
-          // NO — skip money, mark onboarding complete, go to first dimension
+          // NO — go straight to first dimension
           void supabase.from('profiles').update({ onboarding_complete: true }).eq('id', profile.id);
           sessionRef.current.onboardingComplete = true;
           enterFirstDimension();
