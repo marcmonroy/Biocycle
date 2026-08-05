@@ -464,7 +464,23 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
     loadConnections();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleCancel(conn: CompatibilityConnection) {
+  async function handleCancel(conn: CompatibilityConnection, typeLabel: string) {
+    // Notify the other user before deleting (push only — no WA fallback for disconnects)
+    const otherUserId = conn.user_a_id === profile.id ? conn.user_b_id : conn.user_a_id;
+    if (otherUserId) {
+      const senderName = profile.nombre ?? 'BioCycle';
+      try {
+        await sendSystemPush(
+          otherUserId,
+          ES ? 'Compatibilidad desconectada' : 'Compatibility disconnected',
+          ES
+            ? `Tu compatibilidad de ${typeLabel} ha sido desconectada por ${senderName}.`
+            : `Your ${typeLabel} compatibility has been disconnected by ${senderName}.`,
+        );
+      } catch {
+        // push failure must never block the disconnect
+      }
+    }
     await supabase
       .from('compatibility_connections')
       .delete()
@@ -757,12 +773,22 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
               </select>
               <button
                 onClick={() => {
-                  const tc = COMPATIBILITY_TYPES.find(t => t.id === primaryConn.type);
-                  const typeLbl = tc ? (ES ? tc.labelES : tc.label) : primaryConn.type;
+                  // Target the single lit type; fall back to first lit type if multiple
+                  const litTypeId = [...activeLitTypes][0] ?? primaryConn.type;
+                  const targetConn = currentPerson.conns.find(c => c.type === litTypeId) ?? primaryConn;
+                  const tc = COMPATIBILITY_TYPES.find(t => t.id === targetConn.type);
+                  const typeLbl = tc ? (ES ? tc.labelES : tc.label) : targetConn.type;
                   if (confirm(ES
-                    ? `¿Desconectar "${typeLbl}" con ${currentPerson.displayName}?`
-                    : `Disconnect "${typeLbl}" with ${currentPerson.displayName}?`
-                  )) handleCancel(primaryConn);
+                    ? `¿Desconectar ${typeLbl} con ${currentPerson.displayName}?`
+                    : `Disconnect ${typeLbl} with ${currentPerson.displayName}?`
+                  )) {
+                    setLitTypes(prev => {
+                      const next = new Set(prev);
+                      next.delete(targetConn.type);
+                      return next;
+                    });
+                    handleCancel(targetConn, typeLbl);
+                  }
                 }}
                 aria-label="options"
                 style={{
@@ -822,7 +848,10 @@ export function CompatibilityScreen({ profile, userState: _userState, tierLimits
                   }}>
                     <span style={{ fontSize: 13, color: colors.bone }}>{c.partner_profile?.nombre ?? c.invited_name}</span>
                     <button
-                      onClick={() => handleCancel(c)}
+                      onClick={() => {
+                        const tc = COMPATIBILITY_TYPES.find(t => t.id === c.type);
+                        handleCancel(c, tc ? (ES ? tc.labelES : tc.label) : c.type);
+                      }}
                       style={{ background: 'none', border: 'none', color: colors.boneFaint, fontSize: 12, cursor: 'pointer' }}
                     >
                       ✕ {ES ? 'Cancelar' : 'Cancel'}
