@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Share } from '@capacitor/share';
+import { FileOpener } from '@capacitor-community/file-opener';
 
 export interface IcsEvent {
   date: Date;
@@ -71,11 +71,12 @@ export async function exportToCalendar(
         directory: Directory.Cache,
         encoding: Encoding.UTF8,
       });
-      await Share.share({
-        title: filename,
-        url: writeResult.uri,
-        dialogTitle: filename,
-      });
+      try {
+        await FileOpener.open({ filePath: writeResult.uri, contentType: 'text/calendar' });
+      } catch (openErr) {
+        console.error('[icsExport] file-opener failed', openErr);
+        // No fallback to Share.share — avoiding the public share sheet is the goal.
+      }
       return;
     }
 
