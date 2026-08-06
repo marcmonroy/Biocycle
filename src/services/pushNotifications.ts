@@ -2,8 +2,9 @@
 import { PushNotifications } from '@capacitor/push-notifications';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from '../lib/supabase';
+import { API_BASE } from '../lib/apiBase';
 
-const SEND_PUSH_URL = '/.netlify/functions/send-push';
+const SEND_PUSH_URL = `${API_BASE}/.netlify/functions/send-push`;
 
 let listenersAttached = false;
 

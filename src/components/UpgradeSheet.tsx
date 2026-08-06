@@ -141,7 +141,7 @@ export function UpgradeSheet({ lang, currentTier, onSuccess, onClose }: Props) {
         <div style={{ fontSize: 20, fontWeight: 700, textAlign: 'center', marginBottom: 6, fontFamily: fonts.display,
           color: currentTier === 'founding' ? colors.amber : colors.bone }}>
           {currentTier === 'founding'
-            ? L('⚡ Founding Trader', '⚡ Founding Trader')
+            ? L('⚡ Founding Member', '⚡ Miembro Fundador')
             : currentTier === 'premium'
             ? L('Your Premium Plan', 'Tu plan Premium')
             : L('Upgrade BioCycle', 'Actualizar BioCycle')}
@@ -263,8 +263,8 @@ export function UpgradeSheet({ lang, currentTier, onSuccess, onClose }: Props) {
               </div>
               <div style={{ fontSize: 11, color: colors.boneFaint, lineHeight: 1.6, marginBottom: 12 }}>
                 {L(
-                  '7 Jules turns · 14-day forecast · Circle of 10 · 3 compatibilities · Priority data trading',
-                  '7 turnos con Jules · Pronóstico 14 días · Círculo de 10 · 3 compatibilidades · Trading prioritario'
+                  '7 Jules turns · 14-day forecast · Circle of 10 · 3 compatibilities · Priority access',
+                  '7 turnos con Jules · Pronóstico 14 días · Círculo de 10 · 3 compatibilidades · Acceso prioritario'
                 )}
               </div>
               <button

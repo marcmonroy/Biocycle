@@ -137,8 +137,8 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
   const tierLimits = getTierLimits(userState ?? null);
   const isFounding = userState?.founding_trader === true;
   const isPremium = tierLimits.adhocTurns === 7;
-  const tierLabel = isFounding ? 'Founding Trader' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Standard' : 'Free';
-  const tierLabelES = isFounding ? 'Founding Trader' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Estándar' : 'Gratis';
+  const tierLabel = isFounding ? 'Founding Member' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Standard' : 'Free';
+  const tierLabelES = isFounding ? 'Miembro Fundador' : isPremium ? 'Premium' : tierLimits.adhocTurns === 3 ? 'Estándar' : 'Gratis';
 
   // Unit system — persisted to localStorage
   const [units, setUnits] = useState<'metric' | 'imperial'>(() =>
@@ -554,7 +554,7 @@ export function ProfileScreen({ profile, userState, onProfileUpdate, onLogout, o
           }}
         >
           {isFounding
-            ? L('⚡ Your Founding Trader membership', '⚡ Tu membresía Founding Trader')
+            ? L('⚡ Your Founding Member plan', '⚡ Tu plan Miembro Fundador')
             : isPremium
             ? L('Your Premium plan', 'Tu plan Premium')
             : L('View plans — from $12.99/mo', 'Ver planes — desde $12.99/mes')}

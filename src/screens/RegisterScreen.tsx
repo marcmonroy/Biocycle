@@ -754,7 +754,7 @@ export function RegisterScreen({ onComplete, onSignIn, initialStep, initialUserI
         {/* STEP 1 */}
         {step === 1 && (<>
           <h2 style={headingStyle}>
-            {isES ? 'Bienvenido, futuro Founding Trader' : 'Welcome, future Founding Trader'}
+            {isES ? 'Bienvenido, futuro Miembro Fundador' : 'Welcome, future Founding Member'}
           </h2>
           <input style={inputStyle} type="email" placeholder="Email address"
             value={email} onChange={e => { setEmail(e.target.value); setError(''); setExistingAccount(false); }}

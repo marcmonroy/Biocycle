@@ -202,7 +202,7 @@ export function DashboardScreen({ profile, userState, onStartCoach, onOpenProfil
   }
 
   const isPaused = userState?.state === 'paused_trader';
-  const nombre = profile.nombre ?? (idioma === 'ES' ? 'Trader' : 'Trader');
+  const nombre = profile.nombre ?? (idioma === 'ES' ? 'tú' : 'there');
   const greeting = idioma === 'ES' ? `Hola, ${nombre}.` : `Hey, ${nombre}.`;
   const cardHeadline = idioma === 'ES' ? card.headlineES : card.headline;
   const cardCopy     = idioma === 'ES' ? card.copyTextES : card.copyText;
